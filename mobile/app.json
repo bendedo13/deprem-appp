@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Deprem App",
+    "slug": "deprem-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-sensors",
+      [
+        "expo-location",
+        { "locationAlwaysAndWhenInUsePermission": "Konum, deprem sinyali göndermek için kullanılır." }
+      ]
+    ],
+    "android": {
+      "package": "com.depremapp",
+      "permissions": ["android.permission.VIBRATE", "android.permission.USE_FULL_SCREEN_INTENT"]
+    },
+    "ios": {
+      "bundleIdentifier": "com.depremapp"
+    }
+  }
+}

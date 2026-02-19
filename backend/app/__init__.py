@@ -1,0 +1,1 @@
+# Deprem App — FastAPI backend

@@ -1,0 +1,91 @@
+version: '3.9'
+
+services:
+  # ── PostgreSQL + TimescaleDB ──────────────────────────────
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: deprem_db
+    environment:
+      POSTGRES_USER: deprem_user
+      POSTGRES_PASSWORD: deprem_pass
+      POSTGRES_DB: deprem_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deprem_user -d deprem_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: deprem_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ───────────────────────────────────────
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: deprem_backend
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://deprem_user:deprem_pass@db:5432/deprem_db
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=true
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app  # Hot reload için
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Celery Worker ─────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: deprem_celery
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://deprem_user:deprem_pass@db:5432/deprem_db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ../backend:/app
+    depends_on:
+      - redis
+      - db
+    command: celery -A app.tasks worker --loglevel=info --concurrency=2
+
+  # ── Celery Beat (Scheduler) ───────────────────────────────
+  celery_beat:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: deprem_celery_beat
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://deprem_user:deprem_pass@db:5432/deprem_db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ../backend:/app
+    depends_on:
+      - redis
+    command: celery -A app.tasks beat --loglevel=info
+
+volumes:
+  postgres_data:
+  redis_data:
