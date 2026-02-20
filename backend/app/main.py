@@ -15,7 +15,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
 from app.database import init_db
 from app.core.redis import get_redis, close_redis
-from app.api.v1 import earthquakes, users, notifications, analytics, risk, sensors
+from app.api.v1 import earthquakes, users, notifications, analytics, risk, seismic
 from app.api.websocket import websocket_router
 from app.tasks.fetch_earthquakes import start_periodic_fetch
 
@@ -57,7 +57,7 @@ app.include_router(users.router, prefix="/api/v1/users", tags=["Kullanıcılar"]
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Bildirimler"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analitik"])
 app.include_router(risk.router, prefix="/api/v1/risk", tags=["Risk"])
-app.include_router(sensors.router, prefix="/api/v1/sensors", tags=["Sensörler"])
+app.include_router(seismic.router, prefix="/api/v1/seismic", tags=["Seismic"])
 app.include_router(websocket_router, tags=["WebSocket"])
 
 

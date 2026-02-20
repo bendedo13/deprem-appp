@@ -2,9 +2,10 @@
  * Deprem listesi ana ekranı.
  * API'dan son depremleri çeker, WebSocket ile canlı günceller.
  * "Ben İyiyim" butonu acil kişilere bildirim gönderir.
+ * Sensör STA/LTA algoritması ile yer titreşimi algılar.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
     View,
     Text,
@@ -15,9 +16,11 @@ import {
     Alert,
     RefreshControl,
 } from "react-native";
+import * as Location from "expo-location";
 import { api } from "../../src/services/api";
 import { iAmSafe } from "../../src/services/authService";
 import { useWebSocket, EarthquakeEvent } from "../../src/hooks/useWebSocket";
+import { useShakeDetector } from "../../src/hooks/useShakeDetector";
 
 interface Earthquake {
     id: string;
@@ -51,7 +54,35 @@ export default function EarthquakesScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [safeLoading, setSafeLoading] = useState(false);
+    const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const { isConnected, lastEvent } = useWebSocket();
+    const { isMonitoring, isTriggered, peakAcceleration, staLtaRatio } = useShakeDetector(
+        location?.lat ?? null,
+        location?.lng ?? null
+    );
+    const prevTriggered = useRef(false);
+
+    // Konum al
+    useEffect(() => {
+        (async () => {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== "granted") return;
+            const pos = await Location.getCurrentPositionAsync({});
+            setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        })();
+    }, []);
+
+    // Trigger → kullanıcıya alert
+    useEffect(() => {
+        if (isTriggered && !prevTriggered.current) {
+            Alert.alert(
+                "⚠️ Titreşim Algılandı",
+                `Oran: ${staLtaRatio.toFixed(1)} | Tepe: ${peakAcceleration.toFixed(2)} m/s²\nRapor sunucuya gönderildi.`
+            );
+        }
+        prevTriggered.current = isTriggered;
+    }, [isTriggered]);
+
 
     const fetchQuakes = useCallback(async () => {
         try {
@@ -131,6 +162,16 @@ export default function EarthquakesScreen() {
                     {isConnected ? "Canlı" : "Bağlantı kesildi"} · {quakes.length} deprem
                 </Text>
 
+                {/* Sensör badge */}
+                <View style={[
+                    styles.sensorBadge,
+                    { backgroundColor: isTriggered ? "#dc2626" : isMonitoring ? "#064e3b" : "#1e293b" }
+                ]}>
+                    <Text style={styles.sensorText}>
+                        {isTriggered ? "⚡ Titreşim" : isMonitoring ? "🟢 Sensör" : "⬛ Pasif"}
+                    </Text>
+                </View>
+
                 <TouchableOpacity
                     style={[styles.safeBtn, safeLoading && styles.safeBtnDisabled]}
                     onPress={handleSafe}
@@ -189,6 +230,12 @@ const styles = StyleSheet.create({
     },
     safeBtnDisabled: { opacity: 0.6 },
     safeBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+    sensorBadge: {
+        borderRadius: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    sensorText: { color: "#fff", fontSize: 11, fontWeight: "600" },
     list: { paddingVertical: 8, paddingHorizontal: 12 },
     card: {
         flexDirection: "row",
