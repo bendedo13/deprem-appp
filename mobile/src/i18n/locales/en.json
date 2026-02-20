@@ -1,0 +1,51 @@
+{
+    "tabs": {
+        "earthquakes": "Earthquakes",
+        "map": "Map"
+    },
+    "home": {
+        "live": "Live",
+        "disconnected": "Disconnected",
+        "n_earthquakes": "{{count}} earthquakes",
+        "sensor_active": "🟢 Sensor",
+        "sensor_triggered": "⚡ Tremor",
+        "sensor_passive": "⬛ Inactive",
+        "i_am_safe": "✅ I'm Safe",
+        "vibration_title": "⚠️ Vibration Detected",
+        "vibration_body": "Ratio: {{ratio}} | Peak: {{peak}} m/s²\nReport sent to server.",
+        "error_load": "Could not load earthquake data.",
+        "no_data": "No earthquake data yet.",
+        "unknown_location": "Unknown location",
+        "depth_km": "{{depth}} km depth",
+        "ago_sec": "{{n}}s ago",
+        "ago_min": "{{n}}m ago",
+        "ago_hour": "{{n}}h ago",
+        "ago_day": "{{n}}d ago"
+    },
+    "auth": {
+        "login": "Login",
+        "register": "Register",
+        "email": "Email",
+        "password": "Password",
+        "login_btn": "Sign In",
+        "register_btn": "Create Account",
+        "no_account": "No account? Register",
+        "has_account": "Already have an account? Login",
+        "error_login": "Login failed. Incorrect email or password.",
+        "error_register": "Registration failed. Email may already be in use."
+    },
+    "map": {
+        "title": "Earthquake Map",
+        "recent": "Recent Earthquakes",
+        "depth": "Depth",
+        "coordinates": "Coordinates",
+        "time": "Time",
+        "close": "Close",
+        "no_data": "No earthquake data yet."
+    },
+    "safe": {
+        "sent_title": "✅ Notification Sent",
+        "sent_body": "{{count}} emergency contact(s) notified.",
+        "error": "Could not send notification."
+    }
+}

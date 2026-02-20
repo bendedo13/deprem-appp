@@ -1,0 +1,51 @@
+{
+    "tabs": {
+        "earthquakes": "Gempa",
+        "map": "Peta"
+    },
+    "home": {
+        "live": "Langsung",
+        "disconnected": "Koneksi terputus",
+        "n_earthquakes": "{{count}} gempa",
+        "sensor_active": "🟢 Sensor",
+        "sensor_triggered": "⚡ Getaran",
+        "sensor_passive": "⬛ Tidak aktif",
+        "i_am_safe": "✅ Saya Aman",
+        "vibration_title": "⚠️ Getaran Terdeteksi",
+        "vibration_body": "Rasio: {{ratio}} | Puncak: {{peak}} m/s²\nLaporan dikirim ke server.",
+        "error_load": "Gagal memuat data gempa.",
+        "no_data": "Belum ada data gempa.",
+        "unknown_location": "Lokasi tidak diketahui",
+        "depth_km": "kedalaman {{depth}} km",
+        "ago_sec": "{{n}} dtk lalu",
+        "ago_min": "{{n}} mnt lalu",
+        "ago_hour": "{{n}} jam lalu",
+        "ago_day": "{{n}} hari lalu"
+    },
+    "auth": {
+        "login": "Masuk",
+        "register": "Daftar",
+        "email": "Email",
+        "password": "Kata sandi",
+        "login_btn": "Masuk",
+        "register_btn": "Buat Akun",
+        "no_account": "Belum punya akun? Daftar",
+        "has_account": "Sudah punya akun? Masuk",
+        "error_login": "Gagal masuk. Email atau kata sandi salah.",
+        "error_register": "Gagal mendaftar. Email mungkin sudah digunakan."
+    },
+    "map": {
+        "title": "Peta Gempa",
+        "recent": "Gempa Terkini",
+        "depth": "Kedalaman",
+        "coordinates": "Koordinat",
+        "time": "Waktu",
+        "close": "Tutup",
+        "no_data": "Belum ada data gempa."
+    },
+    "safe": {
+        "sent_title": "✅ Notifikasi Terkirim",
+        "sent_body": "{{count}} kontak darurat telah diberitahu.",
+        "error": "Gagal mengirim notifikasi."
+    }
+}

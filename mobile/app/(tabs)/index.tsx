@@ -17,6 +17,7 @@ import {
     RefreshControl,
 } from "react-native";
 import * as Location from "expo-location";
+import { useTranslation } from "react-i18next";
 import { api } from "../../src/services/api";
 import { iAmSafe } from "../../src/services/authService";
 import { useWebSocket, EarthquakeEvent } from "../../src/hooks/useWebSocket";
@@ -55,6 +56,7 @@ export default function EarthquakesScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [safeLoading, setSafeLoading] = useState(false);
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+    const { t } = useTranslation();
     const { isConnected, lastEvent } = useWebSocket();
     const { isMonitoring, isTriggered, peakAcceleration, staLtaRatio } = useShakeDetector(
         location?.lat ?? null,
@@ -76,8 +78,8 @@ export default function EarthquakesScreen() {
     useEffect(() => {
         if (isTriggered && !prevTriggered.current) {
             Alert.alert(
-                "⚠️ Titreşim Algılandı",
-                `Oran: ${staLtaRatio.toFixed(1)} | Tepe: ${peakAcceleration.toFixed(2)} m/s²\nRapor sunucuya gönderildi.`
+                t("home.vibration_title"),
+                t("home.vibration_body", { ratio: staLtaRatio.toFixed(1), peak: peakAcceleration.toFixed(2) })
             );
         }
         prevTriggered.current = isTriggered;
@@ -89,7 +91,7 @@ export default function EarthquakesScreen() {
             const { data } = await api.get<Earthquake[]>("/api/v1/earthquakes?limit=50");
             setQuakes(data);
         } catch {
-            Alert.alert("Hata", "Deprem verileri alınamadı.");
+            Alert.alert(t("home.error_load"));
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -115,11 +117,11 @@ export default function EarthquakesScreen() {
         try {
             const res = await iAmSafe();
             Alert.alert(
-                "✅ Bildirim Gönderildi",
-                `${res.notified_contacts} acil kişine "İyiyim" bildirimi gönderildi.`
+                t("safe.sent_title"),
+                t("safe.sent_body", { count: res.notified_contacts })
             );
         } catch {
-            Alert.alert("Hata", "Bildirim gönderilemedi.");
+            Alert.alert(t("safe.error"));
         } finally {
             setSafeLoading(false);
         }
@@ -134,10 +136,10 @@ export default function EarthquakesScreen() {
                 </View>
                 <View style={styles.info}>
                     <Text style={styles.location} numberOfLines={1}>
-                        {item.location || "Bilinmeyen konum"}
+                        {item.location || t("home.unknown_location")}
                     </Text>
                     <Text style={styles.details}>
-                        {item.depth ? `${item.depth.toFixed(0)} km derinlik` : "—"} · {item.source.toUpperCase()}
+                        {item.depth ? t("home.depth_km", { depth: item.depth.toFixed(0) }) : "—"} · {item.source.toUpperCase()}
                     </Text>
                     <Text style={styles.time}>{timeAgo(item.occurred_at)}</Text>
                 </View>
@@ -159,7 +161,7 @@ export default function EarthquakesScreen() {
             <View style={styles.statusBar}>
                 <View style={[styles.dot, { backgroundColor: isConnected ? "#22c55e" : "#64748b" }]} />
                 <Text style={styles.statusText}>
-                    {isConnected ? "Canlı" : "Bağlantı kesildi"} · {quakes.length} deprem
+                    {isConnected ? t("home.live") : t("home.disconnected")} · {t("home.n_earthquakes", { count: quakes.length })}
                 </Text>
 
                 {/* Sensör badge */}
@@ -168,7 +170,7 @@ export default function EarthquakesScreen() {
                     { backgroundColor: isTriggered ? "#dc2626" : isMonitoring ? "#064e3b" : "#1e293b" }
                 ]}>
                     <Text style={styles.sensorText}>
-                        {isTriggered ? "⚡ Titreşim" : isMonitoring ? "🟢 Sensör" : "⬛ Pasif"}
+                        {isTriggered ? t("home.sensor_triggered") : isMonitoring ? t("home.sensor_active") : t("home.sensor_passive")}
                     </Text>
                 </View>
 
@@ -181,7 +183,7 @@ export default function EarthquakesScreen() {
                     {safeLoading ? (
                         <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                        <Text style={styles.safeBtnText}>✅ Ben İyiyim</Text>
+                        <Text style={styles.safeBtnText}>{t("home.i_am_safe")}</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -201,7 +203,7 @@ export default function EarthquakesScreen() {
                 contentContainerStyle={styles.list}
                 ItemSeparatorComponent={() => <View style={styles.sep} />}
                 ListEmptyComponent={
-                    <Text style={styles.empty}>Henüz deprem verisi yok.</Text>
+                    <Text style={styles.empty}>{t("home.no_data")}</Text>
                 }
             />
         </View>

@@ -5,11 +5,9 @@
 
 import { useEffect } from "react";
 import { Stack, router } from "expo-router";
-import {
-  setBackgroundEarthquakeHandler,
-  setupFcmEarthquakeHandler,
-} from "../src/services/fcmEarthquakeHandler";
+import { setBackgroundEarthquakeHandler, setupFcmEarthquakeHandler } from "../src/services/fcmEarthquakeHandler";
 import { hasToken } from "../src/services/authService";
+import "../src/i18n";  // i18next init — uygulama başlarken dil yüklenir
 
 setBackgroundEarthquakeHandler();
 

@@ -1,0 +1,51 @@
+{
+    "tabs": {
+        "earthquakes": "Séismes",
+        "map": "Carte"
+    },
+    "home": {
+        "live": "En direct",
+        "disconnected": "Connexion perdue",
+        "n_earthquakes": "{{count}} séismes",
+        "sensor_active": "🟢 Capteur",
+        "sensor_triggered": "⚡ Vibration",
+        "sensor_passive": "⬛ Inactif",
+        "i_am_safe": "✅ Je suis sain et sauf",
+        "vibration_title": "⚠️ Vibration détectée",
+        "vibration_body": "Ratio : {{ratio}} | Pic : {{peak}} m/s²\nRapport envoyé au serveur.",
+        "error_load": "Impossible de charger les données sismiques.",
+        "no_data": "Aucune donnée sismique pour l'instant.",
+        "unknown_location": "Lieu inconnu",
+        "depth_km": "{{depth}} km de profondeur",
+        "ago_sec": "il y a {{n}}s",
+        "ago_min": "il y a {{n}}min",
+        "ago_hour": "il y a {{n}}h",
+        "ago_day": "il y a {{n}}j"
+    },
+    "auth": {
+        "login": "Connexion",
+        "register": "Inscription",
+        "email": "Email",
+        "password": "Mot de passe",
+        "login_btn": "Se connecter",
+        "register_btn": "Créer un compte",
+        "no_account": "Pas de compte ? S'inscrire",
+        "has_account": "Déjà un compte ? Se connecter",
+        "error_login": "Échec de la connexion. Email ou mot de passe incorrect.",
+        "error_register": "Échec de l'inscription. L'email est peut-être déjà utilisé."
+    },
+    "map": {
+        "title": "Carte des séismes",
+        "recent": "Séismes récents",
+        "depth": "Profondeur",
+        "coordinates": "Coordonnées",
+        "time": "Heure",
+        "close": "Fermer",
+        "no_data": "Aucune donnée sismique pour l'instant."
+    },
+    "safe": {
+        "sent_title": "✅ Notification envoyée",
+        "sent_body": "{{count}} contact(s) d'urgence informé(s).",
+        "error": "Impossible d'envoyer la notification."
+    }
+}

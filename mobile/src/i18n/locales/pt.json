@@ -1,0 +1,51 @@
+{
+    "tabs": {
+        "earthquakes": "Terremotos",
+        "map": "Mapa"
+    },
+    "home": {
+        "live": "Ao vivo",
+        "disconnected": "Conexão perdida",
+        "n_earthquakes": "{{count}} terremotos",
+        "sensor_active": "🟢 Sensor",
+        "sensor_triggered": "⚡ Vibração",
+        "sensor_passive": "⬛ Inativo",
+        "i_am_safe": "✅ Estou bem",
+        "vibration_title": "⚠️ Vibração detectada",
+        "vibration_body": "Razão: {{ratio}} | Pico: {{peak}} m/s²\nRelatório enviado ao servidor.",
+        "error_load": "Não foi possível carregar os dados sísmicos.",
+        "no_data": "Ainda não há dados sísmicos.",
+        "unknown_location": "Local desconhecido",
+        "depth_km": "profundidade {{depth}} km",
+        "ago_sec": "{{n}}s atrás",
+        "ago_min": "{{n}}min atrás",
+        "ago_hour": "{{n}}h atrás",
+        "ago_day": "{{n}}d atrás"
+    },
+    "auth": {
+        "login": "Entrar",
+        "register": "Registrar",
+        "email": "Email",
+        "password": "Senha",
+        "login_btn": "Entrar",
+        "register_btn": "Criar conta",
+        "no_account": "Sem conta? Registrar",
+        "has_account": "Já tem uma conta? Entrar",
+        "error_login": "Falha no login. Email ou senha incorretos.",
+        "error_register": "Falha no registro. O email pode já estar em uso."
+    },
+    "map": {
+        "title": "Mapa sísmico",
+        "recent": "Terremotos recentes",
+        "depth": "Profundidade",
+        "coordinates": "Coordenadas",
+        "time": "Hora",
+        "close": "Fechar",
+        "no_data": "Ainda não há dados sísmicos."
+    },
+    "safe": {
+        "sent_title": "✅ Notificação enviada",
+        "sent_body": "{{count}} contato(s) de emergência notificado(s).",
+        "error": "Não foi possível enviar a notificação."
+    }
+}

@@ -1,0 +1,51 @@
+{
+    "tabs": {
+        "earthquakes": "Depremler",
+        "map": "Harita"
+    },
+    "home": {
+        "live": "Canlı",
+        "disconnected": "Bağlantı kesildi",
+        "n_earthquakes": "{{count}} deprem",
+        "sensor_active": "🟢 Sensör",
+        "sensor_triggered": "⚡ Titreşim",
+        "sensor_passive": "⬛ Pasif",
+        "i_am_safe": "✅ Ben İyiyim",
+        "vibration_title": "⚠️ Titreşim Algılandı",
+        "vibration_body": "Oran: {{ratio}} | Tepe: {{peak}} m/s²\nRapor sunucuya gönderildi.",
+        "error_load": "Deprem verileri alınamadı.",
+        "no_data": "Henüz deprem verisi yok.",
+        "unknown_location": "Bilinmeyen konum",
+        "depth_km": "{{depth}} km derinlik",
+        "ago_sec": "{{n}}sn önce",
+        "ago_min": "{{n}}dk önce",
+        "ago_hour": "{{n}}sa önce",
+        "ago_day": "{{n}}g önce"
+    },
+    "auth": {
+        "login": "Giriş Yap",
+        "register": "Kayıt Ol",
+        "email": "E-posta",
+        "password": "Şifre",
+        "login_btn": "Giriş Yap",
+        "register_btn": "Kayıt Ol",
+        "no_account": "Hesabın yok mu? Kayıt Ol",
+        "has_account": "Zaten hesabın var mı? Giriş Yap",
+        "error_login": "Giriş başarısız. E-posta veya şifre hatalı.",
+        "error_register": "Kayıt başarısız. E-posta zaten kayıtlı olabilir."
+    },
+    "map": {
+        "title": "Deprem Haritası",
+        "recent": "Son Depremler",
+        "depth": "Derinlik",
+        "coordinates": "Koordinatlar",
+        "time": "Zaman",
+        "close": "Kapat",
+        "no_data": "Henüz deprem verisi yok."
+    },
+    "safe": {
+        "sent_title": "✅ Bildirim Gönderildi",
+        "sent_body": "{{count}} acil kişine \"İyiyim\" bildirimi gönderildi.",
+        "error": "Bildirim gönderilemedi."
+    }
+}

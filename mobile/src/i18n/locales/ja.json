@@ -1,0 +1,51 @@
+{
+    "tabs": {
+        "earthquakes": "地震",
+        "map": "マップ"
+    },
+    "home": {
+        "live": "ライブ",
+        "disconnected": "切断されました",
+        "n_earthquakes": "{{count}}件の地震",
+        "sensor_active": "🟢 センサー",
+        "sensor_triggered": "⚡ 振動検出",
+        "sensor_passive": "⬛ 非アクティブ",
+        "i_am_safe": "✅ 安全です",
+        "vibration_title": "⚠️ 振動を検出しました",
+        "vibration_body": "比率: {{ratio}} | ピーク: {{peak}} m/s²\nレポートをサーバーに送信しました。",
+        "error_load": "地震データを読み込めませんでした。",
+        "no_data": "地震データはまだありません。",
+        "unknown_location": "不明な場所",
+        "depth_km": "深さ {{depth}} km",
+        "ago_sec": "{{n}}秒前",
+        "ago_min": "{{n}}分前",
+        "ago_hour": "{{n}}時間前",
+        "ago_day": "{{n}}日前"
+    },
+    "auth": {
+        "login": "ログイン",
+        "register": "登録",
+        "email": "メールアドレス",
+        "password": "パスワード",
+        "login_btn": "サインイン",
+        "register_btn": "アカウント作成",
+        "no_account": "アカウントがありませんか？登録",
+        "has_account": "既にアカウントをお持ちですか？ログイン",
+        "error_login": "ログイン失敗。メールまたはパスワードが間違っています。",
+        "error_register": "登録失敗。このメールは既に使用されている可能性があります。"
+    },
+    "map": {
+        "title": "地震マップ",
+        "recent": "最近の地震",
+        "depth": "深さ",
+        "coordinates": "座標",
+        "time": "時間",
+        "close": "閉じる",
+        "no_data": "地震データはまだありません。"
+    },
+    "safe": {
+        "sent_title": "✅ 通知が送信されました",
+        "sent_body": "{{count}}件の緊急連絡先に通知しました。",
+        "error": "通知を送信できませんでした。"
+    }
+}

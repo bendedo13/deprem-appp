@@ -1,0 +1,51 @@
+{
+    "tabs": {
+        "earthquakes": "Erdbeben",
+        "map": "Karte"
+    },
+    "home": {
+        "live": "Live",
+        "disconnected": "Verbindung unterbrochen",
+        "n_earthquakes": "{{count}} Erdbeben",
+        "sensor_active": "🟢 Sensor",
+        "sensor_triggered": "⚡ Vibration",
+        "sensor_passive": "⬛ Inaktiv",
+        "i_am_safe": "✅ Ich bin sicher",
+        "vibration_title": "⚠️ Vibration erkannt",
+        "vibration_body": "Verhältnis: {{ratio}} | Spitze: {{peak}} m/s²\nBericht an Server gesendet.",
+        "error_load": "Erdbebendaten konnten nicht geladen werden.",
+        "no_data": "Noch keine Erdbebendaten.",
+        "unknown_location": "Unbekannter Ort",
+        "depth_km": "{{depth}} km Tiefe",
+        "ago_sec": "vor {{n}}s",
+        "ago_min": "vor {{n}}min",
+        "ago_hour": "vor {{n}}h",
+        "ago_day": "vor {{n}}T"
+    },
+    "auth": {
+        "login": "Anmelden",
+        "register": "Registrieren",
+        "email": "E-Mail",
+        "password": "Passwort",
+        "login_btn": "Anmelden",
+        "register_btn": "Konto erstellen",
+        "no_account": "Kein Konto? Registrieren",
+        "has_account": "Bereits ein Konto? Anmelden",
+        "error_login": "Anmeldung fehlgeschlagen. E-Mail oder Passwort falsch.",
+        "error_register": "Registrierung fehlgeschlagen. E-Mail wird möglicherweise bereits verwendet."
+    },
+    "map": {
+        "title": "Erdbebekarte",
+        "recent": "Aktuelle Erdbeben",
+        "depth": "Tiefe",
+        "coordinates": "Koordinaten",
+        "time": "Zeit",
+        "close": "Schließen",
+        "no_data": "Noch keine Erdbebendaten."
+    },
+    "safe": {
+        "sent_title": "✅ Benachrichtigung gesendet",
+        "sent_body": "{{count}} Notfallkontakt(e) benachrichtigt.",
+        "error": "Benachrichtigung konnte nicht gesendet werden."
+    }
+}
