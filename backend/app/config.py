@@ -20,7 +20,8 @@ class Settings(BaseSettings):
 
     # Uygulama
     DEBUG: bool = False
-    SECRET_KEY: str = "change-me-min-32-chars"
+    SECRET_KEY: str = "change-me-min-32-chars-for-production"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 gün
 
     # Veritabanı
     DATABASE_URL: str = "postgresql+asyncpg://deprem_user:deprem_pass@localhost:5432/deprem_db"
