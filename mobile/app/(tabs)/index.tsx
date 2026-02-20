@@ -15,13 +15,19 @@ import {
     TouchableOpacity,
     Alert,
     RefreshControl,
+    SafeAreaView,
+    Platform,
 } from "react-native";
 import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
+import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { getBannerId } from "../../src/services/adService";
 import { api } from "../../src/services/api";
 import { iAmSafe } from "../../src/services/authService";
 import { useWebSocket, EarthquakeEvent } from "../../src/hooks/useWebSocket";
 import { useShakeDetector } from "../../src/hooks/useShakeDetector";
+import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 interface Earthquake {
     id: string;
@@ -35,19 +41,19 @@ interface Earthquake {
 }
 
 function magnitudeColor(mag: number): string {
-    if (mag >= 6) return "#dc2626";   // Kırmızı — tehlikeli
-    if (mag >= 5) return "#ea580c";   // Turuncu
-    if (mag >= 4) return "#ca8a04";   // Sarı
-    if (mag >= 3) return "#16a34a";   // Yeşil
-    return "#475569";                  // Gri
+    if (mag >= 6) return Colors.primary;
+    if (mag >= 5) return Colors.status.warning;
+    if (mag >= 4) return "#ca8a04";
+    if (mag >= 3) return Colors.status.success;
+    return Colors.text.muted;
 }
 
 function timeAgo(isoStr: string): string {
     const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
-    if (diff < 60) return `${diff}sn önce`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}dk önce`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}sa önce`;
-    return `${Math.floor(diff / 86400)}g önce`;
+    if (diff < 60) return `${diff}s`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+    return `${Math.floor(diff / 86400)}d`;
 }
 
 export default function EarthquakesScreen() {
@@ -64,7 +70,6 @@ export default function EarthquakesScreen() {
     );
     const prevTriggered = useRef(false);
 
-    // Konum al
     useEffect(() => {
         (async () => {
             const { status } = await Location.requestForegroundPermissionsAsync();
@@ -74,7 +79,6 @@ export default function EarthquakesScreen() {
         })();
     }, []);
 
-    // Trigger → kullanıcıya alert
     useEffect(() => {
         if (isTriggered && !prevTriggered.current) {
             Alert.alert(
@@ -84,7 +88,6 @@ export default function EarthquakesScreen() {
         }
         prevTriggered.current = isTriggered;
     }, [isTriggered]);
-
 
     const fetchQuakes = useCallback(async () => {
         try {
@@ -96,13 +99,12 @@ export default function EarthquakesScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         fetchQuakes();
     }, [fetchQuakes]);
 
-    // WebSocket'ten gelen yeni deprem → listeye ekle
     useEffect(() => {
         if (!lastEvent) return;
         setQuakes((prev) => {
@@ -127,68 +129,75 @@ export default function EarthquakesScreen() {
         }
     }
 
-    function renderItem({ item }: { item: Earthquake }) {
+    const renderItem = ({ item }: { item: Earthquake }) => {
         const color = magnitudeColor(item.magnitude);
         return (
-            <View style={styles.card}>
+            <TouchableOpacity style={styles.card} activeOpacity={0.7}>
                 <View style={[styles.magBadge, { backgroundColor: color }]}>
                     <Text style={styles.magText}>{item.magnitude.toFixed(1)}</Text>
+                    <Text style={styles.magUnit}>{item.source.toUpperCase() === 'AFAD' ? 'Mw' : 'Ml'}</Text>
                 </View>
                 <View style={styles.info}>
                     <Text style={styles.location} numberOfLines={1}>
                         {item.location || t("home.unknown_location")}
                     </Text>
-                    <Text style={styles.details}>
-                        {item.depth ? t("home.depth_km", { depth: item.depth.toFixed(0) }) : "—"} · {item.source.toUpperCase()}
-                    </Text>
-                    <Text style={styles.time}>{timeAgo(item.occurred_at)}</Text>
+                    <View style={styles.detailRow}>
+                        <MaterialCommunityIcons name="arrow-down" size={12} color={Colors.text.muted} />
+                        <Text style={styles.details}>
+                            {item.depth ? t("home.depth_km", { depth: item.depth.toFixed(1) }) : "—"}
+                        </Text>
+                        <View style={styles.dotSep} />
+                        <MaterialCommunityIcons name="clock-outline" size={12} color={Colors.text.muted} />
+                        <Text style={styles.details}>{timeAgo(item.occurred_at)}</Text>
+                    </View>
                 </View>
-            </View>
+                <MaterialCommunityIcons name="chevron-right" size={24} color={Colors.border.dark} />
+            </TouchableOpacity>
         );
-    }
+    };
 
     if (loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#ef4444" />
+                <ActivityIndicator size="large" color={Colors.primary} />
             </View>
         );
     }
 
     return (
-        <View style={styles.container}>
-            {/* Durum çubuğu */}
-            <View style={styles.statusBar}>
-                <View style={[styles.dot, { backgroundColor: isConnected ? "#22c55e" : "#64748b" }]} />
-                <Text style={styles.statusText}>
-                    {isConnected ? t("home.live") : t("home.disconnected")} · {t("home.n_earthquakes", { count: quakes.length })}
-                </Text>
+        <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+                <View style={styles.brandContainer}>
+                    <View style={styles.logoBox}>
+                        <MaterialCommunityIcons name="security" size={20} color="#fff" />
+                    </View>
+                    <Text style={styles.brandTitle}>QuakeSense</Text>
+                </View>
+                <View style={styles.headerActions}>
+                    <TouchableOpacity style={styles.headerBtn}>
+                        <MaterialCommunityIcons name="bell-outline" size={24} color={Colors.text.dark} />
+                    </TouchableOpacity>
+                </View>
+            </View>
 
-                {/* Sensör badge */}
-                <View style={[
-                    styles.sensorBadge,
-                    { backgroundColor: isTriggered ? "#dc2626" : isMonitoring ? "#064e3b" : "#1e293b" }
-                ]}>
-                    <Text style={styles.sensorText}>
-                        {isTriggered ? t("home.sensor_triggered") : isMonitoring ? t("home.sensor_active") : t("home.sensor_passive")}
+            <View style={styles.statusBar}>
+                <View style={styles.statusInfo}>
+                    <View style={[styles.dot, { backgroundColor: isConnected ? Colors.status.success : Colors.text.muted }]} />
+                    <Text style={styles.statusText}>
+                        {isConnected ? t("home.live") : t("home.disconnected")}
                     </Text>
                 </View>
 
-                <TouchableOpacity
-                    style={[styles.safeBtn, safeLoading && styles.safeBtnDisabled]}
-                    onPress={handleSafe}
-                    disabled={safeLoading}
-                    activeOpacity={0.8}
-                >
-                    {safeLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                        <Text style={styles.safeBtnText}>{t("home.i_am_safe")}</Text>
-                    )}
-                </TouchableOpacity>
+                <View style={[
+                    styles.sensorBadge,
+                    { backgroundColor: isTriggered ? Colors.primary : isMonitoring ? Colors.status.success + '20' : Colors.background.surface }
+                ]}>
+                    <Text style={[styles.sensorText, { color: isTriggered ? '#fff' : isMonitoring ? Colors.status.success : Colors.text.muted }]}>
+                        {isTriggered ? t("home.sensor_triggered") : isMonitoring ? t("home.sensor_active") : t("home.sensor_passive")}
+                    </Text>
+                </View>
             </View>
 
-            {/* Liste */}
             <FlatList
                 data={quakes}
                 keyExtractor={(item) => item.id}
@@ -197,68 +206,143 @@ export default function EarthquakesScreen() {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={() => { setRefreshing(true); fetchQuakes(); }}
-                        tintColor="#ef4444"
+                        tintColor={Colors.primary}
                     />
                 }
                 contentContainerStyle={styles.list}
-                ItemSeparatorComponent={() => <View style={styles.sep} />}
-                ListEmptyComponent={
-                    <Text style={styles.empty}>{t("home.no_data")}</Text>
+                ListHeaderComponent={
+                    <View style={styles.listHeader}>
+                        <Text style={styles.listTitle}>{t("home.recent_earthquakes")}</Text>
+                        <TouchableOpacity>
+                            <Text style={styles.filterText}>{t("home.filter")} <MaterialCommunityIcons name="filter-variant" size={14} /></Text>
+                        </TouchableOpacity>
+                    </View>
+                }
+                ListFooterComponent={
+                    <View style={styles.adContainer}>
+                        <BannerAd
+                            unitId={getBannerId()}
+                            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                            requestOptions={{
+                                requestNonPersonalizedAdsOnly: true,
+                            }}
+                        />
+                    </View>
                 }
             />
-        </View>
+
+            <View style={styles.safeBtnContainer}>
+                <TouchableOpacity
+                    style={[styles.safeBtn, safeLoading && styles.safeBtnDisabled]}
+                    onPress={handleSafe}
+                    disabled={safeLoading}
+                    activeOpacity={0.9}
+                >
+                    {safeLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                        <>
+                            <MaterialCommunityIcons name="shield-check" size={20} color="#fff" />
+                            <Text style={styles.safeBtnText}>{t("home.i_am_safe")}</Text>
+                        </>
+                    )}
+                </TouchableOpacity>
+            </View>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0f172a" },
-    center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0f172a" },
+    container: { flex: 1, backgroundColor: Colors.background.dark, paddingTop: Platform.OS === 'android' ? 30 : 0 },
+    center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.background.dark },
+    header: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.background.surface,
+    },
+    brandContainer: { flexDirection: "row", alignItems: "center", gap: 10 },
+    logoBox: { backgroundColor: Colors.primary, padding: 6, borderRadius: BorderRadius.md },
+    brandTitle: { color: Colors.text.dark, fontSize: Typography.sizes.xl, fontWeight: "800", trackingTight: -0.5 },
+    headerActions: { flexDirection: "row", gap: 8 },
+    headerBtn: { padding: 8 },
     statusBar: {
         flexDirection: "row",
         alignItems: "center",
-        padding: 12,
-        backgroundColor: "#1e293b",
-        gap: 8,
+        justifyContent: "space-between",
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
     },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    statusText: { flex: 1, color: "#94a3b8", fontSize: 12 },
-    safeBtn: {
-        backgroundColor: "#16a34a",
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        minWidth: 80,
-        alignItems: "center",
-    },
-    safeBtnDisabled: { opacity: 0.6 },
-    safeBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+    statusInfo: { flexDirection: "row", alignItems: "center", gap: 6 },
+    dot: { width: 6, height: 6, borderRadius: 3 },
+    statusText: { color: Colors.text.muted, fontSize: Typography.sizes.xs, fontWeight: "600", textTransform: "uppercase" },
     sensorBadge: {
-        borderRadius: 6,
-        paddingHorizontal: 8,
+        borderRadius: BorderRadius.full,
+        paddingHorizontal: 10,
         paddingVertical: 4,
     },
-    sensorText: { color: "#fff", fontSize: 11, fontWeight: "600" },
-    list: { paddingVertical: 8, paddingHorizontal: 12 },
+    sensorText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+    list: { paddingHorizontal: Spacing.md, paddingBottom: 100 },
+    listHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginTop: Spacing.md,
+        marginBottom: Spacing.sm,
+    },
+    listTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "700" },
+    filterText: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "600" },
     card: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#1e293b",
-        borderRadius: 12,
-        padding: 14,
-        gap: 14,
+        backgroundColor: Colors.background.surface,
+        borderRadius: BorderRadius.xl,
+        padding: Spacing.md,
+        marginBottom: Spacing.sm,
+        borderWidth: 1,
+        borderColor: 'rgba(224, 7, 0, 0.1)',
     },
     magBadge: {
-        width: 52,
-        height: 52,
-        borderRadius: 26,
+        width: 54,
+        height: 54,
+        borderRadius: BorderRadius.lg,
         justifyContent: "center",
         alignItems: "center",
     },
-    magText: { color: "#fff", fontSize: 18, fontWeight: "800" },
-    info: { flex: 1 },
-    location: { color: "#f8fafc", fontSize: 15, fontWeight: "600" },
-    details: { color: "#94a3b8", fontSize: 12, marginTop: 3 },
-    time: { color: "#64748b", fontSize: 11, marginTop: 2 },
-    sep: { height: 8 },
-    empty: { textAlign: "center", color: "#64748b", marginTop: 60, fontSize: 15 },
+    magText: { color: "#fff", fontSize: 20, fontWeight: "800" },
+    magUnit: { color: "rgba(255,255,255,0.7)", fontSize: 8, fontWeight: "700", marginTop: 2 },
+    info: { flex: 1, marginLeft: Spacing.md },
+    location: { color: Colors.text.dark, fontSize: Typography.sizes.md, fontWeight: "700" },
+    detailRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+    details: { color: Colors.text.muted, fontSize: Typography.sizes.sm },
+    dotSep: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: Colors.text.muted, marginHorizontal: 2 },
+    adContainer: {
+        alignItems: "center",
+        marginVertical: Spacing.md,
+    },
+    safeBtnContainer: {
+        position: "absolute",
+        bottom: 20,
+        left: Spacing.md,
+        right: Spacing.md,
+        shadowColor: Colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    safeBtn: {
+        backgroundColor: Colors.status.success,
+        borderRadius: BorderRadius.xl,
+        height: 56,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+    },
+    safeBtnDisabled: { opacity: 0.6 },
+    safeBtnText: { color: "#fff", fontSize: Typography.sizes.md, fontWeight: "800" },
 });

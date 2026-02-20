@@ -7,12 +7,23 @@ import { useEffect } from "react";
 import { Stack, router } from "expo-router";
 import { setBackgroundEarthquakeHandler, setupFcmEarthquakeHandler } from "../src/services/fcmEarthquakeHandler";
 import { hasToken } from "../src/services/authService";
+import { InterstitialAd, AdEventType } from "react-native-google-mobile-ads";
+import { getInterstitialId } from "../src/services/adService";
 import "../src/i18n";  // i18next init — uygulama başlarken dil yüklenir
 
 setBackgroundEarthquakeHandler();
 
 export default function RootLayout() {
   useEffect(() => {
+    // AdMob Interstitial
+    const interstitial = InterstitialAd.createForAdRequest(getInterstitialId(), {
+      requestNonPersonalizedAdsOnly: true,
+    });
+    const adUnsub = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      interstitial.show();
+    });
+    interstitial.load();
+
     // FCM foreground handler kur
     const unsub = setupFcmEarthquakeHandler();
 
@@ -21,7 +32,10 @@ export default function RootLayout() {
       router.replace(exists ? "/(tabs)" : "/(auth)/login");
     });
 
-    return unsub;
+    return () => {
+      adUnsub();
+      unsub();
+    };
   }, []);
 
   return (

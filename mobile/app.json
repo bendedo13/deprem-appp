@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "QuakeSense",
+    "name": "QuakeSense: Life-Saving Tracker",
     "slug": "quakesense",
     "version": "1.0.0",
-    "description": "Real-time earthquake monitoring & deprem uyarı sistemi",
+    "description": "QuakeSense is the ultimate life-saving technology designed to track global seismic activities with unprecedented speed and reliability.",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "extra": {
@@ -17,6 +17,12 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Konum, deprem sinyali göndermek için kullanılır."
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-1173265458993328~5191916494"
+        }
       ]
     ],
     "android": {
@@ -28,7 +34,8 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "ios": {
       "bundleIdentifier": "com.quakesense"

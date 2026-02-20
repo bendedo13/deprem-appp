@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "775124568904",
+        "project_id": "depremapp-29518",
+        "storage_bucket": "depremapp-29518.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:775124568904:android:037a7b1e889d368349417d",
+                "android_client_info": {
+                    "package_name": "com.quakesense"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCDqiBMaJd5g4FjAxWTpmJQe2tQX66dBoY"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

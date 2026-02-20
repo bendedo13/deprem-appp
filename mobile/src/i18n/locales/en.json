@@ -1,9 +1,35 @@
 {
     "tabs": {
         "earthquakes": "Earthquakes",
-        "map": "Map"
+        "map": "Map",
+        "menu": "Menu"
     },
-    "home": {
+    "menu": {
+        "title": "More",
+        "settings": "Settings",
+        "about": "About Us",
+        "privacy": "Privacy Policy",
+        "security": "Security",
+        "contact": "Contact",
+        "developed_by": "Developed by Alan",
+        "version": "Version 1.0.0"
+    },
+    "about": {
+        "title": "About Us",
+        "content": "QuakeSense is a platform developed to help you reach the most accurate and reliable information during an earthquake. It scans AFAD, Kandilli and international data sources in real-time."
+    },
+    "privacy": {
+        "title": "Privacy Policy",
+        "content": "Your privacy is important to us. QuakeSense uses your location data only to optimize earthquake notifications and does not share it with third parties."
+    },
+    "contact": {
+        "title": "Contact",
+        "name": "Full Name",
+        "message": "Your Message",
+        "send": "Send",
+        "success": "Your message has been sent successfully."
+    },
+    "safe": {
         "live": "Live",
         "disconnected": "Disconnected",
         "n_earthquakes": "{{count}} earthquakes",

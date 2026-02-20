@@ -1,9 +1,35 @@
 {
     "tabs": {
         "earthquakes": "Depremler",
-        "map": "Harita"
+        "map": "Harita",
+        "menu": "Menü"
     },
-    "home": {
+    "menu": {
+        "title": "Daha Fazla",
+        "settings": "Ayarlar",
+        "about": "Hakkımızda",
+        "privacy": "Gizlilik Politikası",
+        "security": "Güvenlik",
+        "contact": "İletişim",
+        "developed_by": "Developed by Alan",
+        "version": "Versiyon 1.0.0"
+    },
+    "about": {
+        "title": "Hakkımızda",
+        "content": "QuakeSense, deprem anında en hızlı ve güvenilir bilgiye ulaşmanız için geliştirilmiş bir platformdur. AFAD, Kandilli ve uluslararası veri kaynaklarını anlık olarak tarayarak size en doğru bilgiyi sunar."
+    },
+    "privacy": {
+        "title": "Gizlilik Politikası",
+        "content": "Gizliliğiniz bizim için önemlidir. QuakeSense, konum verilerinizi sadece deprem bildirimlerini optimize etmek için kullanır ve üçüncü taraflarla paylaşmaz."
+    },
+    "contact": {
+        "title": "İletişim",
+        "name": "Ad Soyad",
+        "message": "Mesajınız",
+        "send": "Gönder",
+        "success": "Mesajınız başarıyla iletildi."
+    },
+    "safe": {
         "live": "Canlı",
         "disconnected": "Bağlantı kesildi",
         "n_earthquakes": "{{count}} deprem",

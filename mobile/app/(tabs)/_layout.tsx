@@ -1,26 +1,33 @@
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from "react-i18next";
+import { Colors } from "../../src/constants/theme";
 
 export default function TabsLayout() {
     const { t } = useTranslation();
     return (
         <Tabs
             screenOptions={{
-                tabBarStyle: { backgroundColor: "#0f172a", borderTopColor: "#1e293b" },
-                tabBarActiveTintColor: "#ef4444",
-                tabBarInactiveTintColor: "#64748b",
-                headerStyle: { backgroundColor: "#0f172a" },
-                headerTintColor: "#f8fafc",
-                headerTitleStyle: { fontWeight: "700" },
+                tabBarStyle: {
+                    backgroundColor: Colors.background.dark,
+                    borderTopColor: Colors.background.surface,
+                    height: 60,
+                    paddingBottom: 8,
+                },
+                tabBarActiveTintColor: Colors.primary,
+                tabBarInactiveTintColor: Colors.text.muted,
+                headerStyle: { backgroundColor: Colors.background.dark },
+                headerTintColor: Colors.text.dark,
+                headerTitleStyle: { fontWeight: "800", fontSize: 18 },
+                headerShown: false,
             }}
         >
             <Tabs.Screen
                 name="index"
                 options={{
                     title: t("tabs.earthquakes"),
-                    tabBarIcon: ({ focused }: { focused: boolean }) => (
-                        <Text style={{ fontSize: 20 }}>{focused ? "🔴" : "🌍"}</Text>
+                    tabBarIcon: ({ color, size }) => (
+                        <MaterialCommunityIcons name="earth" color={color} size={size + 4} />
                     ),
                 }}
             />
@@ -28,8 +35,17 @@ export default function TabsLayout() {
                 name="map"
                 options={{
                     title: t("tabs.map"),
-                    tabBarIcon: ({ focused }: { focused: boolean }) => (
-                        <Text style={{ fontSize: 20 }}>{focused ? "📍" : "🗺️"}</Text>
+                    tabBarIcon: ({ color, size }) => (
+                        <MaterialCommunityIcons name="map-marker-radius" color={color} size={size + 4} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="menu"
+                options={{
+                    title: t("tabs.menu"),
+                    tabBarIcon: ({ color, size }) => (
+                        <MaterialCommunityIcons name="menu" color={color} size={size + 4} />
                     ),
                 }}
             />
