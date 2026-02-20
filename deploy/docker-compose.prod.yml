@@ -1,20 +1,19 @@
-# Production — VPS'te mevcut site ile çakışmasın diye farklı portlar kullanır
-# Nginx reverse proxy ile depremapp.domain.com veya ip:8001 üzerinden erişilebilir
-
-version: '3.9'
+version: "3.9"
 
 services:
   deprem_db:
     image: timescale/timescaledb:latest-pg16
     container_name: deprem_db
     environment:
-      POSTGRES_USER: deprem_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-deprem_secure_pass_change_me}
-      POSTGRES_DB: deprem_db
+      - POSTGRES_USER=deprem_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-deprem_secure_pass_change_me}
+      - POSTGRES_DB=deprem_db
     volumes:
       - deprem_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U deprem_user -d deprem_db"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U deprem_user -d deprem_db
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,7 +28,10 @@ services:
     volumes:
       - deprem_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        - CMD
+        - redis-cli
+        - ping
       interval: 10s
       timeout: 5s
       retries: 5
@@ -42,17 +44,16 @@ services:
       context: ../backend
       dockerfile: Dockerfile
     container_name: deprem_backend
-    environment:
-      DATABASE_URL: postgresql+asyncpg://deprem_user:${DB_PASSWORD:-deprem_secure_pass_change_me}@deprem_db:5432/deprem_db
-      REDIS_URL: redis://deprem_redis:6379/0
-      DEBUG: "false"
+    tty: true
     ports:
       - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://deprem_user:${DB_PASSWORD:-deprem_secure_pass_change_me}@deprem_db:5432/deprem_db
+      - REDIS_URL=redis://deprem_redis:6379/0
+      - DEBUG=false
     depends_on:
-      deprem_db:
-        condition: service_healthy
-      deprem_redis:
-        condition: service_healthy
+      - deprem_db
+      - deprem_redis
     restart: unless-stopped
     networks:
       - deprem_net
@@ -64,8 +65,8 @@ services:
     container_name: deprem_celery
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
     environment:
-      DATABASE_URL: postgresql+asyncpg://deprem_user:${DB_PASSWORD:-deprem_secure_pass_change_me}@deprem_db:5432/deprem_db
-      REDIS_URL: redis://deprem_redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://deprem_user:${DB_PASSWORD:-deprem_secure_pass_change_me}@deprem_db:5432/deprem_db
+      - REDIS_URL=redis://deprem_redis:6379/0
     depends_on:
       - deprem_redis
       - deprem_db
