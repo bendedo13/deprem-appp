@@ -9,7 +9,10 @@ celery_app = Celery(
     "deprem_app",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.tasks.notify_emergency_contacts", "app.tasks.fetch_earthquakes"],
+    include=[
+        "app.tasks.notify_emergency_contacts",
+        "app.tasks.fetch_earthquakes",
+    ],
 )
 celery_app.conf.update(
     task_serializer="json",
@@ -18,6 +21,14 @@ celery_app.conf.update(
     timezone="Europe/Istanbul",
     enable_utc=True,
     task_routes={
-        "app.tasks.notify_emergency_contacts.handle_confirmed_earthquake": {"queue": "notifications"},
+        "app.tasks.notify_emergency_contacts.handle_confirmed_earthquake": {
+            "queue": "notifications"
+        },
+    },
+    beat_schedule={
+        "fetch-earthquakes-periodic": {
+            "task": "app.tasks.fetch_earthquakes.fetch_earthquakes_task",
+            "schedule": settings.FETCH_INTERVAL_SECONDS,  # saniye cinsinden
+        },
     },
 )
