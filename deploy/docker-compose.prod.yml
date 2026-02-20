@@ -52,8 +52,10 @@ services:
       - REDIS_URL=redis://deprem_redis:6379/0
       - DEBUG=false
     depends_on:
-      - deprem_db
-      - deprem_redis
+      deprem_db:
+        condition: service_healthy
+      deprem_redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - deprem_net
@@ -68,8 +70,10 @@ services:
       - DATABASE_URL=postgresql+asyncpg://deprem_user:${DB_PASSWORD:-deprem_secure_pass_change_me}@deprem_db:5432/deprem_db
       - REDIS_URL=redis://deprem_redis:6379/0
     depends_on:
-      - deprem_redis
-      - deprem_db
+      deprem_redis:
+        condition: service_healthy
+      deprem_db:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - deprem_net
@@ -77,6 +81,7 @@ services:
 volumes:
   deprem_postgres_data:
   deprem_redis_data:
+
 
 networks:
   deprem_net:
