@@ -14,6 +14,7 @@ import {
     Modal,
 } from "react-native";
 import { useWebSocket } from "../../src/hooks/useWebSocket";
+import { useTranslation } from "react-i18next";
 
 interface EQ {
     id: string;
@@ -41,6 +42,7 @@ function timeAgo(iso: string): string {
 
 export default function MapScreen() {
     const { isConnected, lastEvent } = useWebSocket();
+    const { t, i18n } = useTranslation();
     const [recent, setRecent] = useState<EQ[]>([]);
     const [selected, setSelected] = useState<EQ | null>(null);
 
@@ -58,7 +60,7 @@ export default function MapScreen() {
             <View style={styles.header}>
                 <View style={[styles.dot, { backgroundColor: isConnected ? "#22c55e" : "#64748b" }]} />
                 <Text style={styles.headerText}>
-                    {isConnected ? "Canlı" : "Bağlantı kesildi"} · Son 20 deprem
+                    {isConnected ? t("home.live") : t("home.disconnected")} · {t("map.recent")}
                 </Text>
             </View>
 
@@ -67,7 +69,7 @@ export default function MapScreen() {
                 {recent.length === 0 ? (
                     <View style={styles.emptyBox}>
                         <Text style={styles.emptyEmoji}>🌍</Text>
-                        <Text style={styles.emptyText}>Canlı deprem bekleniyor…</Text>
+                        <Text style={styles.emptyText}>{t("map.no_data")}</Text>
                     </View>
                 ) : (
                     recent.map((eq) => (
@@ -80,7 +82,7 @@ export default function MapScreen() {
                             <View style={[styles.circle, { backgroundColor: magnitudeColor(eq.magnitude) }]}>
                                 <Text style={styles.magText}>{eq.magnitude.toFixed(1)}</Text>
                             </View>
-                            <Text style={styles.loc} numberOfLines={2}>{eq.location || "Bilinmiyor"}</Text>
+                            <Text style={styles.loc} numberOfLines={2}>{eq.location || t("home.unknown_location")}</Text>
                             <Text style={styles.time}>{timeAgo(eq.occurred_at)}</Text>
                         </TouchableOpacity>
                     ))
@@ -97,12 +99,12 @@ export default function MapScreen() {
                                     M{selected.magnitude.toFixed(1)} — {selected.location || "Bilinmiyor"}
                                 </Text>
                                 <Text style={styles.modalRow}>📍 {selected.latitude.toFixed(4)}, {selected.longitude.toFixed(4)}</Text>
-                                <Text style={styles.modalRow}>🕳️ Derinlik: {selected.depth?.toFixed(0) ?? "—"} km</Text>
+                                <Text style={styles.modalRow}>🕳️ {t("map.depth")}: {selected.depth?.toFixed(0) ?? "—"} km</Text>
                                 <Text style={styles.modalRow}>
-                                    🕒 {new Date(selected.occurred_at).toLocaleString("tr-TR")}
+                                    🕒 {new Date(selected.occurred_at).toLocaleString(i18n.language)}
                                 </Text>
                                 <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}>
-                                    <Text style={styles.closeBtnText}>Kapat</Text>
+                                    <Text style={styles.closeBtnText}>{t("map.close")}</Text>
                                 </TouchableOpacity>
                             </>
                         )}

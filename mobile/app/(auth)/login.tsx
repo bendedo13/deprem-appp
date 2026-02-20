@@ -17,16 +17,18 @@ import {
     ScrollView,
 } from "react-native";
 import { router, Link } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { login } from "../../src/services/authService";
 
 export default function LoginScreen() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+    const { t } = useTranslation();
 
     async function handleLogin() {
         if (!email.trim() || !password) {
-            Alert.alert("Hata", "E-posta ve şifre alanları zorunludur.");
+            Alert.alert(t("auth.error_login"), t("auth.email_password_required"));
             return;
         }
         setLoading(true);
@@ -36,8 +38,8 @@ export default function LoginScreen() {
         } catch (err: unknown) {
             const msg =
                 (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-                "Giriş başarısız. Lütfen tekrar deneyin.";
-            Alert.alert("Giriş Hatası", msg);
+                t("auth.error_login_generic");
+            Alert.alert(t("auth.error_login"), msg);
         } finally {
             setLoading(false);
         }
@@ -52,13 +54,13 @@ export default function LoginScreen() {
                 {/* Logo / Başlık */}
                 <View style={styles.header}>
                     <Text style={styles.emoji}>🌍</Text>
-                    <Text style={styles.title}>Deprem App</Text>
-                    <Text style={styles.subtitle}>Hesabına giriş yap</Text>
+                    <Text style={styles.title}>QuakeSense</Text>
+                    <Text style={styles.subtitle}>{t("auth.login_subtitle")}</Text>
                 </View>
 
                 {/* Form */}
                 <View style={styles.form}>
-                    <Text style={styles.label}>E-posta</Text>
+                    <Text style={styles.label}>{t("auth.email")}</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="ornek@email.com"
@@ -70,7 +72,7 @@ export default function LoginScreen() {
                         onChangeText={setEmail}
                     />
 
-                    <Text style={styles.label}>Şifre</Text>
+                    <Text style={styles.label}>{t("auth.password")}</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="••••••••"
@@ -90,15 +92,15 @@ export default function LoginScreen() {
                         {loading ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
-                            <Text style={styles.btnText}>Giriş Yap</Text>
+                            <Text style={styles.btnText}>{t("auth.login_btn")}</Text>
                         )}
                     </TouchableOpacity>
 
                     <View style={styles.footer}>
-                        <Text style={styles.footerText}>Hesabın yok mu? </Text>
+                        <Text style={styles.footerText}>{t("auth.no_account")} </Text>
                         <Link href="/(auth)/register" asChild>
                             <TouchableOpacity>
-                                <Text style={styles.link}>Kayıt Ol</Text>
+                                <Text style={styles.link}>{t("auth.register")}</Text>
                             </TouchableOpacity>
                         </Link>
                     </View>

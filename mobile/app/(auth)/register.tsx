@@ -17,6 +17,7 @@ import {
     ScrollView,
 } from "react-native";
 import { router, Link } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { register } from "../../src/services/authService";
 
 export default function RegisterScreen() {
@@ -24,18 +25,19 @@ export default function RegisterScreen() {
     const [password, setPassword] = useState("");
     const [confirm, setConfirm] = useState("");
     const [loading, setLoading] = useState(false);
+    const { t } = useTranslation();
 
     async function handleRegister() {
         if (!email.trim() || !password || !confirm) {
-            Alert.alert("Hata", "Tüm alanlar zorunludur.");
+            Alert.alert(t("auth.error_register"), t("auth.all_fields_required"));
             return;
         }
         if (password !== confirm) {
-            Alert.alert("Hata", "Şifreler eşleşmiyor.");
+            Alert.alert(t("auth.error_register"), t("auth.passwords_dont_match"));
             return;
         }
         if (password.length < 8) {
-            Alert.alert("Hata", "Şifre en az 8 karakter olmalıdır.");
+            Alert.alert(t("auth.error_register"), t("auth.password_too_short"));
             return;
         }
 
@@ -46,8 +48,8 @@ export default function RegisterScreen() {
         } catch (err: unknown) {
             const msg =
                 (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-                "Kayıt başarısız. Lütfen tekrar deneyin.";
-            Alert.alert("Kayıt Hatası", msg);
+                t("auth.error_register_generic");
+            Alert.alert(t("auth.error_register"), msg);
         } finally {
             setLoading(false);
         }
@@ -61,12 +63,12 @@ export default function RegisterScreen() {
             <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                 <View style={styles.header}>
                     <Text style={styles.emoji}>🌍</Text>
-                    <Text style={styles.title}>Deprem App</Text>
-                    <Text style={styles.subtitle}>Ücretsiz hesap oluştur</Text>
+                    <Text style={styles.title}>QuakeSense</Text>
+                    <Text style={styles.subtitle}>{t("auth.register_subtitle")}</Text>
                 </View>
 
                 <View style={styles.form}>
-                    <Text style={styles.label}>E-posta</Text>
+                    <Text style={styles.label}>{t("auth.email")}</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="ornek@email.com"
@@ -78,7 +80,7 @@ export default function RegisterScreen() {
                         onChangeText={setEmail}
                     />
 
-                    <Text style={styles.label}>Şifre</Text>
+                    <Text style={styles.label}>{t("auth.password")}</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="En az 8 karakter"
@@ -89,7 +91,7 @@ export default function RegisterScreen() {
                         onChangeText={setPassword}
                     />
 
-                    <Text style={styles.label}>Şifre Tekrar</Text>
+                    <Text style={styles.label}>{t("auth.password_confirm")}</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="••••••••"
@@ -108,15 +110,15 @@ export default function RegisterScreen() {
                         {loading ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
-                            <Text style={styles.btnText}>Kayıt Ol</Text>
+                            <Text style={styles.btnText}>{t("auth.register_btn")}</Text>
                         )}
                     </TouchableOpacity>
 
                     <View style={styles.footer}>
-                        <Text style={styles.footerText}>Zaten hesabın var mı? </Text>
+                        <Text style={styles.footerText}>{t("auth.has_account")} </Text>
                         <Link href="/(auth)/login" asChild>
                             <TouchableOpacity>
-                                <Text style={styles.link}>Giriş Yap</Text>
+                                <Text style={styles.link}>{t("auth.login")}</Text>
                             </TouchableOpacity>
                         </Link>
                     </View>
