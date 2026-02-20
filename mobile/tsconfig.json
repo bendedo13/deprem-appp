@@ -2,13 +2,23 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "lib": ["ESNext"],
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
     "strict": true,
     "skipLibCheck": true,
     "jsx": "react-native",
     "moduleResolution": "bundler",
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": {
+      "@/*": [
+        "src/*"
+      ]
+    }
   },
-  "include": ["src/**/*", "app/**/*"]
+  "include": [
+    "src/**/*",
+    "app/**/*"
+  ]
 }

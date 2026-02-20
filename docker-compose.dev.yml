@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U deprem_user -d deprem_db"]
+      test: [ "CMD-SHELL", "pg_isready -U deprem_user -d deprem_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,10 +29,26 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── Alembic Migration (başlangıçta bir kez çalışır) ───────
+  migrate_db:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: deprem_migrate
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://deprem_user:deprem_pass@db:5432/deprem_db
+    volumes:
+      - ../backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: alembic upgrade head
+    restart: "no"
 
   # ── FastAPI Backend ───────────────────────────────────────
   backend:
@@ -47,12 +63,14 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ../backend:/app  # Hot reload için
+      - ../backend:/app # Hot reload için
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate_db:
+        condition: service_completed_successfully
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # ── Celery Worker ─────────────────────────────────────────

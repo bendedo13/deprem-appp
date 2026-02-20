@@ -170,3 +170,53 @@ async def send_earthquake_push_multicast(
     except Exception as exc:
         logger.error("FCM multicast hatası: %s", exc)
         return 0
+
+
+async def send_i_am_safe(
+    sender_email: str,
+    latitude: float | None,
+    longitude: float | None,
+    fcm_tokens: list[str],
+) -> int:
+    """
+    "Ben İyiyim" bildirimi — acil kişilerin FCM token'larına push gönderir.
+
+    Args:
+        sender_email: Bildirimi gönderen kullanıcının e-postası.
+        latitude/longitude: Kullanıcının konumu (opsiyonel).
+        fcm_tokens: Acil kişilerin FCM token listesi.
+
+    Returns:
+        Başarıyla gönderilen bildirim sayısı.
+    """
+    if not fcm_tokens or not _init_firebase():
+        return 0
+
+    title = "✅ İyi Haber!"
+    body = f"{sender_email} depremden etkilenmedi, iyiyim dedi."
+    location_str = (
+        f"{latitude:.4f}, {longitude:.4f}" if (latitude and longitude) else "bilinmiyor"
+    )
+
+    try:
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(title=title, body=body),
+            data={
+                "type": "I_AM_SAFE",
+                "sender": sender_email,
+                "location": location_str,
+            },
+            tokens=fcm_tokens[:500],
+            android=messaging.AndroidConfig(priority="normal"),
+        )
+        response = messaging.send_each_for_multicast(message)
+        logger.info(
+            "Ben İyiyim FCM: %s → %d başarılı / %d başarısız",
+            sender_email,
+            response.success_count,
+            response.failure_count,
+        )
+        return response.success_count
+    except Exception as exc:
+        logger.error("Ben İyiyim FCM hatası: %s", exc)
+        return 0

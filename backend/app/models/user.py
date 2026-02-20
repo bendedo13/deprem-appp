@@ -4,7 +4,7 @@ JWT kimlik doğrulama, FCM push bildirimi ve konum tabanlı uyarılar için kull
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import String, Float, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,6 +14,7 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.emergency_contact import EmergencyContact
+    from app.models.notification_pref import NotificationPref
 
 
 class User(Base):
@@ -34,6 +35,9 @@ class User(Base):
 
     emergency_contacts: Mapped[List["EmergencyContact"]] = relationship(
         "EmergencyContact", back_populates="user", lazy="selectin"
+    )
+    notification_pref: Mapped[Optional["NotificationPref"]] = relationship(
+        "NotificationPref", back_populates="user", uselist=False, lazy="selectin"
     )
 
     def __repr__(self) -> str:

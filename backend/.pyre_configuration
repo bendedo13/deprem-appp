@@ -1,0 +1,9 @@
+{
+  "source_directories": [],
+  "search_path": [],
+  "exclude": [
+    ".*\\.pyc$"
+  ],
+  "ignore_all_errors": true,
+  "python_version": "3.11"
+}

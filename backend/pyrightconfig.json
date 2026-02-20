@@ -1,0 +1,12 @@
+{
+    "pythonVersion": "3.11",
+    "venvPath": ".",
+    "venv": ".venv",
+    "include": [
+        "app/**",
+        "alembic/**"
+    ],
+    "exclude": [],
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none"
+}

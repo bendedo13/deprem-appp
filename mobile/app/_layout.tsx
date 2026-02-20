@@ -1,18 +1,35 @@
+/**
+ * Root layout — uygulama başlangıcında token kontrolü yapar.
+ * Token varsa tabs'a, yoksa auth'a yönlendirir.
+ */
+
 import { useEffect } from "react";
-import { Stack } from "expo-router";
-import { setupFcmEarthquakeHandler, setBackgroundEarthquakeHandler } from "../src/services/fcmEarthquakeHandler";
+import { Stack, router } from "expo-router";
+import {
+  setBackgroundEarthquakeHandler,
+  setupFcmEarthquakeHandler,
+} from "../src/services/fcmEarthquakeHandler";
+import { hasToken } from "../src/services/authService";
 
 setBackgroundEarthquakeHandler();
 
 export default function RootLayout() {
   useEffect(() => {
+    // FCM foreground handler kur
     const unsub = setupFcmEarthquakeHandler();
+
+    // Auth durumuna göre yönlendir
+    hasToken().then((exists) => {
+      router.replace(exists ? "/(tabs)" : "/(auth)/login");
+    });
+
     return unsub;
   }, []);
 
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ title: "Deprem App" }} />
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
     </Stack>
   );
 }
