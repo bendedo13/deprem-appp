@@ -36,6 +36,7 @@ class UserOut(BaseModel):
     id: int
     email: str
     is_active: bool
+    is_admin: bool = False
     fcm_token: Optional[str]
     latitude: Optional[float]
     longitude: Optional[float]

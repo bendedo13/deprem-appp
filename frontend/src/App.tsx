@@ -1,20 +1,30 @@
 import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster, toast } from 'react-hot-toast';
 import Navbar from './components/layout/Navbar';
 import Dashboard from './pages/Dashboard';
+import Login from './pages/Login';
+import AdminLayout from './pages/admin/AdminLayout';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminEarthquakes from './pages/admin/AdminEarthquakes';
+import AdminBroadcast from './pages/admin/AdminBroadcast';
 import { requestPermissionAndGetToken, onMessageListener } from './services/pushNotification';
+import { useAuthStore } from './store/useAuthStore';
 
 /**
- * Root application component.
+ * Root application component with Routing and Protection.
  */
 function App() {
+  const { checkAuth, loading } = useAuthStore();
+
   useEffect(() => {
+    // Auth Check
+    checkAuth();
+
     // Web Push Başlatma
     const setupNotifications = async () => {
       const token = await requestPermissionAndGetToken();
-      if (token) {
-        toast.success("Bildirimler aktif edildi!");
-      }
 
       // Uygulama açıkken gelen bildirimleri dinle
       onMessageListener().then((payload: any) => {
@@ -28,22 +38,47 @@ function App() {
     setupNotifications();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-dark text-slate-100 selection:bg-primary/30">
-      <Navbar />
-      <Dashboard />
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: '#1e0d0d',
-            color: '#F8FAFC',
-            border: '1px solid #3d1a1a',
-            borderRadius: '12px',
-          },
-        }}
-      />
-    </div>
+    <BrowserRouter>
+      <div className="min-h-screen bg-dark text-slate-100 selection:bg-primary/30">
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: '#1e0d0d',
+              color: '#F8FAFC',
+              border: '1px solid #3d1a1a',
+              borderRadius: '12px',
+            },
+          }}
+        />
+
+        <Routes>
+          {/* Public App Layout */}
+          <Route path="/" element={<><Navbar /><Dashboard /></>} />
+          <Route path="/login" element={<><Navbar /><Login /></>} />
+
+          {/* Admin Layout & Routes */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="earthquakes" element={<AdminEarthquakes />} />
+            <Route path="broadcast" element={<AdminBroadcast />} />
+          </Route>
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
 

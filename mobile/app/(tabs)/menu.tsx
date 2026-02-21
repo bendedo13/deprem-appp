@@ -79,6 +79,7 @@ export default function MenuScreen() {
 
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.preparation") || "Hazırlık"}</Text>
+                <MenuItem icon="account-multiple-outline" title={t("menu.emergency_contacts") || "Acil Kişiler"} href="/more/contacts" color={Colors.primary} />
                 <MenuItem icon="briefcase-outline" title={t("menu.survival_kit") || "Deprem Çantası"} href="/more/survival_kit" color="#f59e0b" />
             </View>
 
