@@ -11,8 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
+from app.models.notification_pref import NotificationPref
 from app.api.v1.users import get_current_user
 from app.services.fcm import send_earthquake_push
+from app.schemas.notification_pref import NotificationPrefIn, NotificationPrefOut
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -66,6 +68,67 @@ async def delete_fcm_token(
     await db.commit()
     logger.info("FCM token silindi: user_id=%d", current_user.id)
     return {"ok": True, "message": "Bildirimler kapatıldı."}
+
+
+@router.get(
+    "/preferences",
+    summary="Bildirim tercihlerini getir",
+    response_model=NotificationPrefOut,
+)
+async def get_notification_prefs(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> NotificationPref:
+    """
+    Kullanıcının bildirim tercihlerini (min büyüklük, yarıçap) getirir.
+    Kayıt yoksa varsayılanlarla oluşturur.
+    """
+    from sqlalchemy import select
+    result = await db.execute(
+        select(NotificationPref).where(NotificationPref.user_id == current_user.id)
+    )
+    pref = result.scalar_one_or_none()
+
+    if not pref:
+        pref = NotificationPref(user_id=current_user.id)
+        db.add(pref)
+        await db.commit()
+        await db.refresh(pref)
+
+    return pref
+
+
+@router.put(
+    "/preferences",
+    summary="Bildirim tercihlerini güncelle",
+    response_model=NotificationPrefOut,
+)
+async def update_notification_prefs(
+    body: NotificationPrefIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> NotificationPref:
+    """
+    Kullanıcının bildirim tercihlerini günceller.
+    """
+    from sqlalchemy import select
+    result = await db.execute(
+        select(NotificationPref).where(NotificationPref.user_id == current_user.id)
+    )
+    pref = result.scalar_one_or_none()
+
+    if not pref:
+        pref = NotificationPref(user_id=current_user.id)
+        db.add(pref)
+
+    pref.min_magnitude = body.min_magnitude
+    pref.radius_km = body.radius_km
+    pref.is_enabled = body.is_enabled
+
+    await db.commit()
+    await db.refresh(pref)
+    logger.info("Bildirim tercihleri güncellendi: user_id=%d", current_user.id)
+    return pref
 
 
 @router.post(

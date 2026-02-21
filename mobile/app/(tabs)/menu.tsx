@@ -78,6 +78,11 @@ export default function MenuScreen() {
             </View>
 
             <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t("menu.preparation") || "Hazırlık"}</Text>
+                <MenuItem icon="briefcase-outline" title={t("menu.survival_kit") || "Deprem Çantası"} href="/more/survival_kit" color="#f59e0b" />
+            </View>
+
+            <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.about")}</Text>
                 <MenuItem icon="information-outline" title={t("about.title")} href="/more/about" />
                 <MenuItem icon="shield-check-outline" title={t("privacy.title")} href="/more/privacy" />

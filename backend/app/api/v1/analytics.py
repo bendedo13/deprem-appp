@@ -47,6 +47,8 @@ class AnalyticsOut(BaseModel):
     total_earthquakes: int
     avg_magnitude: Optional[float]
     max_magnitude: Optional[float]
+    last_24h_count: int
+    last_24h_max_mag: Optional[float]
     daily_counts: List[DailyCount]
     magnitude_distribution: List[MagnitudeDistribution]
     hotspots: List[HotSpot]
@@ -133,6 +135,16 @@ async def analytics(
         for row in hot_result.all()
     ]
 
+    # ── Son 24 Saat Özeti ────────────────────────────────────────────────────
+    last_24h_since = datetime.now(tz=timezone.utc) - timedelta(days=1)
+    last_24h_result = await db.execute(
+        select(
+            func.count(Earthquake.id).label("cnt"),
+            func.max(Earthquake.magnitude).label("max_mag"),
+        ).where(Earthquake.occurred_at >= last_24h_since)
+    )
+    last_24h = last_24h_result.one()
+
     logger.info("Analytics sorgulandı: days=%d total=%d", days, agg.total or 0)
 
     return AnalyticsOut(
@@ -140,6 +152,8 @@ async def analytics(
         total_earthquakes=agg.total or 0,
         avg_magnitude=round(agg.avg_mag, 2) if agg.avg_mag else None,
         max_magnitude=agg.max_mag,
+        last_24h_count=last_24h.cnt or 0,
+        last_24h_max_mag=last_24h.max_mag,
         daily_counts=daily_counts,
         magnitude_distribution=distribution,
         hotspots=hotspots,

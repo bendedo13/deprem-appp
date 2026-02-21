@@ -11,6 +11,13 @@
         "privacy": "Privacy Policy",
         "security": "Security",
         "contact": "Contact",
+        "preparation": "Preparation",
+        "survival_kit": "Survival Kit",
+        "notifications": "Notification Settings",
+        "language": "Language",
+        "support": "Support",
+        "share": "Share App",
+        "rate": "Rate Us",
         "developed_by": "Developed by Alan",
         "version": "Version 1.0.0"
     },
@@ -46,7 +53,10 @@
         "ago_sec": "{{n}}s ago",
         "ago_min": "{{n}}m ago",
         "ago_hour": "{{n}}h ago",
-        "ago_day": "{{n}}d ago"
+        "ago_day": "{{n}}d ago",
+        "sent_title": "✅ Notification Sent",
+        "sent_body": "{{count}} emergency contact(s) notified.",
+        "error": "Could not send notification."
     },
     "auth": {
         "login": "Login",

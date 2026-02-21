@@ -73,13 +73,17 @@ async def _run_fetch() -> int:
     except Exception as exc:
         logger.warning("Cache invalidation başarısız: %s", exc)
 
-    # FCM token'larını topla
-    fcm_tokens: List[str] = []
+    # FCM token'larını ve tercihlerini topla (join ile çek)
+    from app.models.notification_pref import NotificationPref
+    from app.utils.geo import haversine_distance_km
+
+    users_with_push: List[User] = []
     with SyncSessionLocal() as session:
-        rows = session.execute(
-            select(User.fcm_token).where(User.fcm_token.isnot(None))
-        ).all()
-        fcm_tokens = [str(row[0]) for row in rows]
+        # Note: notification_pref zaten lazy='selectin' olduğu için yüklenecektir
+        result = session.execute(
+            select(User).where(User.fcm_token.isnot(None))
+        )
+        users_with_push = result.scalars().all()
 
     # WebSocket broadcast + FCM push
     for quake in new_quakes:
@@ -97,10 +101,34 @@ async def _run_fetch() -> int:
             "occurred_at": quake_data.occurred_at.isoformat(),
         })
 
-        # FCM push — sadece M >= 3.0 depremlerde bildirim gönder
-        if quake_data.magnitude >= 3.0 and fcm_tokens:
+        # FCM push — Tercihlere göre filtrele
+        target_tokens: List[str] = []
+        for user in users_with_push:
+            pref = user.notification_pref
+            min_mag = pref.min_magnitude if pref else 3.0
+            radius = pref.radius_km if pref else 500.0
+            enabled = pref.is_enabled if pref else True
+
+            if not enabled:
+                continue
+
+            if quake_data.magnitude < min_mag:
+                continue
+
+            # Konum kontrolü (opsiyonel)
+            if user.latitude is not None and user.longitude is not None:
+                dist = haversine_distance_km(
+                    user.latitude, user.longitude, quake_data.latitude, quake_data.longitude
+                )
+                if dist > radius:
+                    continue
+
+            target_tokens.append(user.fcm_token)
+
+        if target_tokens:
+            # Batch size limited to 500 in service, but we call it here
             await send_earthquake_push_multicast(
-                fcm_tokens=fcm_tokens,
+                fcm_tokens=target_tokens,
                 magnitude=quake_data.magnitude,
                 location=quake_data.location,
                 depth=quake_data.depth,

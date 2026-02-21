@@ -11,6 +11,13 @@
         "privacy": "Gizlilik Politikası",
         "security": "Güvenlik",
         "contact": "İletişim",
+        "preparation": "Hazırlık",
+        "survival_kit": "Deprem Çantası",
+        "notifications": "Bildirim Ayarları",
+        "language": "Dil Seçimi",
+        "support": "Destek",
+        "share": "Uygulamayı Paylaş",
+        "rate": "Puan Ver",
         "developed_by": "Developed by Alan",
         "version": "Versiyon 1.0.0"
     },
@@ -46,7 +53,10 @@
         "ago_sec": "{{n}}sn önce",
         "ago_min": "{{n}}dk önce",
         "ago_hour": "{{n}}sa önce",
-        "ago_day": "{{n}}g önce"
+        "ago_day": "{{n}}g önce",
+        "sent_title": "✅ Bildirim Gönderildi",
+        "sent_body": "{{count}} acil kişine \"İyiyim\" bildirimi gönderildi.",
+        "error": "Bildirim gönderilemedi."
     },
     "auth": {
         "login": "Giriş Yap",
