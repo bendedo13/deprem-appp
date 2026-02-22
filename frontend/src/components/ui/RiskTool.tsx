@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Search, ShieldAlert, CheckCircle2, AlertTriangle, Building2, Map as MapIcon, Download, Loader2 } from 'lucide-react';
 import { earthquakeService } from '../../services/api';
 import { toast } from 'react-hot-toast';
@@ -14,7 +14,7 @@ export default function RiskTool() {
     const [loading, setLoading] = useState(false);
     const [downloading, setDownloading] = useState(false);
 
-    const handleSearch = async (e: React.FormEvent) => {
+    const handleSearch = async (e: FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {

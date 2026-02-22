@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import {
     Send,
     Smartphone,
@@ -19,7 +19,7 @@ export default function AdminBroadcast() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         if (!form.title || !form.body) {
             toast.error('Başlık ve mesaj zorunludur');
@@ -80,7 +80,7 @@ export default function AdminBroadcast() {
                                 type="checkbox"
                                 id="only_active"
                                 checked={form.only_active}
-                                onChange={(e) => setForm({ ...form, only_active: e.checked })}
+                                onChange={(e) => setForm({ ...form, only_active: e.target.checked })}
                                 className="w-5 h-5 accent-primary bg-dark border-dark-border rounded cursor-pointer"
                             />
                             <label htmlFor="only_active" className="text-sm font-bold text-slate-300 cursor-pointer select-none">Sadece Aktif Kullanıcılar</label>

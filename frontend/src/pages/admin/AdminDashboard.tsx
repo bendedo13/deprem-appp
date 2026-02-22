@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
     Users,
-    Zap,
     Activity,
     ShieldCheck,
-    MapPin,
     Bell,
     TrendingUp,
     Clock

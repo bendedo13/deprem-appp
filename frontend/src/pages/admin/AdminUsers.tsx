@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react';
 import { adminService } from '../../services/api';
 import {
     Search,
-    MoreVertical,
     ToggleLeft,
     ToggleRight,
     Shield,
     Trash2,
     Calendar,
-    Mail,
     MapPin,
     Smartphone
 } from 'lucide-react';
@@ -20,7 +18,7 @@ export default function AdminUsers() {
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [page, setPage] = useState(0);
+    const [page] = useState(0);
 
     const fetchUsers = async () => {
         setLoading(true);

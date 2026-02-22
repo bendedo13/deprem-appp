@@ -4,12 +4,8 @@ import {
     Activity,
     Plus,
     Trash2,
-    Search,
-    MapPin,
     Map,
-    Clock,
-    Zap,
-    ExternalLink
+    Clock
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -19,7 +15,7 @@ export default function AdminEarthquakes() {
     const [quakes, setQuakes] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [minMag, setMinMag] = useState(0);
-    const [page, setPage] = useState(0);
+    const [page] = useState(0);
 
     const fetchQuakes = async () => {
         setLoading(true);

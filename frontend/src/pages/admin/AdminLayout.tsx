@@ -1,17 +1,15 @@
-import { ReactNode } from 'react';
+import { useState } from 'react';
 import { NavLink, Outlet, Navigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Users,
     Activity,
     Send,
-    Settings,
     LogOut,
     Menu,
     X,
     ShieldCheck
 } from 'lucide-react';
-import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export default function AdminLayout() {
