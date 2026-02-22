@@ -13,7 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from app.config import settings
-from app.database import init_db
 from app.core.redis import get_redis, close_redis
 from app.api.v1 import earthquakes, users, notifications, analytics, risk, seismic, admin
 from app.api.websocket import websocket_router
