@@ -15,6 +15,7 @@ from app.database import Base
 if TYPE_CHECKING:
     from app.models.emergency_contact import EmergencyContact
     from app.models.notification_pref import NotificationPref
+    from app.models.sos_record import SOSRecord
 
 
 class User(Base):
@@ -39,6 +40,9 @@ class User(Base):
     )
     notification_pref: Mapped[Optional["NotificationPref"]] = relationship(
         "NotificationPref", back_populates="user", uselist=False, lazy="selectin"
+    )
+    sos_records: Mapped[List["SOSRecord"]] = relationship(
+        "SOSRecord", back_populates="user", lazy="select"
     )
 
     def __repr__(self) -> str:
