@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Uygulama başlangıç ve kapanış."""
     logger.info("Deprem App başlatılıyor...")
-    await init_db()
+    # init_db() kaldırıldı - migration kullanıyoruz (alembic upgrade head)
     await start_periodic_fetch()
     logger.info("Uygulama hazır.")
     yield
