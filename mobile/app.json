@@ -10,7 +10,6 @@
       "apiUrl": "http://46.4.123.77:8001"
     },
     "plugins": [
-      "expo-constants",
       "expo-sensors",
       [
         "expo-location",
