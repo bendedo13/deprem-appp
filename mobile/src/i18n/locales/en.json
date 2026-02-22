@@ -12,6 +12,8 @@
         "security": "Security",
         "contact": "Contact",
         "preparation": "Preparation",
+        "risk_analysis": "Risk Analysis",
+        "emergency_contacts": "Emergency Contacts",
         "survival_kit": "Survival Kit",
         "notifications": "Notification Settings",
         "language": "Language",
@@ -20,6 +22,21 @@
         "rate": "Rate Us",
         "developed_by": "Developed by Alan",
         "version": "Version 1.0.0"
+    },
+    "home": {
+        "recent_earthquakes": "Recent Earthquakes",
+        "filter": "Filter",
+        "unknown_location": "Unknown location",
+        "depth_km": "{{depth}} km depth",
+        "live": "Live",
+        "disconnected": "Disconnected",
+        "sensor_active": "🟢 Sensor",
+        "sensor_triggered": "⚡ Tremor",
+        "sensor_passive": "⬛ Inactive",
+        "i_am_safe": "✅ I'm Safe",
+        "vibration_title": "⚠️ Vibration Detected",
+        "vibration_body": "Ratio: {{ratio}} | Peak: {{peak}} m/s²\nReport sent to server.",
+        "error_load": "Could not load earthquake data."
     },
     "about": {
         "title": "About Us",
@@ -37,23 +54,6 @@
         "success": "Your message has been sent successfully."
     },
     "safe": {
-        "live": "Live",
-        "disconnected": "Disconnected",
-        "n_earthquakes": "{{count}} earthquakes",
-        "sensor_active": "🟢 Sensor",
-        "sensor_triggered": "⚡ Tremor",
-        "sensor_passive": "⬛ Inactive",
-        "i_am_safe": "✅ I'm Safe",
-        "vibration_title": "⚠️ Vibration Detected",
-        "vibration_body": "Ratio: {{ratio}} | Peak: {{peak}} m/s²\nReport sent to server.",
-        "error_load": "Could not load earthquake data.",
-        "no_data": "No earthquake data yet.",
-        "unknown_location": "Unknown location",
-        "depth_km": "{{depth}} km depth",
-        "ago_sec": "{{n}}s ago",
-        "ago_min": "{{n}}m ago",
-        "ago_hour": "{{n}}h ago",
-        "ago_day": "{{n}}d ago",
         "sent_title": "✅ Notification Sent",
         "sent_body": "{{count}} emergency contact(s) notified.",
         "error": "Could not send notification."
@@ -72,6 +72,8 @@
         "has_account": "Already have an account? ",
         "error_login": "Login Error",
         "error_register": "Registration Error",
+        "logout_title": "Logout",
+        "logout_confirm": "Are you sure you want to logout?",
         "all_fields_required": "All fields are required.",
         "email_password_required": "Email and password are required.",
         "passwords_dont_match": "Passwords do not match.",
@@ -87,10 +89,5 @@
         "time": "Time",
         "close": "Close",
         "no_data": "No earthquake data yet."
-    },
-    "safe": {
-        "sent_title": "✅ Notification Sent",
-        "sent_body": "{{count}} emergency contact(s) notified.",
-        "error": "Could not send notification."
     }
 }

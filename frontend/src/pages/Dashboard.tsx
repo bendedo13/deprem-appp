@@ -4,6 +4,8 @@ import EarthquakeList from '../components/earthquake/EarthquakeList';
 import RiskTool from '../components/ui/RiskTool';
 import AnalyticsCharts from '../components/earthquake/AnalyticsCharts';
 import AdSlot from '../components/ads/AdSlot';
+import SafeButton from '../components/ui/SafeButton';
+import SurvivalKit from '../components/ui/SurvivalKit';
 import { earthquakeService } from '../services/api';
 import { useEarthquakeStore } from '../store/useEarthquakeStore';
 import { Activity, Radio, ShieldAlert, Zap, BarChart3 } from 'lucide-react';
@@ -66,6 +68,10 @@ export default function Dashboard() {
                 {/* Right Column - Risk & More */}
                 <div className="lg:col-span-3 flex flex-col gap-6">
                     <RiskTool />
+
+                    <SafeButton />
+
+                    <SurvivalKit />
 
                     <div className="bg-gradient-to-br from-primary/20 to-dark-surface rounded-2xl border border-primary/30 p-6 flex flex-col justify-center items-center text-center relative overflow-hidden group">
                         <ShieldAlert className="w-12 h-12 text-primary mb-4" />

@@ -12,6 +12,8 @@
         "security": "Güvenlik",
         "contact": "İletişim",
         "preparation": "Hazırlık",
+        "risk_analysis": "Risk Analizi",
+        "emergency_contacts": "Acil Kişiler",
         "survival_kit": "Deprem Çantası",
         "notifications": "Bildirim Ayarları",
         "language": "Dil Seçimi",
@@ -20,6 +22,21 @@
         "rate": "Puan Ver",
         "developed_by": "Developed by Alan",
         "version": "Versiyon 1.0.0"
+    },
+    "home": {
+        "recent_earthquakes": "Son Depremler",
+        "filter": "Filtrele",
+        "unknown_location": "Bilinmeyen konum",
+        "depth_km": "{{depth}} km derinlik",
+        "live": "Canlı",
+        "disconnected": "Bağlantı kesildi",
+        "sensor_active": "🟢 Sensör",
+        "sensor_triggered": "⚡ Titreşim",
+        "sensor_passive": "⬛ Pasif",
+        "i_am_safe": "✅ Ben İyiyim",
+        "vibration_title": "⚠️ Titreşim Algılandı",
+        "vibration_body": "Oran: {{ratio}} | Tepe: {{peak}} m/s²\nRapor sunucuya gönderildi.",
+        "error_load": "Deprem verileri alınamadı."
     },
     "about": {
         "title": "Hakkımızda",
@@ -37,23 +54,6 @@
         "success": "Mesajınız başarıyla iletildi."
     },
     "safe": {
-        "live": "Canlı",
-        "disconnected": "Bağlantı kesildi",
-        "n_earthquakes": "{{count}} deprem",
-        "sensor_active": "🟢 Sensör",
-        "sensor_triggered": "⚡ Titreşim",
-        "sensor_passive": "⬛ Pasif",
-        "i_am_safe": "✅ Ben İyiyim",
-        "vibration_title": "⚠️ Titreşim Algılandı",
-        "vibration_body": "Oran: {{ratio}} | Tepe: {{peak}} m/s²\nRapor sunucuya gönderildi.",
-        "error_load": "Deprem verileri alınamadı.",
-        "no_data": "Henüz deprem verisi yok.",
-        "unknown_location": "Bilinmeyen konum",
-        "depth_km": "{{depth}} km derinlik",
-        "ago_sec": "{{n}}sn önce",
-        "ago_min": "{{n}}dk önce",
-        "ago_hour": "{{n}}sa önce",
-        "ago_day": "{{n}}g önce",
         "sent_title": "✅ Bildirim Gönderildi",
         "sent_body": "{{count}} acil kişine \"İyiyim\" bildirimi gönderildi.",
         "error": "Bildirim gönderilemedi."
@@ -72,6 +72,8 @@
         "has_account": "Zaten hesabın var mı? ",
         "error_login": "Giriş Hatası",
         "error_register": "Kayıt Hatası",
+        "logout_title": "Çıkış Yap",
+        "logout_confirm": "Çıkış yapmak istediğinizden emin misiniz?",
         "all_fields_required": "Tüm alanlar zorunludur.",
         "email_password_required": "E-posta ve şifre alanları zorunludur.",
         "passwords_dont_match": "Şifreler eşleşmiyor.",
@@ -87,10 +89,5 @@
         "time": "Zaman",
         "close": "Kapat",
         "no_data": "Henüz deprem verisi yok."
-    },
-    "safe": {
-        "sent_title": "✅ Bildirim Gönderildi",
-        "sent_body": "{{count}} acil kişine \"İyiyim\" bildirimi gönderildi.",
-        "error": "Bildirim gönderilemedi."
     }
 }

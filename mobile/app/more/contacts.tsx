@@ -15,7 +15,7 @@ import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
-import api from "../../src/services/api";
+import { api } from "../../src/services/api";
 
 interface Contact {
     id: number;

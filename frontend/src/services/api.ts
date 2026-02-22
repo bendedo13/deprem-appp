@@ -31,62 +31,90 @@ export const authService = {
     }
 };
 
+export const userService = {
+    updateMe: async (body: any) => {
+        const { data } = await api.patch('/users/me', body);
+        return data;
+    },
+    getContacts: async () => {
+        const { data } = await api.get('/users/me/contacts');
+        return data;
+    },
+    addContact: async (contact: any) => {
+        const { data } = await api.post('/users/me/contacts', contact);
+        return data;
+    },
+    deleteContact: async (id: number) => {
+        await api.delete(`/users/me/contacts/${id}`);
+    },
+    getPreferences: async () => {
+        const { data } = await api.get('/users/me/preferences');
+        return data;
+    },
+    updatePreferences: async (prefs: any) => {
+        const { data } = await api.put('/users/me/preferences', prefs);
+        return data;
+    },
+    reportSafe: async () => {
+        const { data } = await api.post('/users/me/safe');
+        return data;
+    }
+};
+
 export const earthquakeService = {
     getEarthquakes: async (limit = 50) => {
-        const response = await api.get(`/earthquakes/?limit=${limit}`);
+        const response = await api.get(`/earthquakes?limit=${limit}`);
         return response.data;
     },
     getStats: async (days = 7) => {
         const response = await api.get(`/analytics?days=${days}`);
         return response.data;
     },
-    calculateRisk: async (lat: number, lng: number) => {
-        const response = await api.post('/risk/calculate', { lat, lng });
+    calculateRisk: async (riskData: { latitude: number, longitude: number, building_year?: number, soil_class?: string }) => {
+        const response = await api.post('/risk/score', riskData);
         return response.data;
     },
-    getNotificationPrefs: async () => {
-        const response = await api.get('/notifications/preferences');
+    downloadRiskReport: async (riskData: { latitude: number, longitude: number, building_year?: number, soil_class?: string }) => {
+        const response = await api.post('/risk/report', riskData, {
+            responseType: 'blob'
+        });
         return response.data;
-    },
-    updateNotificationPrefs: async (prefs: { min_magnitude: number, radius_km: number, is_enabled: boolean }) => {
-        const { data } = await api.put('/api/v1/notifications/preferences', prefs);
-        return data;
     }
 };
 
 export const adminService = {
     getStats: async () => {
-        const { data } = await api.get('/api/v1/admin/stats');
+        const { data } = await api.get('/admin/stats');
         return data;
     },
     getUsers: async (skip = 0, limit = 50, search?: string) => {
-        const { data } = await api.get('/api/v1/admin/users', {
+        const { data } = await api.get('/admin/users', {
             params: { skip, limit, search }
         });
         return data;
     },
     updateUser: async (userId: number, body: { is_active?: boolean, is_admin?: boolean }) => {
-        const { data } = await api.patch(`/api/v1/admin/users/${userId}`, body);
+        const { data } = await api.patch(`/admin/users/${userId}`, body);
         return data;
     },
     deleteUser: async (userId: number) => {
-        await api.delete(`/api/v1/admin/users/${userId}`);
+        await api.delete(`/admin/users/${userId}`);
     },
     getEarthquakes: async (skip = 0, limit = 100, minMagnitude = 0) => {
-        const { data } = await api.get('/api/v1/admin/earthquakes', {
+        const { data } = await api.get('/admin/earthquakes', {
             params: { skip, limit, min_magnitude: minMagnitude }
         });
         return data;
     },
     createEarthquake: async (quake: any) => {
-        const { data } = await api.post('/api/v1/admin/earthquakes', quake);
+        const { data } = await api.post('/admin/earthquakes', quake);
         return data;
     },
     deleteEarthquake: async (quakeId: number) => {
-        await api.delete(`/api/v1/admin/earthquakes/${quakeId}`);
+        await api.delete(`/admin/earthquakes/${quakeId}`);
     },
     broadcast: async (broadcast: { title: string, body: string, only_active: boolean }) => {
-        const { data } = await api.post('/api/v1/admin/broadcast', broadcast);
+        const { data } = await api.post('/admin/broadcast', broadcast);
         return data;
     }
 };

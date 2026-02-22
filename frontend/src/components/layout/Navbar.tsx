@@ -1,26 +1,30 @@
 import { useState } from 'react';
-import { Search, Bell, User, Map as MapIcon, Shield, LayoutDashboard, X } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Search, Bell, Map as MapIcon, Shield, LayoutDashboard, X, Settings } from 'lucide-react';
 import NotificationSettings from '../notifications/NotificationSettings';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useAuthStore } from '../../store/useAuthStore';
 
 /**
  * Main application navigation bar with Stitch aesthetic.
  */
 export default function Navbar() {
     const [showNotifications, setShowNotifications] = useState(false);
+    const location = useLocation();
+    const { user } = useAuthStore();
 
     return (
         <nav className="h-16 border-b border-dark-border bg-dark-surface sticky top-0 z-[1000] px-6 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <Link to="/" className="flex items-center gap-2 group">
+                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center transition-transform group-hover:rotate-12">
                     <Shield className="text-white w-5 h-5" />
                 </div>
                 <span className="text-xl font-black tracking-tighter text-white">QuakeSense</span>
-            </div>
+            </Link>
 
             <div className="hidden md:flex items-center gap-8">
-                <NavLink icon={<LayoutDashboard size={18} />} label="Dashboard" active />
-                <NavLink icon={<MapIcon size={18} />} label="Harita" />
+                <NavLink to="/" icon={<LayoutDashboard size={18} />} label="Dashboard" active={location.pathname === '/'} />
+                <NavLink to="/map" icon={<MapIcon size={18} />} label="Harita" active={location.pathname === '/map'} />
                 <NavLink icon={<Shield size={18} />} label="Risk Analizi" />
             </div>
 
@@ -69,20 +73,28 @@ export default function Navbar() {
                         )}
                     </AnimatePresence>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center cursor-pointer hover:border-primary transition-all">
-                    <User size={18} className="text-slate-400" />
-                </div>
+
+                {user ? (
+                    <Link to="/settings" className={`p-2 rounded-xl transition-all flex items-center gap-2 ${location.pathname === '/settings' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+                        <Settings size={20} />
+                        <span className="text-xs font-bold hidden lg:block">AYARLAR</span>
+                    </Link>
+                ) : (
+                    <Link to="/login" className="px-5 py-2 bg-primary text-white text-xs font-black rounded-lg hover:bg-primary-dark transition-all">
+                        GİRİŞ YAP
+                    </Link>
+                )}
             </div>
         </nav>
     );
 }
 
-function NavLink({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
+function NavLink({ icon, label, to = "#", active = false }: { icon: React.ReactNode, label: string, to?: string, active?: boolean }) {
     return (
-        <a href="#" className={`flex items-center gap-2 text-sm font-bold transition-all ${active ? 'text-primary' : 'text-slate-400 hover:text-slate-100'
+        <Link to={to} className={`flex items-center gap-2 text-sm font-bold transition-all ${active ? 'text-primary' : 'text-slate-400 hover:text-slate-100'
             }`}>
             {icon}
             {label}
-        </a>
+        </Link>
     );
 }
