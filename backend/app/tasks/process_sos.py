@@ -8,10 +8,9 @@ from typing import Dict, Any
 
 from celery import Task
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.tasks.celery_app import celery_app
-from app.database import async_session_maker
+from app.database import SyncSessionLocal
 from app.models.sos_record import SOSRecord
 from app.models.user import User
 from app.models.emergency_contact import EmergencyContact
@@ -77,7 +76,8 @@ def process_sos_audio_task(
 
         # 2. Transcribe with Whisper
         try:
-            transcription = whisper.transcribe(audio_path, timeout=10)
+            import asyncio
+            transcription = asyncio.run(whisper.transcribe(audio_path, timeout=10))
             logger.info("Whisper transcription başarılı: %d karakter", len(transcription))
         except WhisperServiceError as exc:
             logger.warning("Whisper hatası, fallback kullanılıyor: %s", exc)
@@ -87,7 +87,8 @@ def process_sos_audio_task(
 
         # 3. Extract structured data with LLM
         try:
-            extracted_data = llm.extract_sos_data(transcription, timeout=15)
+            import asyncio
+            extracted_data = asyncio.run(llm.extract_sos_data(transcription, timeout=15))
             logger.info("LLM extraction başarılı: %s", extracted_data)
         except LLMExtractorError as exc:
             logger.warning("LLM hatası, fallback kullanılıyor: %s", exc)
@@ -150,9 +151,7 @@ def _create_sos_record(
     error_message: str = None
 ) -> SOSRecord:
     """Database'e S.O.S record oluşturur (sync)."""
-    from app.database import SessionLocal
-
-    db = SessionLocal()
+    db = SyncSessionLocal()
     try:
         sos_record = SOSRecord(
             user_id=user_id,
@@ -184,9 +183,7 @@ def _send_emergency_alerts(
     audio_url: str
 ):
     """Emergency contacts'a bildirim gönderir (sync)."""
-    from app.database import SessionLocal
-
-    db = SessionLocal()
+    db = SyncSessionLocal()
     try:
         # Get user and emergency contacts
         user = db.query(User).filter(User.id == user_id).first()
@@ -218,8 +215,9 @@ def _send_emergency_alerts(
         phone_numbers = [c.phone for c in contacts if c.phone and c.channel in ["sms", "whatsapp"]]
 
         if phone_numbers:
-            # SMS gönder
-            sms_count = twilio.send_emergency_alert(phone_numbers, message, use_whatsapp=False)
+            # SMS gönder (sync call)
+            import asyncio
+            sms_count = asyncio.run(twilio.send_emergency_alert(phone_numbers, message, use_whatsapp=False))
             logger.info("SMS gönderildi: %d/%d", sms_count, len(phone_numbers))
 
         logger.info("Emergency alerts gönderildi: user_id=%d, contacts=%d", user_id, len(contacts))
@@ -362,9 +360,7 @@ def _send_fallback_alert(
     transcription: str = None
 ):
     """Fallback durumunda basit alert gönderir."""
-    from app.database import SessionLocal
-
-    db = SessionLocal()
+    db = SyncSessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -399,7 +395,8 @@ def _send_fallback_alert(
         phone_numbers = [c.phone for c in contacts if c.phone and c.channel in ["sms", "whatsapp"]]
 
         if phone_numbers:
-            twilio.send_emergency_alert(phone_numbers, message, use_whatsapp=False)
+            import asyncio
+            asyncio.run(twilio.send_emergency_alert(phone_numbers, message, use_whatsapp=False))
 
         logger.info("Fallback alert gönderildi: user_id=%d", user_id)
 
