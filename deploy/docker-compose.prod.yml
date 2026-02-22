@@ -78,6 +78,21 @@ services:
     networks:
       - deprem_net
 
+  deprem_frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://46.4.123.77:8001/api/v1
+    container_name: deprem_frontend
+    ports:
+      - "8002:80"
+    restart: unless-stopped
+    depends_on:
+      - deprem_backend
+    networks:
+      - deprem_net
+
 volumes:
   deprem_postgres_data:
   deprem_redis_data:
