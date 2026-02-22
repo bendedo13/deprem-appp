@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEarthquakeStore } from '../../store/useEarthquakeStore';
 import { format } from 'date-fns';
