@@ -1,4 +1,4 @@
-import { useEarthquakeStore } from '../store/useEarthquakeStore';
+import { useEarthquakeStore } from '../../store/useEarthquakeStore';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
@@ -20,14 +20,14 @@ export default function EarthquakeList() {
 
     return (
         <div className="flex flex-col gap-3 h-full overflow-y-auto pr-2 custom-scrollbar">
-            {earthquakes.map((quake) => (
+            {earthquakes.map((quake: any) => (
                 <div
                     key={quake.id}
                     className="group flex items-center p-3 bg-dark-surface rounded-xl border border-dark-border hover:border-primary transition-all cursor-pointer"
                 >
                     <div className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center font-bold text-white shadow-lg ${quake.magnitude >= 6 ? 'bg-primary' :
-                            quake.magnitude >= 5 ? 'bg-orange-500' :
-                                quake.magnitude >= 4 ? 'bg-blue-600' : 'bg-emerald-600'
+                        quake.magnitude >= 5 ? 'bg-orange-500' :
+                            quake.magnitude >= 4 ? 'bg-blue-600' : 'bg-emerald-600'
                         }`}>
                         <span className="text-lg leading-tight">{quake.magnitude.toFixed(1)}</span>
                         <span className="text-[8px] uppercase">{quake.source}</span>

@@ -3,7 +3,6 @@ import {
     Send,
     Smartphone,
     AlertCircle,
-    Target,
     CheckCircle2,
     Loader2
 } from 'lucide-react';

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, Shield, MapPin, Save, RefreshCw } from 'lucide-react';
-import { earthquakeService } from '../../services/api';
+import { userService } from '../../services/api';
 import { toast } from 'react-hot-toast';
 
 interface Props {
@@ -19,7 +19,7 @@ export default function NotificationSettings({ onClose }: Props) {
     useEffect(() => {
         const fetchPrefs = async () => {
             try {
-                const data = await earthquakeService.getNotificationPrefs();
+                const data = await userService.getPreferences();
                 setPrefs(data);
             } catch (error) {
                 console.error('Failed to fetch prefs:', error);
@@ -34,7 +34,7 @@ export default function NotificationSettings({ onClose }: Props) {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await earthquakeService.updateNotificationPrefs(prefs);
+            await userService.updatePreferences(prefs);
             toast.success('Bildirim tercihleri kaydedildi.');
             if (onClose) onClose();
         } catch (error) {

@@ -1,14 +1,9 @@
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useEarthquakeStore } from '../store/useEarthquakeStore';
+import { useEarthquakeStore } from '../../store/useEarthquakeStore';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
-const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }) => {
-    const map = useMap();
-    map.setView(center, zoom);
-    return null;
-};
 
 export default function EarthquakeMap() {
     const { earthquakes } = useEarthquakeStore();
@@ -33,7 +28,7 @@ export default function EarthquakeMap() {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 />
 
-                {earthquakes.map((quake) => (
+                {earthquakes.map((quake: any) => (
                     <CircleMarker
                         key={quake.id}
                         center={[quake.latitude, quake.longitude]}
