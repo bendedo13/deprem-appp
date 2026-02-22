@@ -28,39 +28,51 @@ export default function EarthquakeMap() {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 />
 
-                {earthquakes.map((quake: any) => (
-                    <CircleMarker
-                        key={quake.id}
-                        center={[quake.latitude, quake.longitude]}
-                        radius={quake.magnitude * 3}
-                        fillColor={getMagnitudeColor(quake.magnitude)}
-                        color="#fff"
-                        weight={1}
-                        fillOpacity={0.6}
-                    >
-                        <Popup>
-                            <div className="p-1">
-                                <div className="font-bold text-lg mb-1">{quake.location}</div>
-                                <div className="flex gap-4 mb-2">
-                                    <div className="flex flex-col">
-                                        <span className="text-xs text-slate-400">Büyüklük</span>
-                                        <span className="font-bold text-primary">{quake.magnitude}</span>
+                {Array.isArray(earthquakes) && earthquakes.map((quake: any) => {
+                    if (typeof quake.latitude !== 'number' || typeof quake.longitude !== 'number') return null;
+
+                    let occurredAt: Date;
+                    try {
+                        occurredAt = new Date(quake.occurred_at);
+                        if (isNaN(occurredAt.getTime())) throw new Error('Invalid date');
+                    } catch (e) {
+                        return null;
+                    }
+
+                    return (
+                        <CircleMarker
+                            key={quake.id}
+                            center={[quake.latitude, quake.longitude]}
+                            radius={(quake.magnitude || 1) * 3}
+                            fillColor={getMagnitudeColor(quake.magnitude || 0)}
+                            color="#fff"
+                            weight={1}
+                            fillOpacity={0.6}
+                        >
+                            <Popup>
+                                <div className="p-1">
+                                    <div className="font-bold text-lg mb-1">{quake.location}</div>
+                                    <div className="flex gap-4 mb-2">
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-slate-400">Büyüklük</span>
+                                            <span className="font-bold text-primary">{quake.magnitude}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-slate-400">Derinlik</span>
+                                            <span className="font-bold">{quake.depth} km</span>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-xs text-slate-400">Derinlik</span>
-                                        <span className="font-bold">{quake.depth} km</span>
+                                    <div className="text-xs text-slate-400">
+                                        {format(occurredAt, 'd MMMM yyyy, HH:mm', { locale: tr })}
+                                    </div>
+                                    <div className="mt-2 text-[10px] uppercase font-bold text-slate-500">
+                                        Kaynak: {quake.source}
                                     </div>
                                 </div>
-                                <div className="text-xs text-slate-400">
-                                    {format(new Date(quake.occurred_at), 'd MMMM yyyy, HH:mm', { locale: tr })}
-                                </div>
-                                <div className="mt-2 text-[10px] uppercase font-bold text-slate-500">
-                                    Kaynak: {quake.source}
-                                </div>
-                            </div>
-                        </Popup>
-                    </CircleMarker>
-                ))}
+                            </Popup>
+                        </CircleMarker>
+                    );
+                })}
             </MapContainer>
         </div>
     );

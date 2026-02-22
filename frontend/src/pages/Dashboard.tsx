@@ -24,8 +24,8 @@ export default function Dashboard() {
                     earthquakeService.getEarthquakes(50),
                     earthquakeService.getStats(7)
                 ]);
-                setEarthquakes(quakes);
-                setAnalyticsData(analytics);
+                setEarthquakes(quakes || []);
+                setAnalyticsData(analytics || null);
             } catch (error) {
                 console.error('Data fetch failed:', error);
             } finally {
@@ -55,8 +55,8 @@ export default function Dashboard() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <StatCard icon={<Activity className="text-blue-500" />} label="Son 24s" value={analyticsData?.last_24h_count || 0} />
-                        <StatCard icon={<Zap className="text-primary" />} label="Max Şiddet" value={analyticsData?.last_24h_max_mag?.toFixed(1) || '0.0'} />
+                        <StatCard icon={<Activity className="text-blue-500" />} label="Son 24s" value={analyticsData?.last_24h_count ?? 0} />
+                        <StatCard icon={<Zap className="text-primary" />} label="Max Şiddet" value={typeof analyticsData?.last_24h_max_mag === 'number' ? analyticsData.last_24h_max_mag.toFixed(1) : '0.0'} />
                     </div>
                 </div>
 

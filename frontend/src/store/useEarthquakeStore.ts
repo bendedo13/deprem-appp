@@ -53,10 +53,17 @@ export const useEarthquakeStore = create<EarthquakeState>((set) => ({
     earthquakes: [],
     analyticsData: null,
     loading: false,
-    setEarthquakes: (earthquakes) => set({ earthquakes }),
+    setEarthquakes: (earthquakes) => set({ earthquakes: Array.isArray(earthquakes) ? earthquakes : [] }),
     addEarthquake: (quake) => set((state) => ({
-        earthquakes: [quake, ...state.earthquakes.slice(0, 99)]
+        earthquakes: [quake, ...(Array.isArray(state.earthquakes) ? state.earthquakes.slice(0, 99) : [])]
     })),
-    setAnalyticsData: (analyticsData) => set({ analyticsData }),
+    setAnalyticsData: (analyticsData) => set({
+        analyticsData: analyticsData ? {
+            ...analyticsData,
+            daily_counts: Array.isArray(analyticsData.daily_counts) ? analyticsData.daily_counts : [],
+            magnitude_distribution: Array.isArray(analyticsData.magnitude_distribution) ? analyticsData.magnitude_distribution : [],
+            hotspots: Array.isArray(analyticsData.hotspots) ? analyticsData.hotspots : []
+        } : null
+    }),
     setLoading: (loading) => set({ loading }),
 }));

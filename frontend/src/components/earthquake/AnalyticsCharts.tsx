@@ -40,9 +40,9 @@ interface AnalyticsChartsProps {
 const COLORS = ['#e00700', '#ff4d4d', '#ff8080', '#ffb3b3', '#ffe6e6'];
 
 const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({
-    dailyCounts,
-    distribution,
-    hotspots,
+    dailyCounts = [],
+    distribution = [],
+    hotspots = [],
 }) => {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
