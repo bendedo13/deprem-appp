@@ -9,6 +9,9 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminEarthquakes from './pages/admin/AdminEarthquakes';
 import AdminBroadcast from './pages/admin/AdminBroadcast';
+import Register from './pages/Register';
+import MapPage from './pages/MapPage';
+import RiskAnalysis from './pages/RiskAnalysis';
 import Settings from './pages/Settings';
 import { requestPermissionAndGetToken, onMessageListener } from './services/pushNotification';
 import { useAuthStore } from './store/useAuthStore';
@@ -66,6 +69,9 @@ function App() {
           {/* Public App Layout */}
           <Route path="/" element={<><Navbar /><Dashboard /></>} />
           <Route path="/login" element={<><Navbar /><Login /></>} />
+          <Route path="/register" element={<><Navbar /><Register /></>} />
+          <Route path="/map" element={<><Navbar /><MapPage /></>} />
+          <Route path="/risk" element={<><Navbar /><RiskAnalysis /></>} />
           <Route path="/settings" element={<><Navbar /><Settings /></>} />
 
           {/* Admin Layout & Routes */}

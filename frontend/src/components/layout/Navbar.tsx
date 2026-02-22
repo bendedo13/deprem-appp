@@ -25,7 +25,7 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-8">
                 <NavLink to="/" icon={<LayoutDashboard size={18} />} label="Dashboard" active={location.pathname === '/'} />
                 <NavLink to="/map" icon={<MapIcon size={18} />} label="Harita" active={location.pathname === '/map'} />
-                <NavLink icon={<Shield size={18} />} label="Risk Analizi" />
+                <NavLink to="/risk" icon={<Shield size={18} />} label="Risk Analizi" active={location.pathname === '/risk'} />
             </div>
 
             <div className="flex items-center gap-4">
