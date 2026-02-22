@@ -63,7 +63,9 @@ app.include_router(websocket_router, tags=["WebSocket"])
 
 
 @app.get("/health", tags=["Sistem"])
+@app.get("/api/v1/health", tags=["Sistem"])
 async def health_check():
+    """Health check endpoint - hem /health hem /api/v1/health"""
     return {"status": "ok", "version": "1.0.0"}
 
 

@@ -52,7 +52,7 @@ echo -e "${GREEN}✓ Migration tamamlandı${NC}"
 # 6. Health check
 echo -e "${YELLOW}🏥 Health check yapılıyor...${NC}"
 sleep 5
-HEALTH=$(curl -s http://localhost:8001/health || echo "failed")
+HEALTH=$(curl -s http://localhost:8001/api/v1/health || curl -s http://localhost:8001/health || echo "failed")
 if echo "$HEALTH" | grep -q "ok"; then
     echo -e "${GREEN}✓ Backend sağlıklı çalışıyor${NC}"
 else
@@ -87,5 +87,7 @@ echo ""
 echo -e "${BLUE}🌐 Servis URL'leri:${NC}"
 echo "  Backend API: http://localhost:8001"
 echo "  Frontend: http://localhost:8002"
+echo "  Health Check: http://localhost:8001/health"
+echo "  API Health: http://localhost:8001/api/v1/health"
 echo "  API Docs: http://localhost:8001/docs"
 echo ""
