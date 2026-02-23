@@ -1,0 +1,87 @@
+# ═══════════════════════════════════════════════════════════════
+# TWILIO SMS VE SESLİ S.O.S DEPLOYMENT KOMUTLARI
+# ═══════════════════════════════════════════════════════════════
+
+# 1. VPS'E BAĞLAN
+ssh root@46.4.123.77
+
+# 2. GIT PULL
+cd /opt/deprem-appp
+git stash
+git pull origin main
+
+# 3. .ENV DOSYASINI GÜNCELLE
+cd /opt/deprem-appp/backend
+nano .env
+
+# Şu satırları ekle/güncelle:
+TWILIO_ACCOUNT_SID=your_account_sid_here
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_PHONE_NUMBER=+1234567890
+
+# Kaydet: Ctrl+X, Y, Enter
+
+# 4. DEPLOYMENT
+cd /opt/deprem-appp/deploy
+./PRODUCTION_DEPLOY.sh
+
+# 5. KONTROL
+docker ps
+docker logs -f deprem_backend
+
+# ═══════════════════════════════════════════════════════════════
+# TEST KOMUTLARI
+# ═══════════════════════════════════════════════════════════════
+
+# Health Check
+curl http://46.4.123.77:8001/health
+
+# Register
+curl -X POST http://46.4.123.77:8001/api/v1/users/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"test@example.com","password":"test123456","full_name":"Test User"}'
+
+# Login (JWT token al)
+curl -X POST http://46.4.123.77:8001/api/v1/users/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"test@example.com","password":"test123456"}'
+
+# TOKEN değişkenini yukarıdaki response'dan aldığın access_token ile değiştir
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Acil Kişi Ekle
+curl -X POST http://46.4.123.77:8001/api/v1/users/contacts \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Test Contact","phone":"+905551234567","relationship":"Arkadaş","channel":"sms"}'
+
+# "Ben İyiyim" Butonu (SMS Gönderir!)
+curl -X POST http://46.4.123.77:8001/api/v1/users/i-am-safe \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"custom_message":"Ben iyiyim!","include_location":true,"latitude":41.0082,"longitude":28.9784}'
+
+# ═══════════════════════════════════════════════════════════════
+# TAMAMLANAN ÖZELLİKLER
+# ═══════════════════════════════════════════════════════════════
+
+✅ Twilio SMS entegrasyonu
+✅ "Ben İyiyim" SMS gönderimi
+✅ Deprem bildirimi SMS
+✅ Sesli S.O.S backend (Whisper + Claude)
+✅ Mobile app S.O.S UI
+✅ Acil kişilere otomatik SMS
+
+# ═══════════════════════════════════════════════════════════════
+# SORUN GİDERME
+# ═══════════════════════════════════════════════════════════════
+
+# Backend logları
+docker logs deprem_backend | grep -i twilio
+
+# Celery logları
+docker logs deprem_celery | grep -i sos
+
+# Container restart
+docker restart deprem_backend
+docker restart deprem_celery

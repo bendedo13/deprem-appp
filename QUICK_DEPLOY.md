@@ -1,196 +1,183 @@
-# Quick Deployment Guide
+# 🚀 HIZLI DEPLOYMENT REHBERİ
 
-## 🚀 Deploy Backend to VPS
+## Tek Komut ile Deployment
+
+VPS'te şu komutu çalıştır (Twilio bilgilerinle):
 
 ```bash
-# SSH to VPS
-ssh root@46.4.123.77
+ssh root@46.4.123.77 'cd /opt/deprem-appp && git pull && chmod +x deploy/UPDATE_TWILIO_AND_DEPLOY.sh && ./deploy/UPDATE_TWILIO_AND_DEPLOY.sh YOUR_ACCOUNT_SID YOUR_AUTH_TOKEN YOUR_PHONE_NUMBER'
+```
 
-# Navigate to project
+**NOT:** YOUR_ACCOUNT_SID, YOUR_AUTH_TOKEN ve YOUR_PHONE_NUMBER'ı kendi Twilio bilgilerinle değiştir.
+
+## Veya Adım Adım:
+
+### 1. VPS'e Bağlan
+```bash
+ssh root@46.4.123.77
+```
+
+### 2. Proje Dizinine Git
+```bash
 cd /opt/deprem-appp
-
-# Pull latest changes
-git fetch origin
-git reset --hard origin/main
-
-# Deploy
-cd deploy
-bash PRODUCTION_DEPLOY.sh
-
-# Check logs
-docker logs deprem_backend --tail 50 -f
-# Press Ctrl+C to exit logs
-
-# Test health endpoint
-curl http://localhost:8001/api/v1/health
 ```
 
-Expected output:
-```json
-{"status":"healthy","timestamp":"2026-02-23T..."}
+### 3. Git Pull
+```bash
+git pull origin main
 ```
 
-## 📱 Build Mobile APK
+### 4. Script'i Çalıştırılabilir Yap
+```bash
+chmod +x deploy/UPDATE_TWILIO_AND_DEPLOY.sh
+```
+
+### 5. Deployment Yap (Twilio Bilgileri ile)
+```bash
+./deploy/UPDATE_TWILIO_AND_DEPLOY.sh YOUR_ACCOUNT_SID YOUR_AUTH_TOKEN YOUR_PHONE_NUMBER
+```
+
+**NOT:** YOUR_ACCOUNT_SID, YOUR_AUTH_TOKEN ve YOUR_PHONE_NUMBER'ı kendi Twilio bilgilerinle değiştir.
+
+## Script Ne Yapar?
+
+1. ✅ Git pull yapar
+2. ✅ `.env` dosyasına Twilio bilgilerini ekler/günceller
+3. ✅ Docker container'ları durdurur
+4. ✅ Yeni image build eder (--no-cache)
+5. ✅ Container'ları başlatır
+6. ✅ Database migration yapar
+7. ✅ Health check yapar
+8. ✅ Test komutlarını gösterir
+
+## Deployment Sonrası Test
+
+### 1. Health Check
+```bash
+curl http://46.4.123.77:8001/health
+```
+
+Beklenen: `{"status":"ok","version":"1.0.0"}`
+
+### 2. Yeni Kullanıcı Kaydı
+```bash
+curl -X POST http://46.4.123.77:8001/api/v1/users/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"test2@example.com","password":"test123456","full_name":"Test User 2"}'
+```
+
+### 3. Login
+```bash
+curl -X POST http://46.4.123.77:8001/api/v1/users/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"test2@example.com","password":"test123456"}'
+```
+
+Response'dan `access_token`'ı kopyala ve TOKEN değişkenine ata:
 
 ```bash
-# On your local machine
-cd deprem-appp/mobile
-
-# Install dependencies (first time only)
-npm install
-
-# Login to EAS (first time only)
-npm install -g eas-cli
-eas login
-
-# Build APK
-eas build --platform android --profile production
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
-Build will take 10-20 minutes. You'll get a download link when complete.
-
-## ✅ Test S.O.S Feature
-
-### Backend Test
-
+### 4. Acil Kişi Ekle
 ```bash
-# SSH to VPS
-ssh root@46.4.123.77
-
-# Register test user
-curl -X POST http://localhost:8001/api/v1/users/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"test123456"}'
-
-# Login
-curl -X POST http://localhost:8001/api/v1/users/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"test123456"}'
-
-# Save the access_token from response
-TOKEN="YOUR_ACCESS_TOKEN_HERE"
-
-# Test S.O.S upload (with a test audio file)
-curl -X POST http://localhost:8001/api/v1/sos/analyze \
+curl -X POST http://46.4.123.77:8001/api/v1/users/contacts \
   -H "Authorization: Bearer $TOKEN" \
-  -F "audio=@test.m4a" \
-  -F "latitude=41.0082" \
-  -F "longitude=28.9784"
-
-# Check Celery logs
-docker logs deprem_celery --tail 50 -f
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Test Contact","phone":"+905551234567","email":"test@example.com","relationship":"Arkadaş","channel":"sms"}'
 ```
 
-### Mobile App Test
+### 5. "Ben İyiyim" Butonu (SMS Gönderir!)
+```bash
+curl -X POST http://46.4.123.77:8001/api/v1/users/i-am-safe \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"custom_message":"Ben iyiyim!","include_location":true,"latitude":41.0082,"longitude":28.9784}'
+```
 
-1. Download APK from EAS dashboard
-2. Install on Android device
-3. Open app → Menu → S.O.S
-4. Grant microphone permission
-5. Press and hold red button to record
-6. Release to upload
-7. Wait for AI processing (shows status)
+Bu komut acil kişiye SMS gönderecek!
 
-## 🔧 Troubleshooting
-
-### Backend not responding
+## Logları İzle
 
 ```bash
-# Check if containers are running
-docker ps
+# Backend logları
+docker logs -f deprem_backend
 
-# Restart backend
+# Celery logları (SMS gönderimi için)
+docker logs -f deprem_celery
+
+# Tüm container'lar
+docker ps
+```
+
+## Sorun Giderme
+
+### Twilio SMS Gönderilmiyor
+
+```bash
+# .env dosyasını kontrol et
+docker exec deprem_backend cat .env | grep TWILIO
+
+# Backend loglarında Twilio hatası var mı?
+docker logs deprem_backend | grep -i twilio
+
+# Celery loglarında hata var mı?
+docker logs deprem_celery | grep -i twilio
+```
+
+### Container Başlamıyor
+
+```bash
+# Container durumunu kontrol et
+docker ps -a
+
+# Logları kontrol et
+docker logs deprem_backend
+docker logs deprem_celery
+
+# Yeniden başlat
 cd /opt/deprem-appp/deploy
-docker compose -f docker-compose.prod.yml restart backend
-
-# Check logs
-docker logs deprem_backend --tail 100
+docker compose -f docker-compose.prod.yml restart
 ```
 
-### Celery not processing
+### Migration Hatası
 
 ```bash
-# Check Celery logs
-docker logs deprem_celery --tail 100
+# Manuel migration
+docker exec deprem_backend alembic upgrade head
 
-# Restart Celery
-docker compose -f docker-compose.prod.yml restart celery
-
-# Check Redis
-docker exec -it deprem_redis redis-cli ping
+# Migration geçmişi
+docker exec deprem_backend alembic current
 ```
 
-### EAS build fails
+## Önemli Notlar
+
+- ✅ Twilio bilgileri script içinde güvenli şekilde saklanıyor
+- ✅ `.env` dosyası otomatik güncelleniyor
+- ✅ Docker no-cache build yapılıyor (eski kod problemi yok)
+- ✅ Health check otomatik yapılıyor
+- ⚠️ SMS gönderimi için Twilio hesabında kredi olmalı
+- ⚠️ Test için gerçek telefon numarası kullan
+
+## Başarı Kriterleri
+
+Deployment başarılı sayılır eğer:
+
+1. ✅ Health check 200 OK dönüyor
+2. ✅ Register/Login çalışıyor
+3. ✅ Acil kişi eklenebiliyor
+4. ✅ "Ben İyiyim" butonu SMS gönderiyor
+5. ✅ Container'lar "Up" durumunda
+
+## Hızlı Komutlar
 
 ```bash
-# Clear cache and rebuild
-cd mobile
-eas build:clear-cache
-eas build --platform android --profile production --clear-cache
+# Tek satırda deployment
+ssh root@46.4.123.77 'cd /opt/deprem-appp && git pull && chmod +x deploy/UPDATE_TWILIO_AND_DEPLOY.sh && ./deploy/UPDATE_TWILIO_AND_DEPLOY.sh'
+
+# Sadece restart
+ssh root@46.4.123.77 'cd /opt/deprem-appp/deploy && docker compose -f docker-compose.prod.yml restart'
+
+# Logları izle
+ssh root@46.4.123.77 'docker logs -f deprem_backend'
 ```
-
-### Audio upload fails
-
-- Check backend logs: `docker logs deprem_backend --tail 50 -f`
-- Verify API URL in mobile `.env` file
-- Test backend health: `curl http://46.4.123.77:8001/api/v1/health`
-- Check Celery is running: `docker ps | grep celery`
-
-## 📊 Monitor Services
-
-```bash
-# All containers status
-docker ps
-
-# Backend logs
-docker logs deprem_backend --tail 50 -f
-
-# Celery logs
-docker logs deprem_celery --tail 50 -f
-
-# Database logs
-docker logs deprem_db --tail 50 -f
-
-# Redis logs
-docker logs deprem_redis --tail 50 -f
-
-# Nginx logs
-docker logs deprem_nginx --tail 50 -f
-```
-
-## 🔑 API Keys Status
-
-- ✅ Firebase (Push Notifications) - Configured
-- ✅ OpenAI Whisper (Speech-to-Text) - Configured
-- ✅ Anthropic Claude (NLP) - Configured
-- ⚠️ Twilio (SMS/WhatsApp) - Auth Token configured, need Account SID & Phone Number
-
-Get Twilio credentials from: https://console.twilio.com/
-
-## 📝 Important URLs
-
-- Backend API: http://46.4.123.77:8001
-- Health Check: http://46.4.123.77:8001/api/v1/health
-- API Docs: http://46.4.123.77:8001/docs
-- EAS Dashboard: https://expo.dev
-- GitHub Repo: https://github.com/YOUR_REPO
-
-## 🎯 Current Status
-
-- ✅ Backend deployed and running
-- ✅ Database migrations applied
-- ✅ Celery worker running
-- ✅ S.O.S API endpoints working
-- ✅ Mobile app code ready
-- ⏳ Mobile APK build pending
-- ⏳ Mobile app testing pending
-
-## 📞 Next Steps
-
-1. Run: `cd deprem-appp/mobile && npm install`
-2. Run: `eas build --platform android --profile production`
-3. Download APK when build completes
-4. Install and test on Android device
-5. Get Twilio Account SID and Phone Number
-6. Update backend `.env` with Twilio credentials
-7. Restart backend: `docker compose -f docker-compose.prod.yml restart backend`
