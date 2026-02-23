@@ -85,13 +85,13 @@ if [ "$NODE_MAJOR" -ne 18 ]; then
     # Check if nvm is available
     if command -v nvm &> /dev/null; then
         echo "Switching to Node 18 using nvm..."
-        nvm install 18.20.4
-        nvm use 18.20.4
+        nvm install 18.19.1
+        nvm use 18.19.1
         NODE_VERSION=$(node -v)
         echo "Switched to: $NODE_VERSION"
     else
         echo -e "${YELLOW}⚠ nvm not found. Continuing with Node $NODE_VERSION${NC}"
-        echo "If build fails, install Node 18.20.4 manually"
+        echo "If build fails, install Node 18.19.1 manually"
     fi
 fi
 
