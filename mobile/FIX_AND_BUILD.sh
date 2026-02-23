@@ -43,6 +43,11 @@ if [ ! -f ".npmrc" ]; then
     exit 1
 fi
 
+if [ ! -f ".nvmrc" ]; then
+    echo -e "${RED}✗ .nvmrc not found after git pull!${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN}✓ Git sync complete!${NC}"
 echo ""
 
@@ -62,24 +67,39 @@ echo ""
 echo "=========================================="
 echo ""
 
-# Step 2: Environment Check
-echo -e "${YELLOW}Step 2: Checking Environment...${NC}"
+# Step 2: Node Version Check
+echo -e "${YELLOW}Step 2: Checking Node Version...${NC}"
 echo ""
 
 NODE_VERSION=$(node -v)
-echo "Node version: $NODE_VERSION"
+echo "Current Node version: $NODE_VERSION"
+
+# Extract major version
+NODE_MAJOR=$(node -v | cut -d'.' -f1 | sed 's/v//')
+
+if [ "$NODE_MAJOR" -ne 18 ]; then
+    echo -e "${YELLOW}⚠ Node version should be 18.x for stability${NC}"
+    echo "Current: $NODE_VERSION"
+    echo ""
+    
+    # Check if nvm is available
+    if command -v nvm &> /dev/null; then
+        echo "Switching to Node 18 using nvm..."
+        nvm install 18.20.4
+        nvm use 18.20.4
+        NODE_VERSION=$(node -v)
+        echo "Switched to: $NODE_VERSION"
+    else
+        echo -e "${YELLOW}⚠ nvm not found. Continuing with Node $NODE_VERSION${NC}"
+        echo "If build fails, install Node 18.20.4 manually"
+    fi
+fi
 
 NPM_VERSION=$(npm -v)
 echo "npm version: $NPM_VERSION"
 
-# Check Node version (must be 18-20)
-NODE_MAJOR=$(node -v | cut -d'.' -f1 | sed 's/v//')
-if [ "$NODE_MAJOR" -lt 18 ] || [ "$NODE_MAJOR" -gt 20 ]; then
-    echo -e "${RED}✗ Node version must be 18-20, current: $NODE_VERSION${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Node version compatible!${NC}"
+echo -e "${GREEN}✓ Node version check complete!${NC}"
+echo ""
 
 # Check if EAS CLI is installed
 if ! command -v eas &> /dev/null; then
@@ -90,7 +110,6 @@ fi
 EAS_VERSION=$(eas --version)
 echo "EAS CLI version: $EAS_VERSION"
 
-echo -e "${GREEN}✓ Environment check complete!${NC}"
 echo ""
 echo "=========================================="
 echo ""
@@ -112,6 +131,9 @@ rm -rf .expo
 echo "Removing dist..."
 rm -rf dist
 
+echo "Removing android/ios if exists..."
+rm -rf android ios
+
 echo "Cleaning npm cache..."
 npm cache clean --force
 
@@ -130,6 +152,10 @@ if [ $? -ne 0 ]; then
     echo -e "${RED}✗ npm install failed!${NC}"
     exit 1
 fi
+
+# Run dedupe to optimize dependency tree
+echo "Running npm dedupe..."
+npm dedupe
 
 echo -e "${GREEN}✓ Dependencies installed!${NC}"
 echo ""
