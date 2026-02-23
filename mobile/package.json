@@ -51,5 +51,9 @@
     "del": "6.1.1",
     "tempy": "1.0.1"
   },
+  "resolutions": {
+    "del": "6.1.1",
+    "tempy": "1.0.1"
+  },
   "private": true
 }
