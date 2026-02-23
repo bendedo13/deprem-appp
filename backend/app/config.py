@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     EMSC_API_URL: str = "https://www.seismicportal.eu/fdsnws/event/1"
     FETCH_INTERVAL_SECONDS: int = 30
 
+    # Firebase (Push notifications)
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_PRIVATE_KEY: str = ""
+    FIREBASE_CLIENT_EMAIL: str = ""
+    FIREBASE_CREDENTIALS_PATH: str = "firebase-service-account.json"
+
     # ── Shake / deprem algılama sabitleri (EARTHQUAKE_DETECTION_ALGORITHM.md) ──
     SHAKE_WINDOW_SECONDS: int = 5
     SHAKE_WINDOW_TTL_SECONDS: int = 10

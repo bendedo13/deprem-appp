@@ -3,18 +3,22 @@ Acil iletişim kişisi şemaları.
 Pydantic v2 — rules.md: type hints, validation.
 """
 
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class EmergencyContactIn(BaseModel):
     """Yeni acil kişi oluşturma girdisi."""
 
     name: str
-    phone: Optional[str] = None
+    phone: str
     email: Optional[EmailStr] = None
-    channel: Literal["push", "sms", "email"] = "push"
+    relation: str = Field(..., description="Yakınlık derecesi (Aile, Eş, Arkadaş vb.)")
+    methods: List[Literal["whatsapp", "sms", "email"]] = Field(
+        default=["push"], description="Bildirim yöntemleri"
+    )
+    priority: int = Field(default=1, ge=1, le=5, description="Öncelik sırası (1=En yüksek)")
 
     @field_validator("name")
     @classmethod
@@ -26,14 +30,15 @@ class EmergencyContactIn(BaseModel):
 
     @field_validator("phone")
     @classmethod
-    def phone_format(cls, v: Optional[str]) -> Optional[str]:
+    def phone_format(cls, v: str) -> str:
         """Telefon numarası basit format kontrolü."""
-        if v is not None:
-            cleaned = v.strip()
-            if cleaned and not cleaned.replace("+", "").replace(" ", "").isdigit():
-                raise ValueError("Geçersiz telefon numarası.")
-            return cleaned or None
-        return v
+        cleaned = v.strip()
+        if not cleaned:
+             raise ValueError("Telefon numarası boş olamaz.")
+        # Basit kontrol: sadece rakam ve +, boşluk içerebilir
+        if not cleaned.replace("+", "").replace(" ", "").isdigit():
+            raise ValueError("Geçersiz telefon numarası.")
+        return cleaned
 
 
 class EmergencyContactOut(BaseModel):
@@ -41,8 +46,10 @@ class EmergencyContactOut(BaseModel):
 
     id: int
     name: str
-    phone: Optional[str]
+    phone: str
     email: Optional[str]
-    channel: str
+    relation: str
+    methods: List[str]
+    priority: int
 
     model_config = {"from_attributes": True}

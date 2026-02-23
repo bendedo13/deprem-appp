@@ -25,20 +25,32 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    
+    # Profil Bilgileri
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    avatar: Mapped[str | None] = mapped_column(String(10), nullable=True)  # Emoji avatar
+    plan: Mapped[str] = mapped_column(String(20), default="free", nullable=False)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
     fcm_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    join_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     emergency_contacts: Mapped[List["EmergencyContact"]] = relationship(
-        "EmergencyContact", back_populates="user", lazy="selectin"
+        "EmergencyContact", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
     )
     notification_pref: Mapped[Optional["NotificationPref"]] = relationship(
-        "NotificationPref", back_populates="user", uselist=False, lazy="selectin"
+        "NotificationPref", back_populates="user", uselist=False, lazy="selectin", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

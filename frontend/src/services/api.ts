@@ -36,6 +36,17 @@ export const userService = {
         const { data } = await api.patch('/users/me', body);
         return data;
     },
+    updateProfile: async (body: any) => {
+        const { data } = await api.put('/users/me', body);
+        return data;
+    },
+    changePassword: async (body: any) => {
+        const { data } = await api.put('/users/me/password', body);
+        return data;
+    },
+    deleteAccount: async () => {
+        await api.delete('/users/me');
+    },
     getContacts: async () => {
         const { data } = await api.get('/users/me/contacts');
         return data;
@@ -55,8 +66,8 @@ export const userService = {
         const { data } = await api.put('/users/me/preferences', prefs);
         return data;
     },
-    reportSafe: async () => {
-        const { data } = await api.post('/users/me/safe');
+    reportSafe: async (body?: { include_location: boolean, custom_message?: string, contact_ids?: number[] }) => {
+        const { data } = await api.post('/users/me/safe', body || {});
         return data;
     }
 };

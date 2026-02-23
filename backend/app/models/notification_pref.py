@@ -3,9 +3,10 @@ Bildirim tercihi modeli.
 Kullanıcının hangi büyüklük ve yarıçapdaki depremlerde bildirim alacağını saklar.
 """
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, UniqueConstraint, String, Time, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
+from datetime import time
 
 from app.database import Base
 
@@ -23,14 +24,28 @@ class NotificationPref(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    
     min_magnitude: Mapped[float] = mapped_column(Float, nullable=False, default=3.0)
-    radius_km: Mapped[float] = mapped_column(Float, nullable=False, default=500.0)
-    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    locations: Mapped[List[str]] = mapped_column(JSON, default=[], nullable=False) # List of location names
+    
+    # Kanallar
+    push_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sms_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    email_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Sessiz Saatler
+    quiet_hours_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    quiet_start: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    quiet_end: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    
+    # Ekstra
+    weekly_summary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    aftershock_alerts: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="notification_pref")
 
     def __repr__(self) -> str:
         return (
             f"<NotificationPref user_id={self.user_id} "
-            f"min_mag={self.min_magnitude} radius={self.radius_km}km>"
+            f"min_mag={self.min_magnitude}>"
         )
