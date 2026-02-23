@@ -54,8 +54,6 @@ def get_sync_session() -> Session:
     return SyncSessionLocal()
 
 
-async def init_db() -> None:
-    """Uygulama başlangıcında tabloları oluşturur (gerekirse)."""
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Veritabanı hazır.")
+# init_db() KALDIRILDI - Production'da Alembic migration kullanıyoruz
+# create_all() kullanmak DuplicateTableError'a sebep olur
+# Migration: docker exec deprem_backend alembic upgrade head

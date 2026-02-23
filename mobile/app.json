@@ -10,7 +10,6 @@
       "apiUrl": "http://46.4.123.77:8001"
     },
     "plugins": [
-      "expo-constants",
       "expo-sensors",
       [
         "expo-location",
@@ -19,9 +18,20 @@
         }
       ],
       [
-        "react-native-google-mobile-ads",
+        "expo-av",
         {
-          "androidAppId": "ca-app-pub-1173265458993328~5191916494"
+          "microphonePermission": "S.O.S sesli mesaj göndermek için mikrofon izni gereklidir."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "minSdkVersion": 23,
+            "kotlinVersion": "1.9.0"
+          }
         }
       ]
     ],
@@ -33,7 +43,8 @@
         "android.permission.USE_FULL_SCREEN_INTENT",
         "android.permission.INTERNET",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ],
       "googleServicesFile": "./google-services.json"
     },

@@ -1,6 +1,6 @@
 """
 JWT kimlik doğrulama servisi.
-Şifre hash'leme (bcrypt), token üretme ve doğrulama işlemleri.
+Şifre hash'leme (Argon2), token üretme ve doğrulama işlemleri.
 rules.md: API key/secret asla kodda olmaz — SECRET_KEY .env'den gelir.
 """
 
@@ -15,21 +15,33 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# bcrypt ile şifre hash'leme (endüstri standardı)
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Argon2 ile şifre hash'leme (modern, güvenli, 72 byte limiti yok)
+# Fallback olarak bcrypt (eski hash'ler için)
+_pwd_context = CryptContext(
+    schemes=["argon2", "bcrypt"],
+    deprecated="auto",
+    argon2__rounds=2,  # Performans için optimize edilmiş
+)
 
 # JWT algoritması
 _ALGORITHM = "HS256"
 
 
 def hash_password(plain: str) -> str:
-    """Düz metin şifreyi bcrypt ile hash'ler."""
+    """Düz metin şifreyi Argon2 ile hash'ler."""
     return _pwd_context.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Düz metin şifreyi hash ile karşılaştırır."""
-    return _pwd_context.verify(plain, hashed)
+    """
+    Düz metin şifreyi hash ile karşılaştırır.
+    Argon2 ve bcrypt hash'lerini destekler (backward compatibility).
+    """
+    try:
+        return _pwd_context.verify(plain, hashed)
+    except Exception as exc:
+        logger.error("Password verification hatası: %s", exc)
+        return False
 
 
 def create_access_token(user_id: int, email: str) -> str:

@@ -9,6 +9,9 @@
             "distribution": "internal",
             "android": {
                 "buildType": "apk"
+            },
+            "env": {
+                "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
             }
         },
         "preview": {
@@ -18,11 +21,26 @@
             },
             "ios": {
                 "simulator": true
+            },
+            "env": {
+                "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
             }
         },
         "production": {
             "android": {
-                "buildType": "app-bundle"
+                "buildType": "apk",
+                "gradleCommand": ":app:assembleRelease"
+            },
+            "node": "18.19.1",
+            "env": {
+                "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
+            },
+            "cache": {
+                "key": "production-cache",
+                "paths": [
+                    "node_modules",
+                    ".expo"
+                ]
             }
         }
     },

@@ -12,6 +12,7 @@ celery_app = Celery(
     include=[
         "app.tasks.notify_emergency_contacts",
         "app.tasks.fetch_earthquakes",
+        "app.tasks.process_sos",
     ],
 )
 celery_app.conf.update(

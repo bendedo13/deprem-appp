@@ -5,6 +5,7 @@
 
 import { useEffect } from "react";
 import { Stack, router } from "expo-router";
+import "./firebase-init";  // Firebase initialization - MUST BE FIRST
 import { setBackgroundEarthquakeHandler, setupFcmEarthquakeHandler } from "../src/services/fcmEarthquakeHandler";
 import { hasToken } from "../src/services/authService";
 import { InterstitialAd, AdEventType } from "react-native-google-mobile-ads";

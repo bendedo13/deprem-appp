@@ -1,14 +1,14 @@
 """
 FCM (Firebase Cloud Messaging) push bildirim servisi.
 Deprem uyarısı ve test bildirimleri için kullanılır.
-Firebase Admin SDK yapılandırması GOOGLE_APPLICATION_CREDENTIALS veya
-FIREBASE_SERVICE_ACCOUNT_JSON env değişkeninden okunur.
+Firebase Admin SDK yapılandırması config'den okunur.
 """
 
 import json
 import logging
-import os
 from typing import Optional
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ except ImportError:
 def _init_firebase() -> bool:
     """
     Firebase Admin SDK'yı bir kez başlatır.
-    GOOGLE_APPLICATION_CREDENTIALS veya FIREBASE_SERVICE_ACCOUNT_JSON kullanır.
+    Config'den Firebase credentials kullanır.
 
     Returns:
         True → başarılı, False → SDK yok veya hata.
@@ -35,30 +35,27 @@ def _init_firebase() -> bool:
     if firebase_admin._apps:
         return True  # Zaten başlatıldı
 
-    # Yöntem 1: JSON string env var
-    service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if service_account_json:
-        try:
-            cred = credentials.Certificate(json.loads(service_account_json))
-            firebase_admin.initialize_app(cred)
-            logger.info("Firebase Admin SDK başlatıldı (JSON env var).")
-            return True
-        except Exception as exc:
-            logger.error("Firebase başlatma hatası (JSON): %s", exc)
+    # Config'den credentials oku
+    if not settings.FIREBASE_PROJECT_ID or not settings.FIREBASE_PRIVATE_KEY or not settings.FIREBASE_CLIENT_EMAIL:
+        logger.warning("Firebase yapılandırması eksik. FCM bildirimleri atlanacak.")
+        return False
 
-    # Yöntem 2: Dosya yolu env var (GOOGLE_APPLICATION_CREDENTIALS)
-    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    if cred_path and os.path.exists(cred_path):
-        try:
-            cred = credentials.Certificate(cred_path)
-            firebase_admin.initialize_app(cred)
-            logger.info("Firebase Admin SDK başlatıldı (credentials dosya).")
-            return True
-        except Exception as exc:
-            logger.error("Firebase başlatma hatası (dosya): %s", exc)
-
-    logger.warning("Firebase yapılandırması bulunamadı. FCM bildirimleri atlanacak.")
-    return False
+    try:
+        # Firebase credentials oluştur
+        cred_dict = {
+            "type": "service_account",
+            "project_id": settings.FIREBASE_PROJECT_ID,
+            "private_key": settings.FIREBASE_PRIVATE_KEY.replace('\\n', '\n'),  # Escape karakterlerini düzelt
+            "client_email": settings.FIREBASE_CLIENT_EMAIL,
+            "token_uri": "https://oauth2.googleapis.com/token",
+        }
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        logger.info("Firebase Admin SDK başlatıldı.")
+        return True
+    except Exception as exc:
+        logger.error("Firebase başlatma hatası: %s", exc)
+        return False
 
 
 async def send_earthquake_push(

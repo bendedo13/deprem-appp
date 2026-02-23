@@ -58,6 +58,30 @@ class Settings(BaseSettings):
     SHAKE_GEOHASH_PRECISION: int = 5
     SHAKE_RATE_LIMIT_PER_DEVICE_SECONDS: int = 30
 
+    # ── Firebase (Push Notifications) ──
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_PRIVATE_KEY: str = ""
+    FIREBASE_CLIENT_EMAIL: str = ""
+
+    # ── Twilio (SMS/WhatsApp for Emergency Contacts) ──
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_PHONE_NUMBER: str = ""
+
+    # ── OpenAI (Whisper for S.O.S Voice) ──
+    OPENAI_API_KEY: str = ""
+    OPENAI_WHISPER_MODEL: str = "whisper-1"
+    OPENAI_WHISPER_LANGUAGE: str = "tr"
+
+    # ── Anthropic Claude (NLP for S.O.S Voice) ──
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-3-haiku-20240307"
+
+    # ── S.O.S Audio Storage ──
+    SOS_AUDIO_STORAGE_PATH: str = "/app/sos_audio"
+    SOS_AUDIO_BASE_URL: str = "https://your-domain.com/sos_audio"
+    SOS_RATE_LIMIT_PER_HOUR: int = 10
+
 
 @lru_cache
 def get_settings() -> Settings:
