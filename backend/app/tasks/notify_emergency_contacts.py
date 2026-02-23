@@ -134,8 +134,21 @@ def _notify_emergency_contact(
 
 
 def _send_sms(phone: str, body: str) -> None:
-    """SMS gönderimi (entegrasyon: Twilio vb.). Şimdilik log."""
-    logger.info("SMS (stub) -> %s: %s", phone[:6], body[:80])
+    """SMS gönderimi (Twilio entegrasyonu)."""
+    try:
+        from app.services.twilio_sms import get_twilio_service
+        import asyncio
+        
+        twilio = get_twilio_service()
+        # Celery task sync olduğu için asyncio.run kullanıyoruz
+        success = asyncio.run(twilio.send_sms(phone, body))
+        
+        if success:
+            logger.info("SMS gönderildi -> %s: %s", phone[:6], body[:80])
+        else:
+            logger.warning("SMS gönderilemedi -> %s", phone[:6])
+    except Exception as e:
+        logger.error("SMS gönderme hatası: %s", e)
 
 
 def _send_email(to: str, subject: str, body: str) -> None:

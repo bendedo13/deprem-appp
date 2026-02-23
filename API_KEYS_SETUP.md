@@ -22,36 +22,14 @@ API key sağlandı ve yapılandırıldı.
 
 API key sağlandı ve yapılandırıldı.
 
-### 4. Twilio (SMS/WhatsApp) ⚠️ EKSIK
-**Durum:** Auth Token sağlandı, ancak Account SID ve Phone Number gerekli  
+### 4. Twilio (SMS/WhatsApp) ✅ TAMAMLANDI
+**Durum:** Yapılandırıldı  
 **Kullanım:** Acil kişilere SMS ve WhatsApp mesajı gönderme
 
-#### Twilio Kurulum Adımları:
+#### Twilio Bilgileri:
+Twilio hesabı aktif ve VPS'te yapılandırıldı!
 
-1. **Twilio Console'a Git:**
-   - https://console.twilio.com/
-
-2. **Account SID'yi Bul:**
-   - Console > Account Info bölümünde "Account SID" görünür
-   - Bu değeri kopyala
-
-3. **Telefon Numarası Al:**
-   - Console > Phone Numbers > Manage > Active numbers
-   - Eğer numaran yoksa: "Buy a number" butonuna tıkla
-   - Türkiye için +90 ile başlayan bir numara seç (veya test için +1 US numarası)
-   - Numarayı satın al (aylık ~$1)
-
-4. **`.env` Dosyasını Güncelle:**
-   ```bash
-   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # Console'dan kopyala
-   TWILIO_AUTH_TOKEN=oWKkDulLItaS3oUwDISCzTWJgwKDBXn1  # Zaten var
-   TWILIO_PHONE_NUMBER=+905551234567  # Satın aldığın numara
-   ```
-
-5. **WhatsApp Sandbox (Opsiyonel Test):**
-   - Console > Messaging > Try it out > Send a WhatsApp message
-   - WhatsApp Sandbox'ı aktifleştir
-   - Test için WhatsApp numaranı ekle
+✅ Account SID, Auth Token ve Phone Number VPS'te .env dosyasına eklendi.
 
 ## 📝 .env Dosyası Yapılandırması
 
@@ -73,10 +51,11 @@ FIREBASE_PROJECT_ID=depremapp-29518
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDvtBO7yiw05fJC\nqJERKtov6ph5eVgqxv9g7HBy4s1TI1/CQeHoh6RqaEwDmi52fqjzfynMWH5GXoal\nYszpvBKoqkHXv9nS8zDGjJ/MX/MCC19AHNOqlMkHVZPFUnqFBJxFMsrs03DCFBME\ncIzc6TcTQoXZKfgBWSw+BxTAJqXgmPvvD0oaw1/+aAjsSOWtOZxeHU7ZUr2WF6Oh\n+RqylVJvvMdni8RkHzO2FycX7ml2PF3y8Hz+qiykuR8/POzIcvmu8fhwEEFWx0g7\nv8Q8Ns1OtcRRaX18+G09InOrfhRGTxPja2Nk68yKLBmFHQZT1vp4Qc/f+twpx6LD\nyiXGQM3pAgMBAAECggEABBBCcWGJBFCNndGru+XFEyDf+tcyxm7fL25yrY/ouSsV\nWX6ybLW39NHV0A3SEdIt3Qrf04YAhgLeN3mITcIRcuiH+zdWYvwabJM/tkA+J1+3\n+qdCc1bYXZZ2zdaLGywr1gR5ajBfbfrXI7EgwjH17A6ppDfQ63zughKuqF8/WqJU\n5ORJNNASTGUtNQXVKGs6vUK8mpOewZWc8zRGUSreaFkQB372jEQfhi7wrc81TLjU\nJTlqsIT3SwvyhIXLiCXDzTe/x9GTUEdJMvg8Kh6N+16UEg5c72kjMXvKz54ZYgLJ\noDeghMrAI9MVqNgOrY4kuVsmcLqULlysy1oAWwvbHQKBgQD4uGzscwKjWnbI6UXR\nsKLcDe2h42+RLtN07EyA7xEd55lWOS094S/IuztLAdmBUXIvEhao6QGUclt6s9b5\nioPO/o+rwwwU07mO3+0ROgvJcysUJfOALVicTdypScRKcTB6Iuo5o2RpZYUZzr9V\nf/YI2/NuT6xWquHFz46m/De80wKBgQD2uBcq8ICnVX01XcofOC3fTrGqWofZZ2lj\nScjSk4utOTm0y/r4+pm/tHkKOoO3FGZwxGEbTM8eTM8cfJRArWQAwYnuw0kKNmo+\ne/t0BXVrGsdrIIf26Uy5hNIM4SueBtoEqslYqmysg/7or7+7DjeEvF0s0x//LDWN\nrrEUF6Ok0wKBgQDhGnlqnsS6d3ueZpHMMGOVaf2yURd+fLTg06SB5NzHBf9fbCwo\nHxCSSfJl9myWf9IqC+L6SLgnVEC7EtzzyIt24inBuKvMhbshNkVnG/PjBRruB1MU\npPXXsRiPFrZS8ZKAV+1I8TpFsZ3/N4EvrrpMVlVBd1ZwsgPYdfuT4h3IBQKBgCeH\nLw8OIU6t/7WBJVUDJzZT4Vstzf4i91uVArvaL9K9DGXPGJKzc9anD413+opmllMS\n44wALl7oZ3Zk70u9e/wzBepfF2Cvfy4rpwnbpghW7gRX3fDNSCGhChZOLTLQXjXJ\nNyEhjO/G5hxZrBpIGNUHaNY5rTKw3pOonW5eqzVJAoGBAMGwI5JVDXrlcIJ7bAbP\n16rpkxR59vm8IVKcjzNrEucUi/3ouN57PJKIAMeS35k5bj89QN+2q7G1miO63rsB\n6r1nSJAiumHevfGoahRfwpBnnIl2+a9Gjgf8JEkowyU68eGOjkaCkVkpsw177RcB\nAb3vDV0PJQni352v6x+7s2D2\n-----END PRIVATE KEY-----\n"
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@depremapp-29518.iam.gserviceaccount.com
 
-# Twilio (SMS/WhatsApp) ⚠️ TAMAMLANMALI
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # BURAYA ACCOUNT SID EKLE
-TWILIO_AUTH_TOKEN=oWKkDulLItaS3oUwDISCzTWJgwKDBXn1
-TWILIO_PHONE_NUMBER=+905551234567  # BURAYA TWILIO NUMARAN EKLE
+# Twilio (SMS/WhatsApp) ✅ TAMAMLANDI
+# VPS'te yapılandırıldı - Güvenlik nedeniyle buraya yazılmadı
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+1234567890
 
 # OpenAI (Whisper) ✅
 OPENAI_API_KEY=sk-proj-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -151,7 +130,7 @@ Tüm API key'leri yapılandırdıktan sonra:
 | "I'm Safe" Button | ✅ | ⏳ | ⏳ | Backend hazır |
 | FCM Push Notifications | ✅ | ✅ | ⏳ | Yapılandırıldı |
 | S.O.S Voice Alert | ✅ | ⏳ | ⏳ | Backend hazır |
-| Twilio SMS | ✅ | N/A | ⏳ | Account SID gerekli |
+| Twilio SMS | ✅ | N/A | ⏳ | Yapılandırıldı |
 
 ## ⚠️ Önemli Notlar
 

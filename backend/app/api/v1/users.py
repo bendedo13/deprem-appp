@@ -339,13 +339,35 @@ async def i_am_safe(
     # FCM token'ı olan acil kişi token'larını topla (eğer acil kişi de app kullanıcısıysa)
     fcm_tokens: List[str] = []
     
-    # Not: Gerçek hayatta SMS ve Email entegrasyonu da burada çağrılır.
+    # SMS ve Email gönderimi
+    from app.services.twilio_sms import get_twilio_service
+    twilio = get_twilio_service()
+    
+    # Mesaj oluştur
+    user_name = current_user.full_name or current_user.email
+    message = f"{user_name} güvende: {body.custom_message or 'Ben iyiyim!'}"
+    
+    # Konum varsa ekle
+    if body.include_location and body.latitude and body.longitude:
+        message += f" Konum: https://maps.google.com/?q={body.latitude},{body.longitude}"
+    
+    # Her acil kişiye SMS gönder
+    sms_sent = 0
+    for contact in target_contacts:
+        if contact.phone:
+            try:
+                success = await twilio.send_sms(contact.phone, message)
+                if success:
+                    sms_sent += 1
+            except Exception as e:
+                logger.error(f"SMS gönderme hatası (contact_id={contact.id}): {e}")
     
     logger.info(
-        "Ben İyiyim Mesajı: user_id=%d, msg=%s, location=%s",
+        "Ben İyiyim Mesajı: user_id=%d, msg=%s, location=%s, sms_sent=%d",
         current_user.id,
         body.custom_message,
-        "Var" if body.include_location else "Yok"
+        "Var" if body.include_location else "Yok",
+        sms_sent
     )
     
     return {
@@ -353,4 +375,5 @@ async def i_am_safe(
         "message": "Bildirim gönderildi.",
         "notified_contacts": len(target_contacts),
         "total_contacts": len(contacts),
+        "sms_sent": sms_sent,
     }
