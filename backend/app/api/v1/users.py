@@ -311,7 +311,7 @@ async def update_preferences(
 # ─── "Ben İyiyim" Endpoint'i ─────────────────────────────────────────────────
 
 @router.post(
-    "/me/safe",
+    "/i-am-safe",
     status_code=status.HTTP_200_OK,
     summary="Ben İyiyim — acil kişilere bildirim gönder",
 )
