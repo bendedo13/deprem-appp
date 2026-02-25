@@ -41,13 +41,14 @@ export async function showEarthquakeAlarm(payload: EarthquakeConfirmedPayload): 
   const ts = payload.timestamp ?? new Date().toISOString();
   const body = `Konum: ${lat}, ${lon} • ${ts}`;
 
-  const notification: notifee.Notification = {
+  const notification = {
     title: "⚠️ Deprem doğrulandı",
     body,
     android: {
       channelId: CHANNEL_ID,
       importance: AndroidImportance.HIGH,
       fullScreenAction: {
+        id: "earthquake_alarm_fullscreen",
         launchActivity: "default",
       },
       pressAction: { id: "default" },
