@@ -1,0 +1,25 @@
+css
+.footer {
+  background-color: #1a1a1a;
+  color: #ffffff;
+  text-align: center;
+  padding: 20px 0;
+  margin-top: 40px;
+  border-top: 1px solid #ff6b35;
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.footer-content p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.footer-subtitle {
+  color: #ff6b35;
+  font-size: 12px;
+  font-weight: 500;
+}
