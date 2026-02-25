@@ -20,5 +20,6 @@
   "include": [
     "src/**/*",
     "app/**/*"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }
