@@ -16,6 +16,7 @@
         },
         "preview": {
             "distribution": "internal",
+            "node": "18.19.1",
             "android": {
                 "buildType": "apk"
             },
