@@ -25,21 +25,31 @@ curl http://46.4.123.77:8001/api/v1/health
 
 Sonuç: `{"status":"ok"}` görmelisin.
 
-### 3️⃣ APK Yap (20 dakika)
+### 3️⃣ APK Yap (Terminal ile - 15 dakika)
 
+**Otomatik (Kolay):**
 ```bash
 cd mobile
-eas login
-eas build --platform android --profile production
+BUILD_APK_TERMINAL.bat
 ```
 
-Build tamamlanınca APK indirme linki gelecek.
+**Manuel:**
+```bash
+cd mobile
+npm install
+npx expo prebuild --platform android
+cd android
+gradlew.bat assembleRelease
+```
+
+APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`
 
 ## 📝 Detaylı Rehberler
 
 - **Backend Deployment**: `DEPLOYMENT_SUMMARY.md`
-- **APK Build (Türkçe)**: `mobile/APK_YAPMA_REHBERI.md`
-- **APK Build (English)**: `mobile/BUILD_APK.md`
+- **APK Build (Terminal - Basit)**: `mobile/BASIT_APK_REHBERI.md` ⭐
+- **APK Build (Terminal - Detaylı)**: `mobile/APK_TERMINAL_REHBERI.md`
+- **APK Build (EAS)**: `mobile/APK_YAPMA_REHBERI.md`
 - **Test Script**: `TEST_AFTER_DEPLOY.sh`
 
 ## 🔧 Yapılan Düzeltmeler
@@ -62,9 +72,14 @@ docker logs -f deprem_backend
 
 ## 📱 Tek Komut ile APK
 
-Local'de:
+Local'de (Terminal):
 ```bash
-cd mobile && eas build --platform android --profile production
+cd mobile && BUILD_APK_TERMINAL.bat
+```
+
+veya manuel:
+```bash
+cd mobile && npm install && npx expo prebuild --platform android && cd android && gradlew.bat assembleRelease
 ```
 
 ## ✅ Başarı Kontrolü
