@@ -1,34 +1,19 @@
-# Build stage
-FROM node:20-alpine as build-stage
-
+FROM node:20-alpine AS deps
 WORKDIR /app
-
-COPY package*.json ./
+COPY package.json package-lock.json* ./
 RUN npm install
 
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Set build-time variables
-ARG VITE_API_URL=http://46.4.123.77:8001/api/v1
-ENV VITE_API_URL=$VITE_API_URL
-
 RUN npm run build
 
-# Production stage
-FROM nginx:stable-alpine as production-stage
-
-# Copy Nginx configuration
-# We'll use a simple config that supports React Router
-RUN echo 'server { \
-    listen 80; \
-    location / { \
-    root /usr/share/nginx/html; \
-    index index.html index.htm; \
-    try_files $uri $uri/ /index.html; \
-    } \
-    }' > /etc/nginx/conf.d/default.conf
-
-COPY --from=build-stage /app/dist /usr/share/nginx/html
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["npx", "serve", "-s", "dist", "-l", "3000"]

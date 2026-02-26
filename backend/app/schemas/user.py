@@ -48,6 +48,8 @@ class ImSafeRequest(BaseModel):
     include_location: bool = True
     custom_message: Optional[str] = Field(None, max_length=255)
     contact_ids: Optional[List[int]] = Field(None, description="Belirli kişilere gönder (boşsa hepsine)")
+    latitude: Optional[float] = Field(None, ge=-90.0, le=90.0)
+    longitude: Optional[float] = Field(None, ge=-180.0, le=180.0)
 
 
 # ── Response Şemaları ──────────────────────────────────────────────────────────
