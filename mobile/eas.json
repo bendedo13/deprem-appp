@@ -7,6 +7,7 @@
         "development": {
             "developmentClient": true,
             "distribution": "internal",
+            "node": "18.19.1",
             "android": {
                 "buildType": "apk"
             },
@@ -16,6 +17,7 @@
         },
         "preview": {
             "distribution": "internal",
+            "node": "18.19.1",
             "android": {
                 "buildType": "apk"
             },
@@ -36,9 +38,8 @@
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
             },
             "cache": {
-                "key": "production-cache",
+                "key": "production-cache-v2",
                 "paths": [
-                    "node_modules",
                     ".expo"
                 ]
             }
