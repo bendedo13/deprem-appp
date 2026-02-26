@@ -1,0 +1,14 @@
+[Unit]
+Description=Deprem App Auto-Deployment Timer
+Requires=deprem-auto-deploy.service
+
+[Timer]
+# Check every 5 minutes
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+# Randomize to avoid thundering herd
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target

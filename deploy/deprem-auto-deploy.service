@@ -1,0 +1,33 @@
+[Unit]
+Description=Deprem App Auto-Deployment Service
+After=network.target docker.service
+Wants=deprem-auto-deploy.timer
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/deprem-appp
+
+# Set environment variables
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="ENVIRONMENT=prod"
+Environment="BRANCH=main"
+
+# Run deployment script
+ExecStart=/bin/bash /opt/deprem-appp/deploy/vps-deployment.sh main prod
+
+# Restart policy
+Restart=on-failure
+RestartSec=30
+
+# Timeouts
+TimeoutStartSec=3600
+TimeoutStopSec=300
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=deprem-deploy
+
+[Install]
+WantedBy=multi-user.target
