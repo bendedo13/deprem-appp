@@ -344,7 +344,7 @@ async def i_am_safe(
     twilio = get_twilio_service()
     
     # Mesaj oluştur
-    user_name = current_user.full_name or current_user.email
+    user_name = current_user.name or current_user.email
     message = f"{user_name} güvende: {body.custom_message or 'Ben iyiyim!'}"
     
     # Konum varsa ekle
