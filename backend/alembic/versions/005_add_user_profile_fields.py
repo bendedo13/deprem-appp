@@ -36,9 +36,9 @@ def downgrade() -> None:
     op.execute('ALTER TABLE emergency_contacts DROP COLUMN IF EXISTS methods')
     op.execute('ALTER TABLE emergency_contacts DROP COLUMN IF EXISTS relation')
 
-    # Remove profile fields from users table
-    op.drop_column('users', 'join_date')
-    op.drop_column('users', 'plan')
-    op.drop_column('users', 'avatar')
-    op.drop_column('users', 'phone')
-    op.drop_column('users', 'name')
+    # Remove profile fields from users table (IF NOT EXISTS for safety)
+    op.execute('ALTER TABLE users DROP COLUMN IF EXISTS join_date')
+    op.execute('ALTER TABLE users DROP COLUMN IF EXISTS plan')
+    op.execute('ALTER TABLE users DROP COLUMN IF EXISTS avatar')
+    op.execute('ALTER TABLE users DROP COLUMN IF EXISTS phone')
+    op.execute('ALTER TABLE users DROP COLUMN IF EXISTS name')
