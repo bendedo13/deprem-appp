@@ -17,17 +17,17 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add profile fields to users table
-    op.add_column('users', sa.Column('name', sa.String(length=100), nullable=True))
-    op.add_column('users', sa.Column('phone', sa.String(length=20), nullable=True))
-    op.add_column('users', sa.Column('avatar', sa.String(length=10), nullable=True))
-    op.add_column('users', sa.Column('plan', sa.String(length=20), nullable=False, server_default='free'))
-    op.add_column('users', sa.Column('join_date', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()))
+    # Add profile fields to users table (IF NOT EXISTS for idempotency)
+    op.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100)')
+    op.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)')
+    op.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(10)')
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(20) NOT NULL DEFAULT 'free'")
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS join_date TIMESTAMPTZ NOT NULL DEFAULT now()")
 
-    # Add missing columns to emergency_contacts table
-    op.add_column('emergency_contacts', sa.Column('relation', sa.String(length=50), nullable=False, server_default='Diğer'))
-    op.add_column('emergency_contacts', sa.Column('methods', sa.JSON(), nullable=False, server_default='["push"]'))
-    op.add_column('emergency_contacts', sa.Column('priority', sa.Integer(), nullable=False, server_default='1'))
+    # Add missing columns to emergency_contacts table (IF NOT EXISTS for idempotency)
+    op.execute("ALTER TABLE emergency_contacts ADD COLUMN IF NOT EXISTS relation VARCHAR(50) NOT NULL DEFAULT 'Diğer'")
+    op.execute("ALTER TABLE emergency_contacts ADD COLUMN IF NOT EXISTS methods JSON NOT NULL DEFAULT '[\"push\"]'")
+    op.execute('ALTER TABLE emergency_contacts ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 1')
 
 
 def downgrade() -> None:
