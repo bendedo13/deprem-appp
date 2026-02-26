@@ -3,10 +3,7 @@
  * Handles voice recording upload and status checking
  */
 
-import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8001';
+import { api } from '../src/services/api';
 
 export interface SOSAnalyzeResponse {
   task_id: string;
@@ -35,35 +32,26 @@ export async function uploadSOSRecording(
   latitude: number,
   longitude: number
 ): Promise<SOSAnalyzeResponse> {
-  const token = await SecureStore.getItemAsync('access_token');
-  
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
-
   const formData = new FormData();
-  
+
   // Add audio file
   formData.append('audio_file', {
     uri: audioUri,
     type: 'audio/m4a',
     name: 'sos_audio.m4a',
   } as any);
-  
+
   // Add metadata
   formData.append('timestamp', new Date().toISOString());
   formData.append('latitude', latitude.toString());
   formData.append('longitude', longitude.toString());
 
-  const response = await axios.post<SOSAnalyzeResponse>(
-    `${API_URL}/api/v1/sos/analyze`,
+  const response = await api.post<SOSAnalyzeResponse>(
+    '/api/v1/sos/analyze',
     formData,
     {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
-      timeout: 30000, // 30 seconds
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
     }
   );
 
@@ -74,19 +62,8 @@ export async function uploadSOSRecording(
  * Check S.O.S processing status
  */
 export async function checkSOSStatus(taskId: string): Promise<SOSStatusResponse> {
-  const token = await SecureStore.getItemAsync('access_token');
-  
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
-
-  const response = await axios.get<SOSStatusResponse>(
-    `${API_URL}/api/v1/sos/status/${taskId}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    }
+  const response = await api.get<SOSStatusResponse>(
+    `/api/v1/sos/status/${taskId}`
   );
 
   return response.data;

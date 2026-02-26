@@ -1,67 +1,86 @@
 #!/usr/bin/env node
 
 /**
- * Postinstall script to patch the `del` package's incompatibility with rimraf v4+.
- *
- * del@6.x calls util.promisify(rimraf) but rimraf v4+ exports an object, not a function.
- * This script patches del/index.js to handle both cases.
+ * Postinstall: Replace del/index.js with our pre-patched version.
+ * This fixes the ERR_INVALID_ARG_TYPE error caused by rimraf v4+ exporting
+ * an object instead of a function. We COPY the entire patched file rather
+ * than doing regex matching, which is more reliable.
  */
 
 const fs = require('fs');
 const path = require('path');
 
-function findDelIndex(startDir) {
-  const locations = [
-    path.join(startDir, 'node_modules', 'del', 'index.js'),
-    path.join(startDir, 'node_modules', '@expo', 'cli', 'node_modules', 'del', 'index.js'),
-    path.join(startDir, 'node_modules', 'tempy', 'node_modules', 'del', 'index.js'),
-  ];
-  return locations.filter(loc => fs.existsSync(loc));
-}
-
-function patchFile(filePath) {
-  let content = fs.readFileSync(filePath, 'utf8');
-
-  // Already patched
-  if (content.includes('PATCHED_BY_POSTINSTALL')) {
-    console.log(`  [skip] ${filePath} (already patched)`);
-    return;
-  }
-
-  // Patch: wrap promisify(rimraf) to handle object exports
-  const original = "const rimrafP = promisify(rimraf);";
-  const patched = [
-    "// PATCHED_BY_POSTINSTALL: handle rimraf v4+ object export",
-    "const _rimrafFn = typeof rimraf === 'function' ? rimraf : (rimraf.rimraf || rimraf.sync || function(p, cb) { require('fs').rm(p, {recursive: true, force: true}, cb); });",
-    "const rimrafP = promisify(_rimrafFn);"
-  ].join('\n');
-
-  if (content.includes(original)) {
-    content = content.replace(original, patched);
-    fs.writeFileSync(filePath, content, 'utf8');
-    console.log(`  [patched] ${filePath}`);
-  } else if (content.includes('promisify(rimraf)')) {
-    // Different formatting, try regex
-    content = content.replace(
-      /const\s+rimrafP\s*=\s*promisify\s*\(\s*rimraf\s*\)\s*;/,
-      patched
-    );
-    fs.writeFileSync(filePath, content, 'utf8');
-    console.log(`  [patched] ${filePath}`);
-  } else {
-    console.log(`  [skip] ${filePath} (pattern not found, may be different version)`);
-  }
-}
-
-console.log('[postinstall] Checking del package compatibility...');
-
 const projectRoot = path.resolve(__dirname, '..');
-const files = findDelIndex(projectRoot);
+const patchedSrc = path.join(projectRoot, 'patches', 'del-index-patched.js');
 
-if (files.length === 0) {
-  console.log('[postinstall] No del/index.js found, skipping patch.');
-} else {
-  files.forEach(patchFile);
+console.log('[postinstall] Patching del package...');
+
+if (!fs.existsSync(patchedSrc)) {
+  console.log('[postinstall] WARN: patches/del-index-patched.js not found, skipping.');
+  process.exit(0);
 }
 
-console.log('[postinstall] Done.');
+const patchedContent = fs.readFileSync(patchedSrc, 'utf8');
+
+// Find ALL del/index.js in the dependency tree
+function findAllDelFiles(dir) {
+  const results = [];
+  const nmDir = path.join(dir, 'node_modules');
+
+  if (!fs.existsSync(nmDir)) return results;
+
+  // Check top-level del
+  const topDel = path.join(nmDir, 'del', 'index.js');
+  if (fs.existsSync(topDel)) results.push(topDel);
+
+  // Check inside scoped packages that might have nested del
+  try {
+    const entries = fs.readdirSync(nmDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (entry.name.startsWith('@')) {
+          // Scoped package - check sub-packages
+          const scopeDir = path.join(nmDir, entry.name);
+          try {
+            const subEntries = fs.readdirSync(scopeDir, { withFileTypes: true });
+            for (const sub of subEntries) {
+              if (sub.isDirectory()) {
+                const nested = path.join(scopeDir, sub.name, 'node_modules', 'del', 'index.js');
+                if (fs.existsSync(nested)) results.push(nested);
+              }
+            }
+          } catch (e) { /* ignore */ }
+        } else {
+          // Regular package - check if it has nested del
+          const nested = path.join(nmDir, entry.name, 'node_modules', 'del', 'index.js');
+          if (fs.existsSync(nested)) results.push(nested);
+        }
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  return results;
+}
+
+const delFiles = findAllDelFiles(projectRoot);
+
+if (delFiles.length === 0) {
+  console.log('[postinstall] No del/index.js found in node_modules.');
+} else {
+  let patched = 0;
+  for (const f of delFiles) {
+    try {
+      const current = fs.readFileSync(f, 'utf8');
+      if (current.includes('PATCHED:')) {
+        console.log(`  [skip] ${f} (already patched)`);
+        continue;
+      }
+      fs.writeFileSync(f, patchedContent, 'utf8');
+      console.log(`  [ok] ${f}`);
+      patched++;
+    } catch (e) {
+      console.error(`  [err] ${f}: ${e.message}`);
+    }
+  }
+  console.log(`[postinstall] Patched ${patched}/${delFiles.length} del/index.js files.`);
+}

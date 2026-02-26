@@ -4,11 +4,16 @@ import { authService } from '../services/api';
 interface User {
     id: number;
     email: string;
+    name?: string;
+    phone?: string;
+    avatar?: string;
+    plan?: string;
     is_admin: boolean;
     is_active: boolean;
     fcm_token?: string;
     latitude?: number;
     longitude?: number;
+    join_date?: string;
     created_at: string;
 }
 

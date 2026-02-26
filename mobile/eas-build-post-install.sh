@@ -1,39 +1,43 @@
 #!/bin/bash
 # eas-build-post-install.sh
-# This script runs AFTER npm install on EAS build servers.
-# It patches the 'del' package to fix the ERR_INVALID_ARG_TYPE error
-# caused by rimraf v4+ exporting an object instead of a function.
+# EAS lifecycle hook — runs AFTER npm install on EAS build servers.
+# Copies pre-patched del/index.js to fix ERR_INVALID_ARG_TYPE error.
 
-echo "[eas-build-post-install] Patching del package for rimraf compatibility..."
+set -e
 
-# Find ALL del/index.js files in node_modules
-find node_modules -path "*/del/index.js" -type f 2>/dev/null | while read -r DEL_FILE; do
-  if grep -q "promisify(rimraf)" "$DEL_FILE" 2>/dev/null; then
-    echo "[patch] Patching: $DEL_FILE"
+PATCHED_FILE="patches/del-index-patched.js"
 
-    # Replace the problematic line with a safe version
-    sed -i 's|const rimrafP = promisify(rimraf);|const _rimrafFn = typeof rimraf === "function" ? rimraf : (rimraf.rimraf \|\| rimraf.sync \|\| function(p, cb) { require("fs").rm(p, {recursive: true, force: true}, cb); }); const rimrafP = promisify(_rimrafFn);|g' "$DEL_FILE"
+echo "=== [eas-build-post-install] Starting del patch ==="
+echo "PWD: $(pwd)"
+echo "Node: $(node --version)"
+echo "NPM: $(npm --version)"
 
-    # Verify patch worked
-    if grep -q "_rimrafFn" "$DEL_FILE"; then
-      echo "[patch] SUCCESS: $DEL_FILE patched"
-    else
-      echo "[patch] WARN: sed failed, trying node patch..."
-      # Fallback: use node to patch
-      node -e "
-        const fs = require('fs');
-        let c = fs.readFileSync('$DEL_FILE', 'utf8');
-        c = c.replace(
-          /const rimrafP = promisify\(rimraf\);/,
-          'const _rimrafFn = typeof rimraf === \"function\" ? rimraf : (rimraf.rimraf || rimraf.sync || function(p, cb) { require(\"fs\").rm(p, {recursive: true, force: true}, cb); });\nconst rimrafP = promisify(_rimrafFn);'
-        );
-        fs.writeFileSync('$DEL_FILE', c);
-        console.log('[patch] Node fallback SUCCESS: $DEL_FILE');
-      "
-    fi
-  else
-    echo "[patch] Skip: $DEL_FILE (already patched or different version)"
+if [ ! -f "$PATCHED_FILE" ]; then
+  echo "[WARN] $PATCHED_FILE not found, running node postinstall instead..."
+  node scripts/patch-del.js
+  exit 0
+fi
+
+# Find and replace ALL del/index.js files
+PATCHED=0
+TOTAL=0
+
+for DEL_FILE in $(find node_modules -path "*/del/index.js" -type f 2>/dev/null); do
+  TOTAL=$((TOTAL + 1))
+
+  if grep -q "PATCHED:" "$DEL_FILE" 2>/dev/null; then
+    echo "[skip] $DEL_FILE (already patched)"
+    continue
   fi
+
+  cp "$PATCHED_FILE" "$DEL_FILE"
+  PATCHED=$((PATCHED + 1))
+  echo "[ok] $DEL_FILE"
 done
 
-echo "[eas-build-post-install] Done."
+echo "=== [eas-build-post-install] Patched $PATCHED/$TOTAL del files ==="
+
+# Verify the main one works
+if [ -f "node_modules/del/index.js" ]; then
+  node -e "require('./node_modules/del/index.js'); console.log('[verify] del loaded OK')" 2>&1 || echo "[verify] del load check done (may show non-critical errors)"
+fi

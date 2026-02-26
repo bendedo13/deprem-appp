@@ -15,5 +15,7 @@ export const SHAKE_DURATION_MS = 800;
 /** Backend'e tekrar gönderim için bekleme (ms). Spam önleme. */
 export const SHAKE_COOLDOWN_MS = 30_000;
 
-/** API base URL. Geliştirme için .env veya app.config'de override edin. */
-export const API_BASE_URL = "http://localhost:8000";
+/** API base URL — expo-constants üzerinden okunur (app.json → extra.apiUrl). */
+import Constants from "expo-constants";
+export const API_BASE_URL: string =
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? "http://10.0.2.2:8000";

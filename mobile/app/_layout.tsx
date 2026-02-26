@@ -8,22 +8,27 @@ import { Stack, router } from "expo-router";
 import "./firebase-init";  // Firebase initialization - MUST BE FIRST
 import { setBackgroundEarthquakeHandler, setupFcmEarthquakeHandler } from "../src/services/fcmEarthquakeHandler";
 import { hasToken } from "../src/services/authService";
-import { InterstitialAd, AdEventType } from "react-native-google-mobile-ads";
-import { getInterstitialId } from "../src/services/adService";
 import "../src/i18n";  // i18next init — uygulama başlarken dil yüklenir
 
 setBackgroundEarthquakeHandler();
 
 export default function RootLayout() {
   useEffect(() => {
-    // AdMob Interstitial
-    const interstitial = InterstitialAd.createForAdRequest(getInterstitialId(), {
-      requestNonPersonalizedAdsOnly: true,
-    });
-    const adUnsub = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      interstitial.show();
-    });
-    interstitial.load();
+    // AdMob — sadece paket kuruluysa çalıştır
+    let adUnsub: (() => void) | null = null;
+    try {
+      const { InterstitialAd, AdEventType } = require("react-native-google-mobile-ads");
+      const { getInterstitialId } = require("../src/services/adService");
+      const interstitial = InterstitialAd.createForAdRequest(getInterstitialId(), {
+        requestNonPersonalizedAdsOnly: true,
+      });
+      adUnsub = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+        interstitial.show();
+      });
+      interstitial.load();
+    } catch {
+      // react-native-google-mobile-ads kurulu değilse sessizce devam et
+    }
 
     // FCM foreground handler kur
     const unsub = setupFcmEarthquakeHandler();
@@ -34,7 +39,7 @@ export default function RootLayout() {
     });
 
     return () => {
-      adUnsub();
+      adUnsub?.();
       unsub();
     };
   }, []);
