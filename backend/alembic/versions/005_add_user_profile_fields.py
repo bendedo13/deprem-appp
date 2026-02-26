@@ -31,10 +31,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Remove columns from emergency_contacts table
-    op.drop_column('emergency_contacts', 'priority')
-    op.drop_column('emergency_contacts', 'methods')
-    op.drop_column('emergency_contacts', 'relation')
+    # Remove columns from emergency_contacts table (only if they exist)
+    op.execute('ALTER TABLE emergency_contacts DROP COLUMN IF EXISTS priority')
+    op.execute('ALTER TABLE emergency_contacts DROP COLUMN IF EXISTS methods')
+    op.execute('ALTER TABLE emergency_contacts DROP COLUMN IF EXISTS relation')
 
     # Remove profile fields from users table
     op.drop_column('users', 'join_date')
