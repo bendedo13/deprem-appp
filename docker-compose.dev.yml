@@ -43,6 +43,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://deprem_user:deprem_pass@db:5432/deprem_db
       - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-service-account.json
+      - SECRET_KEY=your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024
     volumes:
       - ../backend:/app
     depends_on:
@@ -61,6 +62,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://deprem_user:deprem_pass@db:5432/deprem_db
       - REDIS_URL=redis://redis:6379/0
       - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-service-account.json
+      - SECRET_KEY=your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024
       - DEBUG=true
     ports:
       - "8000:8000"
@@ -85,6 +87,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://deprem_user:deprem_pass@db:5432/deprem_db
       - REDIS_URL=redis://redis:6379/0
       - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-service-account.json
+      - SECRET_KEY=your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024
     volumes:
       - ../backend:/app
     depends_on:
@@ -101,6 +104,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://deprem_user:deprem_pass@db:5432/deprem_db
       - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024
     volumes:
       - ../backend:/app
     depends_on:
