@@ -37,7 +37,7 @@ services:
     networks:
       - deprem_net
 
-  deprem_backend:
+  backend:
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -59,7 +59,7 @@ services:
     networks:
       - deprem_net
 
-  deprem_celery:
+  celery:
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -78,7 +78,7 @@ services:
     networks:
       - deprem_net
 
-  deprem_frontend:
+  frontend:
     build:
       context: ../frontend
       dockerfile: Dockerfile
@@ -89,7 +89,7 @@ services:
       - "8002:80"
     restart: unless-stopped
     depends_on:
-      - deprem_backend
+      - backend
     networks:
       - deprem_net
 
