@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Uygulama
     DEBUG: bool = False
-    SECRET_KEY: str = "change-me-min-32-chars-for-production"
+    SECRET_KEY: str = "your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 gün
 
     # Veritabanı
