@@ -7,6 +7,7 @@
         "development": {
             "developmentClient": true,
             "distribution": "internal",
+            "node": "18.18.0",
             "android": {
                 "buildType": "apk"
             },
@@ -16,6 +17,7 @@
         },
         "preview": {
             "distribution": "internal",
+            "node": "18.18.0",
             "android": {
                 "buildType": "apk"
             },
@@ -27,20 +29,13 @@
             }
         },
         "production": {
+            "node": "18.18.0",
             "android": {
                 "buildType": "apk",
                 "gradleCommand": ":app:assembleRelease"
             },
-            "node": "18.19.1",
             "env": {
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
-            },
-            "cache": {
-                "key": "production-cache",
-                "paths": [
-                    "node_modules",
-                    ".expo"
-                ]
             }
         }
     },

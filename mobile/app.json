@@ -10,6 +10,15 @@
       "apiUrl": "http://46.4.123.77:8001"
     },
     "plugins": [
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      "@notifee/react-native",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713"
+        }
+      ],
       "expo-sensors",
       [
         "expo-location",
