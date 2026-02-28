@@ -1,0 +1,17 @@
+android/
+ios/
+node_modules/
+.expo/
+dist/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+yarn.lock
+# Compiled TypeScript output
+**/*.js
+!metro.config.js
+!babel.config.js

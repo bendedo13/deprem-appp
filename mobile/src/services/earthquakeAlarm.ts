@@ -3,7 +3,7 @@
  * Sesi %100 yapar ve Notifee ile tam ekran alarm (Full Screen Intent) gösterir.
  */
 
-import notifee, { AndroidImportance } from "@notifee/react-native";
+import notifee, { AndroidImportance, type Notification } from "@notifee/react-native";
 import { Platform } from "react-native";
 
 const CHANNEL_ID = "earthquake_alarm";
@@ -41,13 +41,14 @@ export async function showEarthquakeAlarm(payload: EarthquakeConfirmedPayload): 
   const ts = payload.timestamp ?? new Date().toISOString();
   const body = `Konum: ${lat}, ${lon} • ${ts}`;
 
-  const notification: notifee.Notification = {
+  const notification: Notification = {
     title: "⚠️ Deprem doğrulandı",
     body,
     android: {
       channelId: CHANNEL_ID,
       importance: AndroidImportance.HIGH,
       fullScreenAction: {
+        id: "default",
         launchActivity: "default",
       },
       pressAction: { id: "default" },

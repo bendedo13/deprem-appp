@@ -4,10 +4,13 @@ rules.md: type hints, Pydantic validation, async, logging, JWT auth, max 50 sat�
 """
 
 import logging
+import secrets
 from typing import List
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,6 +94,54 @@ async def login(body: UserLoginIn, db: AsyncSession = Depends(get_db)) -> TokenO
 
     token = create_access_token(user.id, user.email)
     logger.info("Kullanıcı girişi: id=%d", user.id)
+    return TokenOut(access_token=token, user=UserOut.model_validate(user))
+
+
+# ─── Google Sign-In ──────────────────────────────────────────────────────────
+
+class GoogleLoginIn(BaseModel):
+    id_token: str
+
+
+@router.post("/google-login", response_model=TokenOut, summary="Google ile giriş")
+async def google_login(body: GoogleLoginIn, db: AsyncSession = Depends(get_db)) -> TokenOut:
+    """
+    Google ID Token doğrular, kullanıcıyı bulur veya oluşturur, JWT döner.
+    """
+    # Google ID Token doğrulama
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"https://oauth2.googleapis.com/tokeninfo?id_token={body.id_token}"
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Geçersiz Google token.")
+
+    google_data = resp.json()
+    email = google_data.get("email")
+    if not email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google hesabından e-posta alınamadı.")
+
+    # Kullanıcıyı bul veya oluştur
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        # Yeni kullanıcı — rastgele şifre ile kayıt
+        user = User(
+            email=email,
+            password_hash=hash_password(secrets.token_urlsafe(32)),
+            name=google_data.get("name", ""),
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        logger.info("Google ile yeni kullanıcı: id=%d email=%s", user.id, user.email)
+    else:
+        if not user.is_active:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hesap devre dışı.")
+        logger.info("Google ile giriş: id=%d", user.id)
+
+    token = create_access_token(user.id, user.email)
     return TokenOut(access_token=token, user=UserOut.model_validate(user))
 
 

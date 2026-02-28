@@ -17,14 +17,6 @@ const BenIyiyim: React.FC = () => {
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const sendingRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    loadContacts();
-    return () => {
-      if (countdownRef.current) clearInterval(countdownRef.current);
-      if (sendingRef.current) clearInterval(sendingRef.current);
-    };
-  }, []);
-
   const loadContacts = async () => {
     try {
       const data = await userService.getContacts();
@@ -33,6 +25,14 @@ const BenIyiyim: React.FC = () => {
       console.error('Kişiler yüklenemedi', error);
     }
   };
+
+  useEffect(() => {
+    loadContacts();
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      if (sendingRef.current) clearInterval(sendingRef.current);
+    };
+  }, []);
 
   const startProcess = () => {
     if (contacts.length === 0) {

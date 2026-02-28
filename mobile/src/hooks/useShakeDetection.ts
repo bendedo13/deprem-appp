@@ -63,7 +63,7 @@ export function useShakeDetection(options: ShakeDetectionOptions = {}) {
     if (!enabled) return;
 
     (async () => {
-      const id = await Device.getDeviceName?.() ?? Device.modelName ?? "unknown";
+      const id = Device.deviceName ?? Device.modelName ?? "unknown";
       deviceIdRef.current = id;
     })();
 

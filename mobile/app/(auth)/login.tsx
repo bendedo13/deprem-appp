@@ -1,5 +1,5 @@
 /**
- * Giriş ekranı — e-posta + şifre, JWT auth.
+ * Giriş ekranı — e-posta + şifre veya Google Sign-In, JWT auth.
  * Login başarılıysa ana sekmelere yönlendirir.
  */
 
@@ -15,12 +15,12 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    ImageBackground,
 } from "react-native";
 import { router, Link } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { login } from "../../src/services/authService";
+import { signInWithGoogle, isSignInCancelled } from "../../src/services/googleAuthService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function LoginScreen() {
@@ -28,6 +28,7 @@ export default function LoginScreen() {
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
     const { t } = useTranslation();
 
     async function handleLogin() {
@@ -46,6 +47,22 @@ export default function LoginScreen() {
             Alert.alert(t("auth.error_login"), msg);
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function handleGoogleSignIn() {
+        setGoogleLoading(true);
+        try {
+            await signInWithGoogle();
+            router.replace("/(tabs)");
+        } catch (err: unknown) {
+            if (isSignInCancelled(err)) return;
+            const msg =
+                (err as { message?: string })?.message ??
+                t("auth.error_login_generic");
+            Alert.alert(t("auth.error_login"), msg);
+        } finally {
+            setGoogleLoading(false);
         }
     }
 
@@ -110,7 +127,7 @@ export default function LoginScreen() {
                         <TouchableOpacity
                             style={[styles.btn, loading && styles.btnDisabled]}
                             onPress={handleLogin}
-                            disabled={loading}
+                            disabled={loading || googleLoading}
                             activeOpacity={0.9}
                         >
                             {loading ? (
@@ -129,16 +146,21 @@ export default function LoginScreen() {
                             <View style={styles.line} />
                         </View>
 
-                        <View style={styles.socialRow}>
-                            <TouchableOpacity style={styles.socialBtn}>
-                                <MaterialCommunityIcons name="google" size={20} color={Colors.text.dark} />
-                                <Text style={styles.socialBtnText}>Google</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.socialBtn}>
-                                <MaterialCommunityIcons name="apple" size={20} color={Colors.text.dark} />
-                                <Text style={styles.socialBtnText}>Apple</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity
+                            style={[styles.googleBtn, googleLoading && styles.btnDisabled]}
+                            onPress={handleGoogleSignIn}
+                            disabled={loading || googleLoading}
+                            activeOpacity={0.9}
+                        >
+                            {googleLoading ? (
+                                <ActivityIndicator color={Colors.text.dark} />
+                            ) : (
+                                <>
+                                    <MaterialCommunityIcons name="google" size={22} color="#DB4437" />
+                                    <Text style={styles.googleBtnText}>Google ile giriş yap</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
                     </View>
 
                     <View style={styles.footer}>
@@ -241,20 +263,18 @@ const styles = StyleSheet.create({
     },
     line: { flex: 1, height: 1, backgroundColor: Colors.border.dark },
     dividerText: { color: Colors.text.muted, fontSize: Typography.sizes.xs, fontWeight: "700", textTransform: "uppercase" },
-    socialRow: { flexDirection: "row", gap: Spacing.md },
-    socialBtn: {
-        flex: 1,
+    googleBtn: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: Colors.background.surface,
         borderRadius: BorderRadius.lg,
-        height: 50,
+        height: 56,
         borderWidth: 1,
         borderColor: Colors.border.dark,
-        gap: 8,
+        gap: 10,
     },
-    socialBtnText: { color: Colors.text.dark, fontSize: Typography.sizes.sm, fontWeight: "700" },
+    googleBtnText: { color: Colors.text.dark, fontSize: Typography.sizes.md, fontWeight: "700" },
     footer: { flexDirection: "row", justifyContent: "center", marginTop: Spacing.xl },
     footerText: { color: Colors.text.muted, fontSize: Typography.sizes.sm, fontWeight: "500" },
     link: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "800" },

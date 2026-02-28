@@ -1,11 +1,17 @@
 {
   "expo": {
-    "name": "QuakeSense: Life-Saving Tracker",
+    "name": "QuakeSense: Deprem Uyarı ve Takip",
     "slug": "quakesense",
     "version": "1.0.0",
-    "description": "QuakeSense is the ultimate life-saving technology designed to track global seismic activities with unprecedented speed and reliability.",
+    "description": "QuakeSense, deprem anında en hızlı ve güvenilir bilgiye ulaşmanız için geliştirilmiş hayat kurtaran bir platformdur.",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#230f0f"
+    },
     "extra": {
       "apiUrl": "http://46.4.123.77:8001"
     },
@@ -30,14 +36,25 @@
             "compileSdkVersion": 34,
             "targetSdkVersion": 34,
             "minSdkVersion": 23,
-            "kotlinVersion": "1.9.0"
+            "kotlinVersion": "1.9.24"
           }
         }
-      ]
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-1173265458993328~5191916494"
+        }
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "android": {
       "package": "com.quakesense",
       "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#230f0f"
+      },
       "permissions": [
         "android.permission.VIBRATE",
         "android.permission.USE_FULL_SCREEN_INTENT",
@@ -49,7 +66,8 @@
       "googleServicesFile": "./google-services.json"
     },
     "ios": {
-      "bundleIdentifier": "com.quakesense"
+      "bundleIdentifier": "com.quakesense",
+      "supportsTablet": true
     }
   }
 }

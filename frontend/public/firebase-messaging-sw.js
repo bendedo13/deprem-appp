@@ -2,25 +2,19 @@
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-// Initialize the Firebase app in the service worker by passing in
-// your app's Firebase config object.
-// https://firebase.google.com/docs/web/setup#config-object
 firebase.initializeApp({
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyCDqiBMaJd5g4FjAxWTpmJQe2tQX66dBoY",
+    authDomain: "depremapp-29518.firebaseapp.com",
+    projectId: "depremapp-29518",
+    storageBucket: "depremapp-29518.firebasestorage.app",
+    messagingSenderId: "775124568904",
+    appId: "1:775124568904:android:037a7b1e889d368349417d"
 });
 
-// Retrieve an instance of Firebase Messaging so that it can handle background
-// messages.
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
-    // Customize notification here
     const notificationTitle = payload.notification.title;
     const notificationOptions = {
         body: payload.notification.body,

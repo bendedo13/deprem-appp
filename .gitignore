@@ -3,8 +3,14 @@
 .env.local
 .env.*.local
 deploy/.env
+backend/.env
+frontend/.env
+mobile/.env
 backend/firebase-service-account.json
 VPS_ENV_CONFIG.txt
+*.keystore
+*.jks
+google-play-service-account.json
 
 # Python
 __pycache__/

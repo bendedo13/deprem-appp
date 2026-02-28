@@ -1,21 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const CookieBanner: React.FC = () => {
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(() => {
+    const consent = localStorage.getItem('depremapp_cookie_consent');
+    return !consent;
+  });
   const [showCustomize, setShowCustomize] = useState(false);
   const [preferences, setPreferences] = useState({
     essential: true, // Zorunlu
     analytics: true,
     ads: true,
   });
-
-  useEffect(() => {
-    const consent = localStorage.getItem('depremapp_cookie_consent');
-    if (!consent) {
-      setIsVisible(true);
-    }
-  }, []);
 
   const handleAcceptAll = () => {
     localStorage.setItem('depremapp_cookie_consent', JSON.stringify({ essential: true, analytics: true, ads: true }));

@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     },
     brandContainer: { flexDirection: "row", alignItems: "center", gap: 10 },
     logoBox: { backgroundColor: Colors.primary, padding: 6, borderRadius: BorderRadius.md },
-    brandTitle: { color: Colors.text.dark, fontSize: Typography.sizes.xl, fontWeight: "800", trackingTight: -0.5 },
+    brandTitle: { color: Colors.text.dark, fontSize: Typography.sizes.xl, fontWeight: "800", letterSpacing: -0.5 },
     headerActions: { flexDirection: "row", gap: 8 },
     headerBtn: { padding: 8 },
     statusBar: {

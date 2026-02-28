@@ -12,8 +12,6 @@ const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const MapPage = lazy(() => import('./pages/MapPage'));
 const RiskAnalysis = lazy(() => import('./pages/RiskAnalysis'));
-const Settings = lazy(() => import('./pages/Settings')); // Might be deprecated by new pages
-
 // Admin
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
