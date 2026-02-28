@@ -44,12 +44,6 @@ class Settings(BaseSettings):
     EMSC_API_URL: str = "https://www.seismicportal.eu/fdsnws/event/1"
     FETCH_INTERVAL_SECONDS: int = 30
 
-    # Firebase (Push notifications)
-    FIREBASE_PROJECT_ID: str = ""
-    FIREBASE_PRIVATE_KEY: str = ""
-    FIREBASE_CLIENT_EMAIL: str = ""
-    FIREBASE_CREDENTIALS_PATH: str = "firebase-service-account.json"
-
     # ── Shake / deprem algılama sabitleri (EARTHQUAKE_DETECTION_ALGORITHM.md) ──
     SHAKE_WINDOW_SECONDS: int = 5
     SHAKE_WINDOW_TTL_SECONDS: int = 10
@@ -62,6 +56,7 @@ class Settings(BaseSettings):
     FIREBASE_PROJECT_ID: str = ""
     FIREBASE_PRIVATE_KEY: str = ""
     FIREBASE_CLIENT_EMAIL: str = ""
+    FIREBASE_CREDENTIALS_PATH: str = "firebase-service-account.json"
 
     # ── Twilio (SMS/WhatsApp for Emergency Contacts) ──
     TWILIO_ACCOUNT_SID: str = ""
@@ -75,7 +70,7 @@ class Settings(BaseSettings):
 
     # ── Anthropic Claude (NLP for S.O.S Voice) ──
     ANTHROPIC_API_KEY: str = ""
-    ANTHROPIC_MODEL: str = "claude-3-haiku-20240307"
+    ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
 
     # ── S.O.S Audio Storage ──
     SOS_AUDIO_STORAGE_PATH: str = "/app/sos_audio"

@@ -58,9 +58,24 @@
         "sent_body": "{{count}} acil kişine \"İyiyim\" bildirimi gönderildi.",
         "error": "Bildirim gönderilemedi."
     },
+    "onboarding": {
+        "skip": "Atla",
+        "next": "Devam",
+        "start": "Başlayalım",
+        "page1_title": "Anlık Deprem Uyarısı",
+        "page1_subtitle": "Saniyeler İçinde Bilgi",
+        "page1_desc": "AFAD, Kandilli ve uluslararası kaynaklardan gelen deprem verilerini anında alın.",
+        "page2_title": "Akıllı Sensör Teknolojisi",
+        "page2_subtitle": "Cihazınız Sismograf Olsun",
+        "page2_desc": "Telefonunuzun ivmeölçerini kullanarak yer sarsıntısını algılar.",
+        "page3_title": "Acil Durum Hazırlığı",
+        "page3_subtitle": "Sevdikleriniz Güvende",
+        "page3_desc": "Acil kişilerinize tek tuşla 'Ben İyiyim' mesajı gönderin."
+    },
     "auth": {
         "login": "Giriş Yap",
         "register": "Kayıt Ol",
+        "google_signin": "Google ile giriş yap",
         "email": "E-posta",
         "password": "Şifre",
         "password_confirm": "Şifre Tekrar",

@@ -58,9 +58,24 @@
         "sent_body": "{{count}} emergency contact(s) notified.",
         "error": "Could not send notification."
     },
+    "onboarding": {
+        "skip": "Skip",
+        "next": "Next",
+        "start": "Get Started",
+        "page1_title": "Real-Time Earthquake Alerts",
+        "page1_subtitle": "Information in Seconds",
+        "page1_desc": "Instantly receive earthquake data from AFAD, Kandilli and international sources.",
+        "page2_title": "Smart Sensor Technology",
+        "page2_subtitle": "Your Phone Becomes a Seismograph",
+        "page2_desc": "Uses your phone's accelerometer to detect ground shaking.",
+        "page3_title": "Emergency Preparedness",
+        "page3_subtitle": "Keep Your Loved Ones Safe",
+        "page3_desc": "Send 'I'm Safe' messages to your emergency contacts with one tap."
+    },
     "auth": {
         "login": "Login",
         "register": "Register",
+        "google_signin": "Sign in with Google",
         "email": "Email",
         "password": "Password",
         "password_confirm": "Confirm Password",
