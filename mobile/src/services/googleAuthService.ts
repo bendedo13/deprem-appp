@@ -22,7 +22,7 @@ GoogleSignin.configure({
 export async function signInWithGoogle(): Promise<UserOut> {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const response = await GoogleSignin.signIn();
-    const idToken = response.data?.idToken;
+    const idToken = (response as any).data?.idToken ?? (response as any).idToken;
 
     if (!idToken) {
         throw new Error("Google Sign-In: idToken alınamadı");

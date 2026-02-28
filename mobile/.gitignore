@@ -11,3 +11,7 @@ dist/
 *.orig.*
 web-build/
 yarn.lock
+# Compiled TypeScript output
+**/*.js
+!metro.config.js
+!babel.config.js
