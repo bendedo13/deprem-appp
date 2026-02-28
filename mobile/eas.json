@@ -10,6 +10,7 @@
             "android": {
                 "buildType": "apk"
             },
+            "node": "18.19.1",
             "env": {
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
             }
@@ -22,6 +23,7 @@
             "ios": {
                 "simulator": true
             },
+            "node": "18.19.1",
             "env": {
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
             }
@@ -34,13 +36,6 @@
             "node": "18.19.1",
             "env": {
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
-            },
-            "cache": {
-                "key": "production-cache",
-                "paths": [
-                    "node_modules",
-                    ".expo"
-                ]
             }
         }
     },
