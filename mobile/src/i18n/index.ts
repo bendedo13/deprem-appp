@@ -40,7 +40,20 @@ function resolveLocale(): string {
 }
 
 i18n.use(initReactI18next).init({
-    resources: { tr, en, ja, zh, id, fr, de, it, el, pt, ru, ne },
+    resources: {
+        tr: { translation: tr },
+        en: { translation: en },
+        ja: { translation: ja },
+        zh: { translation: zh },
+        id: { translation: id },
+        fr: { translation: fr },
+        de: { translation: de },
+        it: { translation: it },
+        el: { translation: el },
+        pt: { translation: pt },
+        ru: { translation: ru },
+        ne: { translation: ne },
+    },
     lng: resolveLocale(),
     fallbackLng: "en",
     ns: ["translation"],
