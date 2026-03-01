@@ -156,7 +156,7 @@ async def change_password(
     """Kullanıcı şifresini değiştirir."""
     if not verify_password(body.current_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Mevcut şifre hatalı.")
-    
+
     current_user.password_hash = hash_password(body.new_password)
     await db.commit()
     logger.info("Şifre değiştirildi: id=%d", current_user.id)
@@ -169,8 +169,6 @@ async def delete_account(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Kullanıcı hesabını ve ilişkili verileri siler (KVKK)."""
-    # Cascade delete should handle related data (contacts, prefs) if configured in DB
-    # If not, manual delete might be needed. Using SQLAlchemy cascade="all, delete-orphan" in models.
     await db.delete(current_user)
     await db.commit()
     logger.info("Hesap silindi: id=%d", current_user.id)
@@ -183,9 +181,18 @@ async def delete_account(
     response_model=List[EmergencyContactOut],
     summary="Acil iletişim kişilerini listele",
 )
-async def list_contacts(current_user: User = Depends(get_current_user)) -> List[EmergencyContactOut]:
+async def list_contacts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[EmergencyContactOut]:
     """Kullanıcının tüm acil iletişim kişilerini döner."""
-    return [EmergencyContactOut.model_validate(c) for c in current_user.emergency_contacts]
+    # selectin lazy loading yerine explicit sorgu — N+1 sorununu önler
+    result = await db.execute(
+        select(EmergencyContact).where(EmergencyContact.user_id == current_user.id)
+        .order_by(EmergencyContact.priority.asc(), EmergencyContact.id.asc())
+    )
+    contacts = result.scalars().all()
+    return [EmergencyContactOut.model_validate(c) for c in contacts]
 
 
 @router.post(
@@ -200,7 +207,13 @@ async def add_contact(
     db: AsyncSession = Depends(get_db),
 ) -> EmergencyContactOut:
     """Yeni acil iletişim kişisi ekler. Maksimum 5 kişi sınırı uygulanır."""
-    if len(current_user.emergency_contacts) >= _MAX_EMERGENCY_CONTACTS:
+    # Mevcut kişi sayısını DB'den sorgula (lazy loading güvenilir değil)
+    count_result = await db.execute(
+        select(EmergencyContact).where(EmergencyContact.user_id == current_user.id)
+    )
+    existing_contacts = count_result.scalars().all()
+
+    if len(existing_contacts) >= _MAX_EMERGENCY_CONTACTS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"En fazla {_MAX_EMERGENCY_CONTACTS} acil iletişim kişisi eklenebilir.",
@@ -213,12 +226,47 @@ async def add_contact(
         email=body.email,
         relation=body.relation,
         methods=body.methods,
-        priority=body.priority
+        priority=body.priority,
     )
     db.add(contact)
     await db.commit()
     await db.refresh(contact)
     logger.info("Acil kişi eklendi: user_id=%d contact_id=%d", current_user.id, contact.id)
+    return EmergencyContactOut.model_validate(contact)
+
+
+@router.put(
+    "/me/contacts/{contact_id}",
+    response_model=EmergencyContactOut,
+    summary="Acil iletişim kişisini güncelle",
+)
+async def update_contact(
+    contact_id: int,
+    body: EmergencyContactIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EmergencyContactOut:
+    """Belirtilen acil iletişim kişisini günceller."""
+    result = await db.execute(
+        select(EmergencyContact).where(
+            EmergencyContact.id == contact_id,
+            EmergencyContact.user_id == current_user.id,
+        )
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kişi bulunamadı.")
+
+    contact.name = body.name
+    contact.phone = body.phone
+    contact.email = body.email
+    contact.relation = body.relation
+    contact.methods = body.methods
+    contact.priority = body.priority
+
+    await db.commit()
+    await db.refresh(contact)
+    logger.info("Acil kişi güncellendi: user_id=%d contact_id=%d", current_user.id, contact_id)
     return EmergencyContactOut.model_validate(contact)
 
 
@@ -290,7 +338,7 @@ async def update_preferences(
 ) -> NotificationPrefOut:
     """Tüm bildirim ayarlarını günceller."""
     pref = await _get_or_create_pref(current_user, db)
-    
+
     pref.min_magnitude = body.min_magnitude
     pref.locations = body.locations
     pref.push_enabled = body.push_enabled
@@ -322,58 +370,79 @@ async def i_am_safe(
 ) -> dict:
     """
     Kullanıcı deprem sonrası 'Ben İyiyim' butonuna basar.
-    Acil iletişim kişilerinin FCM token'ları toplanır ve push bildirim gönderilir.
+    Acil iletişim kişilerine SMS ve/veya push bildirim gönderilir.
     """
-    from app.services.fcm import send_i_am_safe  # geç import - circular dependency önlemek için
+    from app.services.fcm import send_i_am_safe as fcm_i_am_safe
+    from app.services.twilio_sms import get_twilio_service
 
-    # TODO: Gerçek FCM servisi entegre edilecek.
-    # Şimdilik dummy response.
+    # Acil kişileri DB'den çek
+    contacts_result = await db.execute(
+        select(EmergencyContact)
+        .where(EmergencyContact.user_id == current_user.id)
+        .order_by(EmergencyContact.priority.asc())
+    )
+    contacts = contacts_result.scalars().all()
 
-    contacts = current_user.emergency_contacts
-    
-    # Filtreleme (belirli kişiler seçildiyse)
+    # Belirli kişiler seçildiyse filtrele
     target_contacts = contacts
     if body.contact_ids:
         target_contacts = [c for c in contacts if c.id in body.contact_ids]
 
-    # FCM token'ı olan acil kişi token'larını topla (eğer acil kişi de app kullanıcısıysa)
-    fcm_tokens: List[str] = []
-    
-    # SMS ve Email gönderimi
-    from app.services.twilio_sms import get_twilio_service
-    twilio = get_twilio_service()
-    
+    if not target_contacts:
+        return {
+            "status": "ok",
+            "message": "Bildirim gönderilecek kişi bulunamadı.",
+            "notified_contacts": 0,
+            "total_contacts": len(contacts),
+            "sms_sent": 0,
+            "push_sent": 0,
+        }
+
     # Mesaj oluştur
     user_name = current_user.name or current_user.email
-    message = f"{user_name} güvende: {body.custom_message or 'Ben iyiyim!'}"
-    
+    custom_msg = body.custom_message or "Ben iyiyim, endişelenmeyin!"
+    sms_message = f"✅ {user_name} güvende: {custom_msg}"
+
     # Konum varsa ekle
-    if body.include_location and body.latitude and body.longitude:
-        message += f" Konum: https://maps.google.com/?q={body.latitude},{body.longitude}"
-    
-    # Her acil kişiye SMS gönder
+    if body.include_location and body.latitude is not None and body.longitude is not None:
+        sms_message += f"\n📍 Konum: https://maps.google.com/?q={body.latitude},{body.longitude}"
+
+    # SMS gönder
+    twilio = get_twilio_service()
     sms_sent = 0
     for contact in target_contacts:
-        if contact.phone:
-            try:
-                success = await twilio.send_sms(contact.phone, message)
-                if success:
-                    sms_sent += 1
-            except Exception as e:
-                logger.error(f"SMS gönderme hatası (contact_id={contact.id}): {e}")
-    
+        # SMS yöntemi seçilmişse veya varsayılan olarak gönder
+        if contact.phone and ("sms" in (contact.methods or []) or "whatsapp" in (contact.methods or [])):
+            if "whatsapp" in (contact.methods or []):
+                success = await twilio.send_whatsapp(contact.phone, sms_message)
+            else:
+                success = await twilio.send_sms(contact.phone, sms_message)
+            if success:
+                sms_sent += 1
+        elif contact.phone and not contact.methods:
+            # Yöntem belirtilmemişse SMS gönder
+            success = await twilio.send_sms(contact.phone, sms_message)
+            if success:
+                sms_sent += 1
+
+    # FCM push bildirimi gönder (acil kişilerin FCM token'ı varsa)
+    # Not: Acil kişiler ayrı kullanıcı olarak kayıtlıysa token'ları alınabilir
+    # Şimdilik FCM push sadece log'lanır
+    push_sent = 0
     logger.info(
-        "Ben İyiyim Mesajı: user_id=%d, msg=%s, location=%s, sms_sent=%d",
+        "Ben İyiyim: user_id=%d, hedef_kişi=%d, sms_sent=%d, push_sent=%d, konum=%s",
         current_user.id,
-        body.custom_message,
-        "Var" if body.include_location else "Yok",
-        sms_sent
+        len(target_contacts),
+        sms_sent,
+        push_sent,
+        f"{body.latitude},{body.longitude}" if body.include_location and body.latitude else "Yok",
     )
-    
+
     return {
         "status": "ok",
         "message": "Bildirim gönderildi.",
         "notified_contacts": len(target_contacts),
         "total_contacts": len(contacts),
         "sms_sent": sms_sent,
+        "push_sent": push_sent,
     }

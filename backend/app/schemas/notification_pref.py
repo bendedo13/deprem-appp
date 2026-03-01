@@ -2,8 +2,8 @@
 Bildirim tercihi şemaları.
 """
 
-from typing import List, Optional
 from datetime import time
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +12,7 @@ class NotificationPrefIn(BaseModel):
     """Bildirim tercihi güncelleme girdisi."""
 
     min_magnitude: float = Field(default=3.0, ge=0.0, le=10.0, description="Minimum deprem büyüklüğü")
-    locations: List[str] = Field(default=[], description="Takip edilen konumlar")
+    locations: List[str] = Field(default_factory=list, description="Takip edilen konumlar")
     push_enabled: bool = Field(default=True, description="Push bildirimleri aktif mi?")
     sms_enabled: bool = Field(default=False, description="SMS bildirimleri aktif mi?")
     email_enabled: bool = Field(default=False, description="E-posta bildirimleri aktif mi?")
@@ -32,8 +32,8 @@ class NotificationPrefOut(BaseModel):
     sms_enabled: bool
     email_enabled: bool
     quiet_hours_enabled: bool
-    quiet_start: Optional[time]
-    quiet_end: Optional[time]
+    quiet_start: Optional[time] = None
+    quiet_end: Optional[time] = None
     weekly_summary: bool
     aftershock_alerts: bool
 

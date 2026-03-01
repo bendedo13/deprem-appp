@@ -14,8 +14,9 @@ class EmergencyContactIn(BaseModel):
     name: str
     phone: str
     email: Optional[EmailStr] = None
-    relation: str = Field(..., description="Yakınlık derecesi (Aile, Eş, Arkadaş vb.)")
-    methods: List[Literal["whatsapp", "sms", "email"]] = Field(
+    relation: str = Field(default="Diğer", description="Yakınlık derecesi (Aile, Eş, Arkadaş vb.)")
+    # "push" da geçerli bir yöntem olarak eklendi
+    methods: List[Literal["push", "whatsapp", "sms", "email"]] = Field(
         default=["push"], description="Bildirim yöntemleri"
     )
     priority: int = Field(default=1, ge=1, le=5, description="Öncelik sırası (1=En yüksek)")
@@ -34,9 +35,9 @@ class EmergencyContactIn(BaseModel):
         """Telefon numarası basit format kontrolü."""
         cleaned = v.strip()
         if not cleaned:
-             raise ValueError("Telefon numarası boş olamaz.")
+            raise ValueError("Telefon numarası boş olamaz.")
         # Basit kontrol: sadece rakam ve +, boşluk içerebilir
-        if not cleaned.replace("+", "").replace(" ", "").isdigit():
+        if not cleaned.replace("+", "").replace(" ", "").replace("-", "").isdigit():
             raise ValueError("Geçersiz telefon numarası.")
         return cleaned
 
@@ -47,7 +48,7 @@ class EmergencyContactOut(BaseModel):
     id: int
     name: str
     phone: str
-    email: Optional[str]
+    email: Optional[str] = None
     relation: str
     methods: List[str]
     priority: int
