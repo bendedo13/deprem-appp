@@ -51,18 +51,18 @@ fi
 echo -e "${GREEN}✓ Git sync complete!${NC}"
 echo ""
 
-# Verify AdMob is removed
-if grep -q "google-mobile-ads" package.json; then
-    echo -e "${RED}✗ AdMob still in package.json!${NC}"
+# Verify AdMob is properly configured
+if ! grep -q "google-mobile-ads" package.json; then
+    echo -e "${RED}✗ react-native-google-mobile-ads missing from package.json!${NC}"
     exit 1
 fi
 
-if grep -q "google-mobile-ads" app.json; then
-    echo -e "${RED}✗ AdMob plugin still in app.json!${NC}"
+if ! grep -q "google-mobile-ads" app.json; then
+    echo -e "${RED}✗ AdMob plugin missing from app.json!${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✓ AdMob removed successfully!${NC}"
+echo -e "${GREEN}✓ AdMob configured properly!${NC}"
 echo ""
 echo "=========================================="
 echo ""
