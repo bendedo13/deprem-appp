@@ -4,11 +4,16 @@ import asyncio
 import subprocess
 from typing import List, Optional
 from pathlib import Path
+import sys
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 from anthropic import Anthropic
 from dotenv import load_dotenv
+
+# TaskReporter'ı import et
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from bot_utils.task_reporter import TaskReporter
 
 # Load environment variables
 # Load from .env file in parent directory if script is in scripts/
@@ -19,6 +24,38 @@ load_dotenv(dotenv_path=env_path)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 BASE_DIR = Path("/opt")
+
+# Proje yapılandırmaları
+PROJECT_CONFIGS = {
+    "eyeoftr": {
+        "path": BASE_DIR / "eyeoftr",
+        "github": "https://github.com/bendedo13/eyeoftr",
+        "deploy_script": "deploy.sh",
+        "test_commands": ["npm test", "npm run lint"],
+        "health_check": "http://localhost:3000"
+    },
+    "faceseek": {
+        "path": BASE_DIR / "faceseek",
+        "github": "https://github.com/bendedo13/faceseek",
+        "deploy_script": "deploy.sh",
+        "test_commands": ["npm test"],
+        "health_check": "http://localhost:3001"
+    },
+    "depremapp": {
+        "path": BASE_DIR / "deprem-appp",
+        "github": "https://github.com/bendedo13/deprem-appp",
+        "deploy_script": "deploy/PRODUCTION_DEPLOY.sh",
+        "test_commands": ["docker-compose ps"],
+        "health_check": "http://localhost:8001/health"
+    },
+    "astroloji": {
+        "path": BASE_DIR / "astroloji",
+        "github": "https://github.com/bendedo13/astroloji",
+        "deploy_script": "deploy.sh",
+        "test_commands": ["npm test"],
+        "health_check": "http://localhost:3002"
+    }
+}
 
 # Configure logging
 logging.basicConfig(
@@ -74,19 +111,28 @@ async def ask_claude_to_code(task: str, context: str) -> str:
         raise Exception("Anthropic API key is missing.")
 
     system_prompt = """
-    Sen uzman bir yazılım geliştiricisin. Sana verilen proje dosyalarını ve görevi analiz ederek gerekli kod değişikliklerini yapmalısın.
+    Sen uzman bir Türk yazılım geliştiricisin. Sana verilen proje dosyalarını ve görevi analiz ederek gerekli kod değişikliklerini yapmalısın.
     
-    Kurallar:
-    1. Sadece gerekli değişiklikleri yap.
-    2. Cevabın SADECE geçerli Python/JavaScript/TypeScript kodu içermelidir veya XML formatında dosya güncellemeleri olmalıdır.
-    3. Dosyaları güncellemek için şu formatı kullan:
+    KURALLAR:
+    1. Sadece gerekli değişiklikleri yap, gereksiz kod ekleme.
+    2. Kod kalitesine ve best practice'lere dikkat et.
+    3. Türkçe yorum satırları ekle (önemli yerlere).
+    4. Cevabın SADECE XML formatında dosya güncellemeleri içermelidir.
+    5. Dosyaları güncellemek için şu formatı kullan:
     
     <file path="path/to/file.ext">
     ... yeni dosya içeriği ...
     </file>
     
-    Eğer yeni dosya oluşturulacaksa aynı formatı kullan.
-    Sadece değişen veya yeni dosyaları döndür.
+    <explanation>
+    Bu dosyada şu değişiklikleri yaptım:
+    - Değişiklik 1 açıklaması
+    - Değişiklik 2 açıklaması
+    </explanation>
+    
+    6. Her dosya değişikliğinden sonra MUTLAKA <explanation> tagı ile Türkçe açıklama yap.
+    7. Sadece değişen veya yeni dosyaları döndür.
+    8. Test edilebilir, çalışır kod yaz.
     """
     
     user_prompt = f"""
@@ -96,6 +142,8 @@ async def ask_claude_to_code(task: str, context: str) -> str:
     {context[:100000]} # Truncate if too long
     
     Lütfen görevi yerine getirmek için gerekli kod değişikliklerini üret.
+    Her dosya için <file> ve <explanation> taglarını kullan.
+    Açıklamaları Türkçe ve detaylı yap.
     """
     
     try:
@@ -111,24 +159,72 @@ async def ask_claude_to_code(task: str, context: str) -> str:
         logger.error(f"Anthropic API Error: {e}")
         raise
 
-def apply_changes(response: str, project_path: Path) -> List[str]:
+def apply_changes(response: str, project_path: Path, reporter: TaskReporter) -> List[str]:
     """Parse Claude's response and apply changes to files."""
     import re
     changed_files = []
-    pattern = r'<file path="(.*?)">\s*(.*?)\s*</file>'
-    matches = re.finditer(pattern, response, re.DOTALL)
     
-    for match in matches:
+    # Dosya değişikliklerini bul
+    file_pattern = r'<file path="(.*?)">\s*(.*?)\s*</file>'
+    file_matches = re.finditer(file_pattern, response, re.DOTALL)
+    
+    # Açıklamaları bul
+    explanation_pattern = r'<explanation>\s*(.*?)\s*</explanation>'
+    explanations = re.findall(explanation_pattern, response, re.DOTALL)
+    
+    for idx, match in enumerate(file_matches):
         rel_path = match.group(1)
         content = match.group(2)
         full_path = project_path / rel_path
         full_path.parent.mkdir(parents=True, exist_ok=True)
+        
         with open(full_path, 'w', encoding='utf-8') as f:
             f.write(content)
+        
+        # Açıklamayı raporla
+        explanation = explanations[idx] if idx < len(explanations) else "Dosya güncellendi"
+        reporter.log_change(rel_path, explanation.strip())
+        
         changed_files.append(rel_path)
         logger.info(f"Updated file: {rel_path}")
         
     return changed_files
+
+async def run_tests(project_path: Path, test_commands: List[str], reporter: TaskReporter) -> bool:
+    """Testleri çalıştır ve sonuçları raporla."""
+    all_passed = True
+    
+    for test_cmd in test_commands:
+        try:
+            stdout, stderr, code = await run_command(test_cmd, project_path)
+            passed = code == 0
+            all_passed = all_passed and passed
+            
+            output = stdout if stdout else stderr
+            reporter.add_test(test_cmd, passed, output[:200] if output else "")
+            
+            logger.info(f"Test '{test_cmd}': {'✅ Başarılı' if passed else '❌ Başarısız'}")
+        except Exception as e:
+            reporter.add_test(test_cmd, False, str(e))
+            all_passed = False
+            logger.error(f"Test hatası '{test_cmd}': {e}")
+    
+    return all_passed
+
+async def check_health_endpoint(url: str, reporter: TaskReporter) -> bool:
+    """Health check endpoint'ini kontrol et."""
+    try:
+        stdout, stderr, code = await run_command(
+            f'curl -s -o /dev/null -w "%{{http_code}}" {url}',
+            Path.cwd()
+        )
+        http_code = stdout.strip()
+        passed = http_code in ["200", "301", "302"]
+        reporter.add_test(f"Health Check ({url})", passed, f"HTTP {http_code}")
+        return passed
+    except Exception as e:
+        reporter.add_test(f"Health Check ({url})", False, str(e))
+        return False
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming Telegram messages."""
@@ -138,63 +234,138 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not msg.startswith("Görev:"):
         return
 
+    # TaskReporter'ı başlat
+    reporter = TaskReporter()
+    
     try:
         _, content = msg.split(":", 1)
         project_name, task_description = content.split("-", 1)
-        project_name = project_name.strip()
+        project_name = project_name.strip().lower()
         task_description = task_description.strip()
     except ValueError:
-        await context.bot.send_message(chat_id=chat_id, text="⚠️ Format hatası! Kullanım: `Görev: [Proje_Adı] - [Yapılacak Değişiklik]`")
+        await context.bot.send_message(
+            chat_id=chat_id, 
+            text="⚠️ Format hatası!\n\nKullanım: `Görev: [Proje_Adı] - [Yapılacak Değişiklik]`\n\nÖrnek: `Görev: depremapp - Ana sayfaya yeni buton ekle`\n\nMevcut projeler: eyeoftr, faceseek, depremapp, astroloji"
+        )
         return
 
-    project_path = BASE_DIR / project_name
-    if not project_path.exists():
-        project_path = Path.cwd() # Fallback for testing locally
+    # Proje yapılandırmasını al
+    if project_name not in PROJECT_CONFIGS:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"❌ Bilinmeyen proje: {project_name}\n\nMevcut projeler:\n" + 
+                 "\n".join([f"• {p}" for p in PROJECT_CONFIGS.keys()])
+        )
+        return
     
-    await context.bot.send_message(chat_id=chat_id, text=f"🤖 Görev alındı: {project_name}\nAnaliz ediliyor...")
+    config = PROJECT_CONFIGS[project_name]
+    project_path = config["path"]
+    
+    if not project_path.exists():
+        project_path = Path.cwd()  # Fallback for testing locally
+    
+    await context.bot.send_message(
+        chat_id=chat_id, 
+        text=f"🤖 *Görev Alındı*\n\n📂 Proje: {project_name}\n📝 Görev: {task_description}\n\n🔍 Analiz ediliyor...",
+        parse_mode="Markdown"
+    )
     
     try:
+        # 1. Proje dosyalarını oku
         context_data = await get_project_files(project_path)
+        
+        # 2. Claude ile kod değişikliklerini al
         await context.bot.send_message(chat_id=chat_id, text="🧠 Claude ile kodlanıyor...")
         ai_response = await ask_claude_to_code(task_description, context_data)
         
-        changed_files = apply_changes(ai_response, project_path)
+        # 3. Değişiklikleri uygula
+        changed_files = apply_changes(ai_response, project_path, reporter)
         
         if not changed_files:
             await context.bot.send_message(chat_id=chat_id, text="⚠️ Claude herhangi bir değişiklik önermedi.")
             return
 
+        # 4. Git işlemleri
         await context.bot.send_message(chat_id=chat_id, text="💾 Git işlemleri yapılıyor...")
         
         await run_command("git add .", project_path)
-        await run_command(f'git commit -m "AI Update: {task_description}"', project_path)
-        _, _, code = await run_command("git push", project_path)
-        push_status = "✅ Başarılı" if code == 0 else "❌ Başarısız"
+        commit_msg = f"AI Update: {task_description}"
+        stdout, stderr, code = await run_command(f'git commit -m "{commit_msg}"', project_path)
         
+        if code != 0:
+            reporter.add_error("GIT_COMMIT", "Commit başarısız", stderr[:200])
+        
+        # Commit hash'i al
+        commit_hash, _, _ = await run_command("git rev-parse HEAD", project_path)
+        branch, _, _ = await run_command("git branch --show-current", project_path)
+        
+        # Git push
+        _, stderr, code = await run_command("git push", project_path)
+        if code == 0:
+            reporter.add_test("Git Push", True, "Başarıyla push edildi")
+        else:
+            reporter.add_test("Git Push", False, stderr[:200])
+            reporter.add_error("GIT_PUSH", "Push başarısız", stderr[:200])
+        
+        # 6. Testleri çalıştır
+        await context.bot.send_message(chat_id=chat_id, text="🧪 Testler çalıştırılıyor...")
+        test_passed = await run_tests(project_path, config["test_commands"], reporter)
+        
+        # 7. Health check
+        if config.get("health_check"):
+            await check_health_endpoint(config["health_check"], reporter)
+        
+        # 8. Deploy
         deploy_status = "⏭️ Atlandı"
-        deploy_script = project_path / "deploy/PRODUCTION_DEPLOY.sh"
-        if deploy_script.exists():
-             await context.bot.send_message(chat_id=chat_id, text="🚀 Deploy başlatılıyor...")
-             _, _, code = await run_command(f"bash {deploy_script}", project_path)
-             deploy_status = "✅ Başarılı" if code == 0 else "❌ Başarısız"
+        deploy_script = project_path / config["deploy_script"]
         
-        report = f"""
-✅ **Görev Tamamlandı!**
-
-📂 **Proje:** {project_name}
-📝 **Görev:** {task_description}
-
-🛠️ **Değişiklikler:**
-{chr(10).join([f"- {f}" for f in changed_files])}
-
-☁️ **Git Push:** {push_status}
-🚀 **Deploy:** {deploy_status}
-"""
-        await context.bot.send_message(chat_id=chat_id, text=report)
+        if deploy_script.exists():
+            await context.bot.send_message(chat_id=chat_id, text="🚀 Deploy başlatılıyor...")
+            stdout, stderr, code = await run_command(f"bash {deploy_script}", project_path)
+            
+            if code == 0:
+                deploy_status = "✅ Başarılı"
+                reporter.add_test("Production Deploy", True, "Deploy tamamlandı")
+            else:
+                deploy_status = "❌ Başarısız"
+                reporter.add_test("Production Deploy", False, stderr[:200])
+                reporter.add_error("DEPLOY", "Deploy başarısız", stderr[:200])
+        
+        # 9. Detaylı rapor oluştur ve gönder
+        detailed_report = reporter.generate_telegram_message(
+            commit_hash.strip(),
+            branch.strip(),
+            f"{project_name.upper()} - {task_description}"
+        )
+        
+        await context.bot.send_message(
+            chat_id=chat_id, 
+            text=detailed_report,
+            parse_mode="Markdown"
+        )
+        
+        # 10. GitHub link ekle
+        github_link = f"\n\n🔗 *GitHub Commit:*\n{config['github']}/commit/{commit_hash.strip()}"
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=github_link,
+            parse_mode="Markdown"
+        )
 
     except Exception as e:
         logger.error(f"Error processing task: {e}")
-        await context.bot.send_message(chat_id=chat_id, text=f"❌ Hata:\n{str(e)}")
+        reporter.add_error("SYSTEM", str(e), "", "Lütfen logları kontrol edin")
+        
+        error_report = f"""❌ *HATA OLUŞTU*
+
+📂 Proje: {project_name}
+📝 Görev: {task_description}
+
+⚠️ Hata: {str(e)[:500]}
+
+Detaylı log için sunucu loglarını kontrol edin.
+"""
+        await context.bot.send_message(chat_id=chat_id, text=error_report, parse_mode="Markdown")
 
 if __name__ == '__main__':
     if not TELEGRAM_BOT_TOKEN:
