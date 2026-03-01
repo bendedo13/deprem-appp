@@ -141,11 +141,16 @@ echo -e "${GREEN}✅ Service dosyası oluşturuldu${NC}"
 echo -e "${YELLOW}8️⃣ Systemd daemon yeniden yükleniyor...${NC}"
 systemctl daemon-reload
 
-# 10. Eski service'i durdur
+# 10. Eski service ve orphan process'leri durdur
 if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     echo -e "${YELLOW}⏸️ Mevcut service durduruluyor...${NC}"
     systemctl stop "$SERVICE_NAME"
 fi
+
+# Orphan bot process'lerini temizle (Conflict hatası önleme)
+echo -e "${YELLOW}🧹 Orphan bot process'leri temizleniyor...${NC}"
+pkill -f "ai_developer_bot.py" 2>/dev/null || true
+sleep 2
 
 # 11. Service enable + başlat
 echo -e "${YELLOW}9️⃣ Service başlatılıyor...${NC}"

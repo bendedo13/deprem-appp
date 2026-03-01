@@ -19,6 +19,8 @@ import os
 import re
 import logging
 import asyncio
+import signal
+import subprocess
 from typing import List, Optional, Dict
 from pathlib import Path
 from datetime import datetime
@@ -734,10 +736,61 @@ async def post_init(application):
     logger.info("Bot komutları kaydedildi.")
 
 
+def kill_other_bot_instances():
+    """Aynı script'i çalıştıran diğer process'leri durdur (Conflict hatası önleme)."""
+    my_pid = os.getpid()
+    script_name = "ai_developer_bot.py"
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", script_name],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.stdout:
+            for line in result.stdout.strip().split("\n"):
+                pid = int(line.strip())
+                if pid != my_pid:
+                    logger.warning(f"Eski bot process bulundu (PID {pid}), durduruluyor...")
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                        logger.info(f"PID {pid} SIGTERM gönderildi")
+                    except ProcessLookupError:
+                        pass
+                    except PermissionError:
+                        logger.warning(f"PID {pid} durdurulamadı (izin yok)")
+    except Exception as e:
+        logger.debug(f"Process kontrol hatası (önemsiz): {e}")
+
+
+async def delete_webhook_and_clean():
+    """Başlamadan önce webhook/getUpdates çakışmasını temizle."""
+    import httpx
+    try:
+        async with httpx.AsyncClient() as http:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook"
+            resp = await http.post(url, params={"drop_pending_updates": True}, timeout=10)
+            data = resp.json()
+            if data.get("ok"):
+                logger.info("Webhook temizlendi, pending updates düşürüldü")
+            else:
+                logger.warning(f"Webhook temizleme yanıtı: {data}")
+    except Exception as e:
+        logger.warning(f"Webhook temizleme hatası (devam ediliyor): {e}")
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "your_bot_token_here":
         logger.critical("TELEGRAM_BOT_TOKEN eksik!")
         sys.exit(1)
+
+    # Çakışan bot instance'larını durdur
+    kill_other_bot_instances()
+
+    # Kısa bekleme — eski process'in kapanmasını bekle
+    import time
+    time.sleep(2)
+
+    # Webhook temizliği
+    asyncio.run(delete_webhook_and_clean())
 
     logger.info("=" * 50)
     logger.info("AI Developer Bot v2 başlatılıyor...")
