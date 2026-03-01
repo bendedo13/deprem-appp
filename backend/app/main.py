@@ -15,6 +15,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
 from app.core.redis import get_redis, close_redis
 from app.api.v1 import earthquakes, users, notifications, analytics, risk, seismic, admin, sos
+from app.api.v1 import auth as auth_router
+from app.api.v1 import dashboard as dashboard_router
 from app.api.websocket import websocket_router
 from app.tasks.fetch_earthquakes import start_periodic_fetch
 
@@ -25,7 +27,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Uygulama başlangıç ve kapanış."""
     logger.info("Deprem App başlatılıyor...")
-    # init_db() kaldırıldı - migration kullanıyoruz (alembic upgrade head)
     await start_periodic_fetch()
     logger.info("Uygulama hazır.")
     yield
@@ -51,6 +52,7 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# Mevcut router'lar
 app.include_router(earthquakes.router, prefix="/api/v1/earthquakes", tags=["Depremler"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Kullanıcılar"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Bildirimler"])
@@ -59,6 +61,11 @@ app.include_router(risk.router, prefix="/api/v1/risk", tags=["Risk"])
 app.include_router(seismic.router, prefix="/api/v1/seismic", tags=["Seismic"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(sos.router, prefix="/api/v1/sos", tags=["S.O.S"])
+
+# Yeni router'lar
+app.include_router(auth_router.router, prefix="/api/v1/auth", tags=["Kimlik Doğrulama"])
+app.include_router(dashboard_router.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+
 app.include_router(websocket_router, tags=["WebSocket"])
 
 
