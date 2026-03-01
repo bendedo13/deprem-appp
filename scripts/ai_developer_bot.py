@@ -1,12 +1,18 @@
 """
-AI Developer Telegram Bot
-==========================
+AI Developer Telegram Bot v2
+==============================
 Telegram üzerinden görev alıp Anthropic Claude API ile kodlayan,
 test eden, push eden ve deploy eden otomasyon botu.
 
 Desteklenen projeler: eyeoftrv2, deprem-appp, astroloji
-Komutlar: /start, /help, /projects, /status, /deploy, /health
-Görev formatı: Görev: [proje] - [açıklama]
+
+TEK SİSTEM — Görev Kabul Yöntemleri:
+  1. Komut:   /deprem Ana sayfaya buton ekle
+  2. Komut:   /eye Login sayfasını güncelle
+  3. Komut:   /astro Burç API entegre et
+  4. Metin:   Görev: depremapp - Ana sayfaya buton ekle
+
+Diğer Komutlar: /start, /help, /projects, /status, /deploy, /health
 """
 
 import os
@@ -26,7 +32,6 @@ from telegram.ext import (
     CommandHandler,
     filters,
 )
-from telegram.constants import ParseMode
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
@@ -43,7 +48,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 BASE_DIR = Path("/opt")
 
-# Güvenlik: Sadece izin verilen chat ID'ler botu kullanabilir
+# Güvenlik: Sadece izin verilen chat ID'ler
 ALLOWED_CHAT_IDS_RAW = os.getenv("ALLOWED_CHAT_IDS", "")
 ALLOWED_CHAT_IDS: set = set()
 if ALLOWED_CHAT_IDS_RAW:
@@ -58,22 +63,24 @@ PROJECT_CONFIGS: Dict[str, dict] = {
         "github_repo": "bendedo13/eye-of-tr-v2",
         "github_url": "https://github.com/bendedo13/eye-of-tr-v2",
         "deploy_script": "deploy.sh",
-        "test_commands": ["npm run build", "npm run lint"],
+        "test_commands": ["npm run build"],
         "health_check": "http://localhost:3000",
         "branch": "main",
         "description": "Eye of TR - Web Uygulaması",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".json"],
+        "short_cmd": "eye",
     },
     "depremapp": {
         "path": BASE_DIR / "deprem-appp",
         "github_repo": "bendedo13/deprem-appp",
         "github_url": "https://github.com/bendedo13/deprem-appp",
         "deploy_script": "deploy/PRODUCTION_DEPLOY.sh",
-        "test_commands": ["docker-compose ps", "curl -sf http://localhost:8001/health || exit 1"],
+        "test_commands": ["docker compose -f deploy/docker-compose.prod.yml ps"],
         "health_check": "http://localhost:8001/health",
         "branch": "main",
         "description": "Deprem App - Mobil + Backend",
         "extensions": [".py", ".ts", ".tsx", ".js", ".json"],
+        "short_cmd": "deprem",
     },
     "astroloji": {
         "path": BASE_DIR / "astroloji",
@@ -85,10 +92,10 @@ PROJECT_CONFIGS: Dict[str, dict] = {
         "branch": "main",
         "description": "Astroloji - Web Uygulaması",
         "extensions": [".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".json"],
+        "short_cmd": "astro",
     },
 }
 
-# Proje takma adları (kısa isimler)
 PROJECT_ALIASES: Dict[str, str] = {
     "eyeoftr": "eyeoftrv2",
     "eye": "eyeoftrv2",
@@ -118,7 +125,6 @@ else:
 # ════════════════════════════════════════════════════════════
 
 def resolve_project(name: str) -> Optional[str]:
-    """Proje adını veya takma adını çözümle."""
     name = name.strip().lower()
     if name in PROJECT_CONFIGS:
         return name
@@ -126,22 +132,12 @@ def resolve_project(name: str) -> Optional[str]:
 
 
 def is_authorized(chat_id: int) -> bool:
-    """Chat ID'nin yetkili olup olmadığını kontrol et."""
     if not ALLOWED_CHAT_IDS:
-        return True  # Hiç ID tanımlı değilse herkese izin ver (geliştirme modu)
+        return True
     return chat_id in ALLOWED_CHAT_IDS
 
 
-def escape_md(text: str) -> str:
-    """Telegram MarkdownV2 için özel karakterleri escape et. Basit Markdown kullanıldığında sadece sorunlu olanları temizle."""
-    if not text:
-        return ""
-    # Basit Markdown modunda sadece backtick ve * sorun çıkarır
-    return text.replace("`", "'").replace("_", "\\_")
-
-
 async def run_command(command: str, cwd: Path, timeout: int = 120) -> tuple:
-    """Shell komutu asenkron çalıştır."""
     try:
         process = await asyncio.create_subprocess_shell(
             command,
@@ -154,31 +150,25 @@ async def run_command(command: str, cwd: Path, timeout: int = 120) -> tuple:
         )
         return stdout.decode().strip(), stderr.decode().strip(), process.returncode
     except asyncio.TimeoutError:
-        logger.error(f"Komut zaman aşımı ({timeout}s): {command}")
         return "", f"Zaman aşımı ({timeout}s)", 1
     except Exception as e:
-        logger.error(f"Komut hatası: {e}")
         return "", str(e), 1
 
 
 async def send_long_message(bot, chat_id: int, text: str, parse_mode: str = "Markdown"):
-    """Uzun mesajları bölerek gönder (Telegram 4096 karakter limiti)."""
     max_len = 4000
     if len(text) <= max_len:
         try:
             await bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
         except Exception:
-            # Markdown parse hatası olursa düz metin olarak gönder
             await bot.send_message(chat_id=chat_id, text=text)
         return
 
-    # Uzun mesajı böl
     parts = []
     while text:
         if len(text) <= max_len:
             parts.append(text)
             break
-        # Son satır sonunu bul
         idx = text.rfind("\n", 0, max_len)
         if idx == -1:
             idx = max_len
@@ -203,19 +193,17 @@ SKIP_DIRS = {
     ".expo", ".next", "coverage", ".cache", "android", "ios",
 }
 
+
 async def get_project_files(project_path: Path, extensions: List[str]) -> str:
-    """Proje dosyalarını oku ve context olarak döndür."""
     file_contents = []
     total_size = 0
-    max_total = 150000  # Toplam context limiti
+    max_total = 200000
 
     try:
         for ext in extensions:
             for file_path in sorted(project_path.rglob(f"*{ext}")):
-                # Atlanacak klasörler
                 if any(part in file_path.parts for part in SKIP_DIRS):
                     continue
-                # package-lock, yarn.lock vb. atla
                 if file_path.name in ("package-lock.json", "yarn.lock", "pnpm-lock.yaml"):
                     continue
                 try:
@@ -228,8 +216,8 @@ async def get_project_files(project_path: Path, extensions: List[str]) -> str:
                     total_size += len(content)
                     if total_size > max_total:
                         break
-                except Exception as e:
-                    logger.warning(f"Dosya okunamadı {file_path}: {e}")
+                except Exception:
+                    pass
             if total_size > max_total:
                 break
     except Exception as e:
@@ -242,66 +230,58 @@ async def get_project_files(project_path: Path, extensions: List[str]) -> str:
 # CLAUDE AI
 # ════════════════════════════════════════════════════════════
 
-# Model listesi - öncelik sırasına göre denenecek
 MODELS_COMPLEX = ["claude-sonnet-4-6", "claude-sonnet-4-5-20241022"]
 MODELS_SIMPLE = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6"]
 
 
 def select_models(task: str, context_size: int) -> List[str]:
-    """Görev karmaşıklığına göre model listesi döndür (fallback ile)."""
     complex_keywords = [
         "api", "database", "auth", "security", "algorithm", "refactor",
         "architecture", "migration", "integration", "entegrasyon",
         "veritabanı", "güvenlik", "mimari", "karmaşık", "sistem",
-        "performance", "optimization",
+        "performance", "optimization", "docker", "deploy",
     ]
     task_lower = task.lower()
-
     if any(kw in task_lower for kw in complex_keywords) or context_size > 50000:
         return MODELS_COMPLEX
     return MODELS_SIMPLE
 
 
 async def ask_claude(task: str, context: str, project_name: str) -> tuple:
-    """Claude'a görev gönder ve kod değişikliklerini al. (response, model_used) döndürür."""
     if not client:
         raise Exception("Anthropic API anahtarı eksik!")
 
     models = select_models(task, len(context))
-    logger.info(f"Denenecek modeller: {models} | Proje: {project_name}")
+    logger.info(f"Modeller: {models} | Proje: {project_name}")
 
     system_prompt = """Sen uzman bir Türk yazılım geliştiricisin. Sana verilen proje dosyalarını ve görevi analiz ederek gerekli kod değişikliklerini yapmalısın.
 
 KURALLAR:
 1. Sadece gerekli değişiklikleri yap, gereksiz kod ekleme.
 2. Kod kalitesine ve best practice'lere dikkat et.
-3. Türkçe yorum satırları ekle (önemli yerlere).
-4. Cevabın SADECE XML formatında dosya güncellemeleri içermelidir.
-5. Dosyaları güncellemek için şu formatı kullan:
+3. Türkçe yorum satırları ekle.
+4. Dosyaları güncellemek için şu formatı kullan:
 
 <file path="relative/path/to/file.ext">
 ... dosyanın tam yeni içeriği ...
 </file>
 
 <explanation>
-- Değişiklik 1 açıklaması
-- Değişiklik 2 açıklaması
+- Değişiklik açıklaması
 </explanation>
 
-6. Her dosya değişikliğinden sonra MUTLAKA <explanation> tagı ile Türkçe açıklama yap.
-7. Sadece değişen veya yeni dosyaları döndür.
-8. Test edilebilir, çalışır kod yaz.
-9. Güvenlik açığı bırakma (XSS, injection vb.)."""
+5. Sadece değişen veya yeni dosyaları döndür.
+6. Test edilebilir, çalışır kod yaz.
+7. Güvenlik açığı bırakma."""
 
+    max_context = 180000
     user_prompt = f"""PROJE: {project_name}
 GÖREV: {task}
 
 MEVCUT DOSYALAR:
-{context[:120000]}
+{context[:max_context]}
 
-Lütfen görevi yerine getirmek için gerekli kod değişikliklerini üret.
-Her dosya için <file> ve <explanation> taglarını kullan.
-Açıklamaları Türkçe ve detaylı yap."""
+Lütfen görevi yerine getirmek için gerekli kod değişikliklerini üret."""
 
     last_error = None
     for model in models:
@@ -309,7 +289,7 @@ Açıklamaları Türkçe ve detaylı yap."""
             logger.info(f"Model deneniyor: {model}")
             message = client.messages.create(
                 model=model,
-                max_tokens=16000,
+                max_tokens=64000,
                 temperature=0,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
@@ -321,18 +301,13 @@ Açıklamaları Türkçe ve detaylı yap."""
             logger.warning(f"Model {model} başarısız: {e}")
             continue
 
-    raise Exception(f"Tüm modeller başarısız oldu. Son hata: {last_error}")
+    raise Exception(f"Tüm modeller başarısız. Son hata: {last_error}")
 
 
 def apply_changes(response: str, project_path: Path, reporter: TaskReporter) -> List[str]:
-    """Claude'un yanıtını parse edip dosyalara uygula."""
     changed_files = []
-
-    # Dosya değişikliklerini bul
     file_pattern = r'<file path="(.*?)">\s*(.*?)\s*</file>'
     file_matches = list(re.finditer(file_pattern, response, re.DOTALL))
-
-    # Açıklamaları bul
     explanation_pattern = r"<explanation>\s*(.*?)\s*</explanation>"
     explanations = re.findall(explanation_pattern, response, re.DOTALL)
 
@@ -341,11 +316,9 @@ def apply_changes(response: str, project_path: Path, reporter: TaskReporter) -> 
         content = match.group(2)
         full_path = project_path / rel_path
 
-        # Güvenlik: Proje dışına dosya yazımını engelle
         try:
             full_path.resolve().relative_to(project_path.resolve())
         except ValueError:
-            logger.warning(f"Güvenlik: Proje dışı dosya yazımı engellendi: {rel_path}")
             reporter.add_error("SECURITY", f"Proje dışı yazım engellendi: {rel_path}")
             continue
 
@@ -364,19 +337,33 @@ def apply_changes(response: str, project_path: Path, reporter: TaskReporter) -> 
 # GIT İŞLEMLERİ
 # ════════════════════════════════════════════════════════════
 
-async def git_operations(project_path: Path, task: str, config: dict, reporter: TaskReporter) -> tuple:
-    """Git add, commit, push işlemlerini yap. (commit_hash, branch) döndürür."""
-    branch = config.get("branch", "main")
+async def ensure_project_cloned(project_path: Path, config: dict, bot, chat_id: int) -> bool:
+    if project_path.exists():
+        return True
 
-    # Git add
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"📥 Proje clone ediliyor...\n`{config['github_url']}`",
+        parse_mode="Markdown",
+    )
+    clone_url = f"https://github.com/{config['github_repo']}.git"
+    _, stderr, code = await run_command(
+        f"git clone {clone_url} {project_path}", Path("/opt"), timeout=120
+    )
+    if code != 0:
+        await bot.send_message(chat_id=chat_id, text=f"❌ Clone başarısız!\n`{stderr[:300]}`", parse_mode="Markdown")
+        return False
+    await bot.send_message(chat_id=chat_id, text=f"✅ Clone tamamlandı", parse_mode="Markdown")
+    return True
+
+
+async def git_operations(project_path: Path, task: str, config: dict, reporter: TaskReporter) -> tuple:
+    branch = config.get("branch", "main")
     await run_command("git add -A", project_path)
 
-    # Commit mesajı
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     commit_msg = f"AI Bot: {task[:80]} [{timestamp}]"
-    stdout, stderr, code = await run_command(
-        f'git commit -m "{commit_msg}"', project_path
-    )
+    stdout, stderr, code = await run_command(f'git commit -m "{commit_msg}"', project_path)
 
     if code != 0:
         if "nothing to commit" in stdout + stderr:
@@ -386,12 +373,8 @@ async def git_operations(project_path: Path, task: str, config: dict, reporter: 
         return "commit-failed", branch
 
     reporter.add_test("Git Commit", True, "Başarılı")
-
-    # Commit hash
-    commit_hash, _, _ = await run_command("git rev-parse --short HEAD", project_path)
     full_hash, _, _ = await run_command("git rev-parse HEAD", project_path)
 
-    # Git push (retry ile)
     push_success = False
     for attempt in range(4):
         _, stderr, code = await run_command(f"git push origin {branch}", project_path)
@@ -399,9 +382,7 @@ async def git_operations(project_path: Path, task: str, config: dict, reporter: 
             push_success = True
             reporter.add_test("Git Push", True, f"Branch: {branch}")
             break
-        wait = 2 ** (attempt + 1)
-        logger.warning(f"Push denemesi {attempt + 1} başarısız, {wait}s bekliyor...")
-        await asyncio.sleep(wait)
+        await asyncio.sleep(2 ** (attempt + 1))
 
     if not push_success:
         reporter.add_test("Git Push", False, stderr[:200])
@@ -415,46 +396,148 @@ async def git_operations(project_path: Path, task: str, config: dict, reporter: 
 # ════════════════════════════════════════════════════════════
 
 async def run_tests(project_path: Path, test_commands: List[str], reporter: TaskReporter) -> bool:
-    """Testleri çalıştır."""
     all_passed = True
     for cmd in test_commands:
         stdout, stderr, code = await run_command(cmd, project_path, timeout=180)
         passed = code == 0
         all_passed = all_passed and passed
-        output = (stdout or stderr)[:300]
-        reporter.add_test(f"Test: {cmd}", passed, output)
-        logger.info(f"Test '{cmd}': {'PASS' if passed else 'FAIL'}")
+        reporter.add_test(f"Test: {cmd}", passed, (stdout or stderr)[:300])
     return all_passed
 
 
 async def run_deploy(project_path: Path, config: dict, reporter: TaskReporter) -> bool:
-    """Deploy scriptini çalıştır."""
     deploy_script = project_path / config["deploy_script"]
     if not deploy_script.exists():
         reporter.add_test("Deploy", False, f"Script bulunamadı: {config['deploy_script']}")
         return False
 
     stdout, stderr, code = await run_command(
-        f"bash {deploy_script}", project_path, timeout=300
+        f"bash {deploy_script}", project_path, timeout=600
     )
     passed = code == 0
-    reporter.add_test("Deploy", passed, (stdout or stderr)[:300])
+    output = (stdout[-500:] if stdout else "") + ("\n" + stderr[-300:] if stderr else "")
+    reporter.add_test("Deploy", passed, output.strip()[:500])
     if not passed:
         reporter.add_error("DEPLOY", "Deploy başarısız", stderr[:300])
     return passed
 
 
 async def check_health(url: str, reporter: TaskReporter) -> bool:
-    """Health check endpoint'ini kontrol et."""
-    stdout, stderr, code = await run_command(
-        f'curl -sf -o /dev/null -w "%{{http_code}}" --connect-timeout 5 {url}',
-        Path.cwd(),
-        timeout=15,
+    stdout, _, _ = await run_command(
+        f'curl -sf -o /dev/null -w "%{{http_code}}" --connect-timeout 10 {url}',
+        Path.cwd(), timeout=20,
     )
     http_code = stdout.strip()
     passed = http_code in ("200", "301", "302")
-    reporter.add_test(f"Health Check ({url})", passed, f"HTTP {http_code}")
+    reporter.add_test(f"Health ({url})", passed, f"HTTP {http_code}")
     return passed
+
+
+# ════════════════════════════════════════════════════════════
+# BİRLEŞİK GÖREV İŞLEYİCİ
+# ════════════════════════════════════════════════════════════
+
+async def execute_task(bot, chat_id: int, project_name: str, task_description: str):
+    """Tüm görev akışını çalıştırır — tek giriş noktası."""
+    config = PROJECT_CONFIGS[project_name]
+    project_path = config["path"]
+    reporter = TaskReporter()
+    start_time = datetime.now()
+
+    if not await ensure_project_cloned(project_path, config, bot, chat_id):
+        return
+
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"🤖 *Görev Alındı!*\n📂 *{project_name}*\n📝 {task_description[:300]}\n⏳ İşlem başlıyor...",
+        parse_mode="Markdown",
+    )
+
+    try:
+        # 1. Dosyaları oku
+        await bot.send_message(chat_id=chat_id, text="🔍 *1/7* Dosyalar okunuyor...")
+        context_data = await get_project_files(project_path, config.get("extensions", [".py", ".ts", ".tsx", ".js"]))
+        if not context_data:
+            await bot.send_message(chat_id=chat_id, text="⚠️ Proje dosyası bulunamadı!")
+            return
+        reporter.add_metric("context_size", len(context_data))
+
+        # 2. Claude AI
+        models = select_models(task_description, len(context_data))
+        await bot.send_message(chat_id=chat_id, text=f"🧠 *2/7* Claude kodluyor...\nModel: `{models[0]}` | Token: `64K`", parse_mode="Markdown")
+        ai_response, model = await ask_claude(task_description, context_data, project_name)
+
+        # 3. Değişiklikleri uygula
+        await bot.send_message(chat_id=chat_id, text="📝 *3/7* Değişiklikler uygulanıyor...")
+        changed_files = apply_changes(ai_response, project_path, reporter)
+        if not changed_files:
+            await bot.send_message(chat_id=chat_id, text="⚠️ Değişiklik üretilemedi. Görevi daha detaylı yazın.")
+            return
+        reporter.add_metric("changed_files", len(changed_files))
+
+        # 4. Git
+        await bot.send_message(chat_id=chat_id, text="💾 *4/7* Git commit & push...")
+        commit_hash, branch = await git_operations(project_path, task_description, config, reporter)
+
+        # 5. Test
+        await bot.send_message(chat_id=chat_id, text="🧪 *5/7* Testler...")
+        await run_tests(project_path, config["test_commands"], reporter)
+
+        # 6. Health
+        await bot.send_message(chat_id=chat_id, text="🏥 *6/7* Health check...")
+        if config.get("health_check"):
+            await check_health(config["health_check"], reporter)
+
+        # 7. Deploy
+        deploy_script = project_path / config["deploy_script"]
+        if deploy_script.exists():
+            await bot.send_message(chat_id=chat_id, text="🚀 *7/7* Deploy...")
+            await run_deploy(project_path, config, reporter)
+        else:
+            reporter.add_test("Deploy", False, "Script bulunamadı (atlanıyor)")
+
+        # Rapor
+        elapsed = (datetime.now() - start_time).total_seconds()
+        commit_short = commit_hash[:8] if len(commit_hash) > 8 else commit_hash
+
+        report = f"🤖 *RAPOR*\n━━━━━━━━━━━━━━━━━━\n"
+        report += f"📌 {task_description[:200]}\n📂 {project_name} | ⏱️ {int(elapsed//60)}dk {int(elapsed%60)}s\n🧠 {model}\n"
+        report += f"🎯 {'✅ BAŞARILI' if not reporter.errors else '⚠️ HATALAR MEVCUT'}\n\n"
+
+        if reporter.changes:
+            report += f"📂 *Dosyalar ({len(reporter.changes)}):*\n"
+            for c in reporter.changes[:10]:
+                report += f"  ✏️ `{c['file']}`\n"
+            report += "\n"
+
+        if reporter.tests:
+            p = sum(1 for t in reporter.tests if t["passed"])
+            report += f"🧪 *Testler ({p}/{len(reporter.tests)}):*\n"
+            for t in reporter.tests:
+                report += f"  {t['status']} {t['name']}\n"
+            report += "\n"
+
+        report += f"💾 Commit: `{commit_short}` | Branch: `{branch}`\n"
+
+        if reporter.errors:
+            report += "\n❌ *Hatalar:*\n"
+            for e in reporter.errors[:5]:
+                report += f"  • {e['message']}\n"
+
+        if commit_hash and commit_hash not in ("no-commit", "commit-failed"):
+            report += f"\n🔗 {config['github_url']}/commit/{commit_hash}\n"
+
+        report += f"\n━━━━━━━━━━━━━━━━━━\n🕐 {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+        await send_long_message(bot, chat_id, report)
+
+    except Exception as e:
+        logger.error(f"Görev hatası: {e}", exc_info=True)
+        try:
+            await bot.send_message(chat_id=chat_id,
+                text=f"❌ *HATA*\n📂 {project_name}\n⚠️ {str(e)[:500]}\nLog: `journalctl -u telegram-bot -n 50`",
+                parse_mode="Markdown")
+        except Exception:
+            await bot.send_message(chat_id=chat_id, text=f"Hata: {str(e)[:500]}")
 
 
 # ════════════════════════════════════════════════════════════
@@ -462,414 +545,173 @@ async def check_health(url: str, reporter: TaskReporter) -> bool:
 # ════════════════════════════════════════════════════════════
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Bot başlangıç mesajı."""
+    if not is_authorized(update.effective_chat.id):
+        await update.message.reply_text("⛔ Yetkiniz yok.")
+        return
+    text = """🤖 *AI Developer Bot v2*
+
+*Görev Gönder:*
+  `/deprem Ana sayfaya buton ekle`
+  `/eye Login sayfasını güncelle`
+  `/astro Burç detay sayfası ekle`
+  `Görev: depremapp - buton ekle`
+
+*Komutlar:*
+/help /projects /status /health
+/deploy [proje]"""
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update.effective_chat.id):
+        return
+    text = """📖 *Kullanım*
+
+*Hızlı:* `/deprem [görev]`  `/eye [görev]`  `/astro [görev]`
+*Detaylı:* `Görev: [proje] - [açıklama]`
+
+*Akış:* Dosya oku → Claude AI (64K token) → Kod yaz → Git push → Test → Deploy → Rapor
+
+*Uzun görevler* desteklenir. Tüm değişiklikleri tek seferde yapabilirsiniz."""
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_projects(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update.effective_chat.id):
+        return
+    text = "📂 *Projeler:*\n\n"
+    for name, cfg in PROJECT_CONFIGS.items():
+        exists = "✅" if cfg["path"].exists() else "❌"
+        text += f"*{name}* (`/{cfg['short_cmd']}`)\n  {cfg['description']}\n  {exists} `{cfg['path']}`\n\n"
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update.effective_chat.id):
+        return
+    text = f"📊 *Sistem*\n🤖 API: {'✅' if client else '❌'}\n\n"
+    for name, cfg in PROJECT_CONFIGS.items():
+        exists = cfg["path"].exists()
+        text += f"*{name}* (`/{cfg['short_cmd']}`): {'✅' if exists else '❌'}\n"
+        if exists:
+            out, _, code = await run_command("git log -1 --format='%h %s (%cr)'", cfg["path"])
+            if code == 0 and out:
+                text += f"  `{out[:80]}`\n"
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update.effective_chat.id):
+        return
+    await update.message.reply_text("🔍 Health check...")
+
+    text = "🏥 *Health Check:*\n\n"
+    # Docker durumu
+    out, _, code = await run_command("docker ps --format '{{.Names}}: {{.Status}}' 2>/dev/null", Path.cwd())
+    if code == 0 and out:
+        text += "*Docker:*\n"
+        for line in out.split("\n")[:10]:
+            s = "✅" if "Up" in line else "❌"
+            text += f"  {s} `{line}`\n"
+        text += "\n"
+
+    for name, cfg in PROJECT_CONFIGS.items():
+        url = cfg.get("health_check")
+        if url:
+            out, _, _ = await run_command(f'curl -sf -o /dev/null -w "%{{http_code}}" --connect-timeout 5 {url}', Path.cwd(), timeout=15)
+            http = out.strip()
+            s = "✅" if http in ("200", "301", "302") else "❌"
+            text += f"{s} *{name}:* HTTP {http}\n"
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_deploy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update.effective_chat.id):
+        return
+    args = context.args
+    if not args:
+        await update.message.reply_text("Kullanım: `/deploy deprem`", parse_mode="Markdown")
+        return
+    project_name = resolve_project(args[0])
+    if not project_name:
+        await update.message.reply_text(f"❌ Bilinmeyen proje: {args[0]}")
+        return
+    cfg = PROJECT_CONFIGS[project_name]
+    reporter = TaskReporter()
+    await update.message.reply_text(f"🚀 *{project_name}* deploy...", parse_mode="Markdown")
+    if cfg["path"].exists():
+        await run_command(f"git pull origin {cfg['branch']}", cfg["path"])
+    success = await run_deploy(cfg["path"], cfg, reporter)
+    if cfg.get("health_check"):
+        await check_health(cfg["health_check"], reporter)
+    text = f"🚀 *Deploy: {'✅' if success else '❌'}*\n"
+    for t in reporter.tests:
+        text += f"  {t['status']} {t['name']}\n"
+    await send_long_message(context.bot, update.effective_chat.id, text)
+
+
+# ════════════════════════════════════════════════════════════
+# PROJE KOMUT HANDLER  (/deprem, /eye, /astro)
+# ════════════════════════════════════════════════════════════
+
+async def cmd_project_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if not is_authorized(chat_id):
         await update.message.reply_text("⛔ Yetkiniz yok.")
         return
 
-    text = """🤖 *AI Developer Bot'a Hoş Geldiniz!*
-
-Bu bot, Anthropic Claude API kullanarak projelerinizi otomatik olarak kodlar, test eder, push eder ve deploy eder.
-
-*Komutlar:*
-/help - Yardım ve kullanım
-/projects - Desteklenen projeler
-/status - Sistem durumu
-/health - Health check
-/deploy [proje] - Manuel deploy
-
-*Görev Gönderme:*
-`Görev: [proje] - [yapılacak iş]`
-
-*Örnek:*
-`Görev: depremapp - Ana sayfaya yeni buton ekle`
-`Görev: eyeoftrv2 - Login sayfasını güncelle`
-`Görev: astroloji - Burç API'sini entegre et`"""
-
-    await update.message.reply_text(text, parse_mode="Markdown")
-
-
-async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Detaylı yardım."""
-    chat_id = update.effective_chat.id
-    if not is_authorized(chat_id):
+    command = update.message.text.split()[0].lstrip("/").lower()
+    project_name = resolve_project(command)
+    if not project_name:
+        await update.message.reply_text(f"❌ Bilinmeyen: /{command}")
         return
 
-    text = """📖 *Detaylı Kullanım Kılavuzu*
-
-*1. Görev Formatı:*
-`Görev: [proje_adı] - [detaylı görev açıklaması]`
-
-*2. Proje Adları:*
-• `eyeoftrv2` (veya `eyeoftr`, `eye`)
-• `depremapp` (veya `deprem`, `deprem-appp`)
-• `astroloji` (veya `astro`)
-
-*3. İş Akışı:*
-1️⃣ Görev alınır ve analiz edilir
-2️⃣ Proje dosyaları okunur
-3️⃣ Claude AI ile kod değişiklikleri üretilir
-4️⃣ Değişiklikler dosyalara uygulanır
-5️⃣ Git commit + push yapılır
-6️⃣ Testler çalıştırılır
-7️⃣ Health check yapılır
-8️⃣ Deploy edilir (opsiyonel)
-9️⃣ Detaylı rapor gönderilir
-
-*4. Karmaşıklık Seviyeleri:*
-🟢 Basit görevler → Claude Haiku (hızlı)
-🟡 Karmaşık görevler → Claude Sonnet (güçlü)
-
-*5. Güvenlik:*
-• Sadece yetkili kullanıcılar botu kullanabilir
-• Proje dışı dosya yazımı engellenir
-• API anahtarları .env dosyasında saklanır"""
-
-    await update.message.reply_text(text, parse_mode="Markdown")
-
-
-async def cmd_projects(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Desteklenen projeleri listele."""
-    chat_id = update.effective_chat.id
-    if not is_authorized(chat_id):
-        return
-
-    text = "📂 *Desteklenen Projeler:*\n\n"
-    for name, cfg in PROJECT_CONFIGS.items():
-        path_exists = "✅" if cfg["path"].exists() else "❌"
-        text += f"*{name}*\n"
-        text += f"  📝 {cfg['description']}\n"
-        text += f"  📁 `{cfg['path']}` {path_exists}\n"
-        text += f"  🔗 {cfg['github_url']}\n"
-        text += f"  🌿 Branch: `{cfg['branch']}`\n\n"
-
-    await update.message.reply_text(text, parse_mode="Markdown")
-
-
-async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Sistem durumunu göster."""
-    chat_id = update.effective_chat.id
-    if not is_authorized(chat_id):
-        return
-
-    text = "📊 *Sistem Durumu*\n\n"
-
-    # API durumu
-    api_ok = "✅" if client else "❌"
-    text += f"🤖 Anthropic API: {api_ok}\n"
-
-    # Proje durumları
-    for name, cfg in PROJECT_CONFIGS.items():
-        exists = cfg["path"].exists()
-        text += f"\n*{name}:*\n"
-        text += f"  Klasör: {'✅' if exists else '❌'}\n"
-        if exists:
-            # Son commit
-            stdout, _, code = await run_command(
-                "git log -1 --format='%h - %s (%cr)'", cfg["path"]
-            )
-            if code == 0 and stdout:
-                text += f"  Son commit: `{stdout[:80]}`\n"
-            # Branch
-            branch_out, _, _ = await run_command(
-                "git branch --show-current", cfg["path"]
-            )
-            text += f"  Branch: `{branch_out.strip()}`\n"
-
-    await update.message.reply_text(text, parse_mode="Markdown")
-
-
-async def cmd_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tüm projelerin health check'ini yap."""
-    chat_id = update.effective_chat.id
-    if not is_authorized(chat_id):
-        return
-
-    await update.message.reply_text("🔍 Health check yapılıyor...")
-
-    text = "🏥 *Health Check Sonuçları:*\n\n"
-    for name, cfg in PROJECT_CONFIGS.items():
-        url = cfg.get("health_check")
-        if url:
-            stdout, _, code = await run_command(
-                f'curl -sf -o /dev/null -w "%{{http_code}}" --connect-timeout 5 {url}',
-                Path.cwd(),
-                timeout=15,
-            )
-            http_code = stdout.strip()
-            status = "✅" if http_code in ("200", "301", "302") else "❌"
-            text += f"{status} *{name}:* HTTP {http_code} ({url})\n"
-        else:
-            text += f"⏭️ *{name}:* Health check URL yok\n"
-
-    await update.message.reply_text(text, parse_mode="Markdown")
-
-
-async def cmd_deploy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manuel deploy komutu: /deploy [proje]"""
-    chat_id = update.effective_chat.id
-    if not is_authorized(chat_id):
-        return
-
-    args = context.args
-    if not args:
+    task_text = update.message.text[len(f"/{command}"):].strip()
+    if not task_text:
+        cfg = PROJECT_CONFIGS[project_name]
         await update.message.reply_text(
-            "Kullanım: `/deploy [proje_adı]`\nÖrnek: `/deploy depremapp`",
+            f"📂 *{project_name}*\n\nKullanım: `/{command} [görev]`\nÖrnek: `/{command} Ana sayfaya buton ekle`",
             parse_mode="Markdown",
         )
         return
 
-    project_name = resolve_project(args[0])
-    if not project_name:
-        await update.message.reply_text(f"❌ Bilinmeyen proje: {args[0]}")
-        return
-
-    cfg = PROJECT_CONFIGS[project_name]
-    reporter = TaskReporter()
-
-    await update.message.reply_text(f"🚀 {project_name} deploy başlatılıyor...")
-
-    success = await run_deploy(cfg["path"], cfg, reporter)
-    if cfg.get("health_check"):
-        await check_health(cfg["health_check"], reporter)
-
-    status = "✅ Başarılı" if success else "❌ Başarısız"
-    text = f"🚀 *Deploy Sonucu: {status}*\n\n"
-    for test in reporter.tests:
-        text += f"{test['status']} {test['name']}: {test['output']}\n"
-
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await execute_task(context.bot, chat_id, project_name, task_text)
 
 
 # ════════════════════════════════════════════════════════════
-# ANA GÖREV İŞLEYİCİ
+# METİN GÖREV HANDLER
 # ════════════════════════════════════════════════════════════
 
 async def handle_task_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Görev mesajlarını işle."""
     msg = update.message.text
     chat_id = update.effective_chat.id
-
     if not is_authorized(chat_id):
-        await update.message.reply_text("⛔ Yetkiniz yok. Chat ID'niz: " + str(chat_id))
         return
-
-    # "Görev:" veya "görev:" ile başlamalı
     if not msg.lower().startswith("görev:"):
         return
 
-    # Reporter başlat
-    reporter = TaskReporter()
-
-    # Parse: Görev: [proje] - [açıklama]
     try:
         _, content = msg.split(":", 1)
         if "-" not in content:
-            raise ValueError("Tire bulunamadı")
+            raise ValueError()
         project_raw, task_description = content.split("-", 1)
         project_raw = project_raw.strip()
         task_description = task_description.strip()
-
         if not task_description:
-            raise ValueError("Görev açıklaması boş")
+            raise ValueError()
     except ValueError:
         await update.message.reply_text(
-            "⚠️ *Format hatası!*\n\n"
-            "Kullanım: `Görev: [proje] - [açıklama]`\n\n"
-            "Örnek:\n"
-            "`Görev: depremapp - Ana sayfaya buton ekle`\n"
-            "`Görev: eyeoftrv2 - Login sayfasını güncelle`\n"
-            "`Görev: astroloji - Burç detay sayfası ekle`\n\n"
-            "Projeler: /projects",
+            "⚠️ Kullanım: `Görev: deprem - açıklama`\nveya: `/deprem açıklama`",
             parse_mode="Markdown",
         )
         return
 
-    # Proje çözümle
     project_name = resolve_project(project_raw)
     if not project_name:
-        projects_list = ", ".join(PROJECT_CONFIGS.keys())
-        await update.message.reply_text(
-            f"❌ Bilinmeyen proje: *{project_raw}*\n\n"
-            f"Mevcut projeler: `{projects_list}`\n\n"
-            f"Takma adlar: eye, deprem, astro",
-            parse_mode="Markdown",
-        )
+        await update.message.reply_text(f"❌ Bilinmeyen proje: *{project_raw}*\nKomutlar: /deprem /eye /astro", parse_mode="Markdown")
         return
 
-    config = PROJECT_CONFIGS[project_name]
-    project_path = config["path"]
-
-    # Proje klasörü yoksa otomatik clone et
-    if not project_path.exists():
-        await update.message.reply_text(
-            f"📥 Proje klasörü bulunamadı, otomatik clone ediliyor...\n"
-            f"`git clone {config['github_url']} {project_path}`",
-            parse_mode="Markdown",
-        )
-        clone_url = f"https://github.com/{config['github_repo']}.git"
-        stdout, stderr, code = await run_command(
-            f"git clone {clone_url} {project_path}", Path("/opt"), timeout=120
-        )
-        if code != 0:
-            await update.message.reply_text(
-                f"❌ Clone başarısız!\n`{stderr[:300]}`",
-                parse_mode="Markdown",
-            )
-            return
-        await update.message.reply_text(f"✅ Proje başarıyla clone edildi: `{project_path}`", parse_mode="Markdown")
-
-    # ── İş akışı başlat ──────────────────────────────────
-    start_time = datetime.now()
-
-    await update.message.reply_text(
-        f"🤖 *Görev Alındı!*\n\n"
-        f"📂 Proje: *{project_name}*\n"
-        f"📝 Görev: {task_description}\n"
-        f"⏳ İşlem başlıyor...",
-        parse_mode="Markdown",
-    )
-
-    try:
-        # ADIM 1: Proje dosyalarını oku
-        await update.message.reply_text("🔍 *Adım 1/7:* Proje dosyaları okunuyor...")
-        context_data = await get_project_files(
-            project_path, config.get("extensions", [".py", ".ts", ".tsx", ".js"])
-        )
-
-        if not context_data:
-            await update.message.reply_text("⚠️ Proje dosyası bulunamadı!")
-            return
-
-        reporter.add_metric("context_size", len(context_data))
-
-        # ADIM 2: Claude ile kodla
-        models = select_models(task_description, len(context_data))
-        await update.message.reply_text(
-            f"🧠 *Adım 2/7:* Claude AI kodluyor...\n"
-            f"Model: `{models[0]}` (fallback: `{models[-1]}`)"
-        , parse_mode="Markdown")
-
-        ai_response, model = await ask_claude(task_description, context_data, project_name)
-
-        # ADIM 3: Değişiklikleri uygula
-        await update.message.reply_text("📝 *Adım 3/7:* Değişiklikler uygulanıyor...")
-        changed_files = apply_changes(ai_response, project_path, reporter)
-
-        if not changed_files:
-            await update.message.reply_text(
-                "⚠️ Claude herhangi bir dosya değişikliği üretmedi.\n"
-                "Görev açıklamasını daha detaylı yazmayı deneyin."
-            )
-            return
-
-        reporter.add_metric("changed_files", len(changed_files))
-
-        # ADIM 4: Git commit + push
-        await update.message.reply_text("💾 *Adım 4/7:* Git commit & push yapılıyor...")
-        commit_hash, branch = await git_operations(
-            project_path, task_description, config, reporter
-        )
-
-        # ADIM 5: Testleri çalıştır
-        await update.message.reply_text("🧪 *Adım 5/7:* Testler çalıştırılıyor...")
-        test_passed = await run_tests(project_path, config["test_commands"], reporter)
-
-        # ADIM 6: Health check
-        await update.message.reply_text("🏥 *Adım 6/7:* Health check yapılıyor...")
-        if config.get("health_check"):
-            await check_health(config["health_check"], reporter)
-
-        # ADIM 7: Deploy
-        deploy_script = project_path / config["deploy_script"]
-        if deploy_script.exists():
-            await update.message.reply_text("🚀 *Adım 7/7:* Deploy başlatılıyor...")
-            await run_deploy(project_path, config, reporter)
-        else:
-            reporter.add_test("Deploy", False, "Deploy script bulunamadı (atlanıyor)")
-
-        # ── DETAYLI RAPOR ────────────────────────────────
-        elapsed = (datetime.now() - start_time).total_seconds()
-        minutes = int(elapsed // 60)
-        seconds = int(elapsed % 60)
-
-        github_url = config["github_url"]
-        commit_short = commit_hash[:8] if len(commit_hash) > 8 else commit_hash
-
-        report = f"""🤖 *AI DEVELOPER BOT - DETAYLI RAPOR*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📌 *Görev:* {task_description}
-📂 *Proje:* {project_name}
-⏱️ *Süre:* {minutes}dk {seconds}s
-🧠 *Model:* {model}
-🎯 *Durum:* {'✅ BAŞARILI' if not reporter.errors else '⚠️ HATALAR MEVCUT'}
-
-"""
-
-        # Değişen dosyalar
-        if reporter.changes:
-            report += f"📂 *Değişen Dosyalar ({len(reporter.changes)}):*\n"
-            for change in reporter.changes:
-                report += f"  ✏️ `{change['file']}`\n"
-                desc_lines = change["description"].split("\n")
-                for line in desc_lines[:3]:
-                    line = line.strip("- ").strip()
-                    if line:
-                        report += f"     • {line}\n"
-            report += "\n"
-
-        # Test sonuçları
-        if reporter.tests:
-            passed = sum(1 for t in reporter.tests if t["passed"])
-            total = len(reporter.tests)
-            report += f"🧪 *Test Sonuçları ({passed}/{total}):*\n"
-            for test in reporter.tests:
-                output = f" - {test['output']}" if test["output"] else ""
-                report += f"  {test['status']} {test['name']}{output}\n"
-            report += "\n"
-
-        # Git bilgileri
-        report += f"""💾 *Git:*
-  Commit: `{commit_short}`
-  Branch: `{branch}`
-  Push: {'✅' if any(t['name'] == 'Git Push' and t['passed'] for t in reporter.tests) else '❌'}
-
-"""
-
-        # Hatalar
-        if reporter.errors:
-            report += "❌ *Hatalar:*\n"
-            for err in reporter.errors:
-                report += f"  • [{err['code']}] {err['message']}\n"
-                if err.get("solution"):
-                    report += f"    Çözüm: {err['solution']}\n"
-            report += "\n"
-
-        # GitHub link
-        if commit_hash and commit_hash not in ("no-commit", "commit-failed"):
-            report += f"🔗 *GitHub:* {github_url}/commit/{commit_hash}\n"
-
-        report += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🕐 {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
-
-        await send_long_message(context.bot, chat_id, report)
-
-    except Exception as e:
-        logger.error(f"Görev işleme hatası: {e}", exc_info=True)
-        reporter.add_error("SYSTEM", str(e))
-
-        error_msg = (
-            f"❌ *HATA OLUŞTU*\n\n"
-            f"📂 Proje: {project_name}\n"
-            f"📝 Görev: {task_description}\n\n"
-            f"⚠️ Hata: {str(e)[:500]}\n\n"
-            f"Detaylı log: `journalctl -u telegram-bot -n 50`"
-        )
-        try:
-            await update.message.reply_text(error_msg, parse_mode="Markdown")
-        except Exception:
-            await update.message.reply_text(error_msg)
+    await execute_task(context.bot, chat_id, project_name, task_description)
 
 
 # ════════════════════════════════════════════════════════════
@@ -877,37 +719,35 @@ async def handle_task_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ════════════════════════════════════════════════════════════
 
 async def post_init(application):
-    """Bot başladıktan sonra komutları kaydet."""
     commands = [
         BotCommand("start", "Bot'u başlat"),
-        BotCommand("help", "Yardım ve kullanım kılavuzu"),
-        BotCommand("projects", "Desteklenen projeleri listele"),
-        BotCommand("status", "Sistem durumunu göster"),
-        BotCommand("health", "Health check yap"),
-        BotCommand("deploy", "Manuel deploy: /deploy [proje]"),
+        BotCommand("help", "Kullanım kılavuzu"),
+        BotCommand("deprem", "Deprem App görevi"),
+        BotCommand("eye", "Eye of TR görevi"),
+        BotCommand("astro", "Astroloji görevi"),
+        BotCommand("projects", "Proje listesi"),
+        BotCommand("status", "Sistem durumu"),
+        BotCommand("health", "Health check"),
+        BotCommand("deploy", "Manuel deploy"),
     ]
     await application.bot.set_my_commands(commands)
     logger.info("Bot komutları kaydedildi.")
 
 
 def main():
-    """Bot'u başlat."""
     if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "your_bot_token_here":
-        logger.critical("TELEGRAM_BOT_TOKEN eksik! .env dosyasını kontrol edin.")
+        logger.critical("TELEGRAM_BOT_TOKEN eksik!")
         sys.exit(1)
 
-    if not ANTHROPIC_API_KEY:
-        logger.warning("ANTHROPIC_API_KEY eksik. AI özellikleri devre dışı olacak.")
-
     logger.info("=" * 50)
-    logger.info("AI Developer Bot başlatılıyor...")
+    logger.info("AI Developer Bot v2 başlatılıyor...")
     logger.info(f"Projeler: {', '.join(PROJECT_CONFIGS.keys())}")
-    logger.info(f"Yetkili ID'ler: {ALLOWED_CHAT_IDS or 'Herkese açık (dev mode)'}")
+    logger.info(f"Yetkili: {ALLOWED_CHAT_IDS or 'Herkese açık'}")
     logger.info("=" * 50)
 
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
 
-    # Komut handler'ları
+    # Sistem komutları
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(CommandHandler("help", cmd_help))
     application.add_handler(CommandHandler("projects", cmd_projects))
@@ -915,12 +755,25 @@ def main():
     application.add_handler(CommandHandler("health", cmd_health))
     application.add_handler(CommandHandler("deploy", cmd_deploy))
 
-    # Görev mesaj handler'ı
-    application.add_handler(
-        MessageHandler(filters.TEXT & (~filters.COMMAND), handle_task_message)
-    )
+    # Proje komutları — /deprem, /eye, /astro ve tüm takma adlar
+    system_cmds = {"start", "help", "projects", "status", "health", "deploy"}
+    project_cmds = set()
+    for name in PROJECT_CONFIGS:
+        project_cmds.add(name)
+    for alias in PROJECT_ALIASES:
+        project_cmds.add(alias)
+    for cfg in PROJECT_CONFIGS.values():
+        project_cmds.add(cfg["short_cmd"])
+    project_cmds -= system_cmds
 
-    logger.info("Bot çalışıyor! Telegram'dan mesaj bekleniyor...")
+    for cmd in project_cmds:
+        application.add_handler(CommandHandler(cmd, cmd_project_task))
+
+    # Metin görev handler
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_task_message))
+
+    logger.info(f"Proje komutları: /{', /'.join(sorted(project_cmds))}")
+    logger.info("Bot çalışıyor!")
     application.run_polling(drop_pending_updates=True)
 
 

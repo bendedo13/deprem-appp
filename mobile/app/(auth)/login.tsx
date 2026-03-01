@@ -1,6 +1,6 @@
 /**
- * Giriş ekranı — e-posta + şifre, JWT auth.
- * Login başarılıysa ana sekmelere yönlendirir.
+ * Giriş ekranı — Firebase Auth ile e-posta + şifre ve Google Sign-In.
+ * Başarılı girişte ana sekmelere yönlendirir.
  */
 
 import { useState } from "react";
@@ -15,12 +15,15 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    ImageBackground,
 } from "react-native";
 import { router, Link } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { login } from "../../src/services/authService";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+    firebaseLogin,
+    googleSignIn,
+    getFirebaseAuthErrorKey,
+} from "../../src/services/firebaseAuthService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function LoginScreen() {
@@ -28,6 +31,7 @@ export default function LoginScreen() {
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
     const { t } = useTranslation();
 
     async function handleLogin() {
@@ -37,17 +41,32 @@ export default function LoginScreen() {
         }
         setLoading(true);
         try {
-            await login(email.trim().toLowerCase(), password);
+            await firebaseLogin(email.trim().toLowerCase(), password);
             router.replace("/(tabs)");
         } catch (err: unknown) {
-            const msg =
-                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-                t("auth.error_login_generic");
-            Alert.alert(t("auth.error_login"), msg);
+            const errorKey = getFirebaseAuthErrorKey(err);
+            Alert.alert(t("auth.error_login"), t(errorKey));
         } finally {
             setLoading(false);
         }
     }
+
+    async function handleGoogleSignIn() {
+        setGoogleLoading(true);
+        try {
+            await googleSignIn();
+            router.replace("/(tabs)");
+        } catch (err: unknown) {
+            const code = (err as { code?: string })?.code;
+            // Kullanıcı iptal ettiyse hata gösterme
+            if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
+            Alert.alert(t("auth.error_login"), t("auth.error_google_signin"));
+        } finally {
+            setGoogleLoading(false);
+        }
+    }
+
+    const isLoading = loading || googleLoading;
 
     return (
         <KeyboardAvoidingView
@@ -56,7 +75,7 @@ export default function LoginScreen() {
         >
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 <View style={styles.container}>
-                    {/* Header Section */}
+                    {/* Header */}
                     <View style={styles.header}>
                         <View style={styles.logoBox}>
                             <MaterialCommunityIcons name="shield-sun-outline" size={40} color="#fff" />
@@ -74,12 +93,13 @@ export default function LoginScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="ornek@email.com"
-                                    placeholderTextColor={Colors.text.muted + '80'}
+                                    placeholderTextColor={Colors.text.muted + "80"}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     autoComplete="email"
                                     value={email}
                                     onChangeText={setEmail}
+                                    editable={!isLoading}
                                 />
                             </View>
                         </View>
@@ -91,11 +111,12 @@ export default function LoginScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="••••••••"
-                                    placeholderTextColor={Colors.text.muted + '80'}
+                                    placeholderTextColor={Colors.text.muted + "80"}
                                     secureTextEntry={!showPassword}
                                     autoComplete="current-password"
                                     value={password}
                                     onChangeText={setPassword}
+                                    editable={!isLoading}
                                 />
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
                                     <MaterialCommunityIcons
@@ -108,9 +129,9 @@ export default function LoginScreen() {
                         </View>
 
                         <TouchableOpacity
-                            style={[styles.btn, loading && styles.btnDisabled]}
+                            style={[styles.btn, isLoading && styles.btnDisabled]}
                             onPress={handleLogin}
-                            disabled={loading}
+                            disabled={isLoading}
                             activeOpacity={0.9}
                         >
                             {loading ? (
@@ -123,30 +144,32 @@ export default function LoginScreen() {
                             )}
                         </TouchableOpacity>
 
+                        {/* Ayırıcı */}
                         <View style={styles.divider}>
                             <View style={styles.line} />
-                            <Text style={styles.dividerText}>{t("auth.or_continue_with") || "Veya"}</Text>
+                            <Text style={styles.dividerText}>{t("auth.or_continue_with")}</Text>
                             <View style={styles.line} />
                         </View>
 
-                        <View style={styles.socialRow}>
-                            <TouchableOpacity
-                                style={styles.socialBtn}
-                                onPress={() => Alert.alert(t("auth.social_not_available"), t("auth.social_not_available_desc", { provider: "Google" }))}
-                            >
-                                <MaterialCommunityIcons name="google" size={20} color={Colors.text.dark} />
-                                <Text style={styles.socialBtnText}>Google</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.socialBtn}
-                                onPress={() => Alert.alert(t("auth.social_not_available"), t("auth.social_not_available_desc", { provider: "Apple" }))}
-                            >
-                                <MaterialCommunityIcons name="apple" size={20} color={Colors.text.dark} />
-                                <Text style={styles.socialBtnText}>Apple</Text>
-                            </TouchableOpacity>
-                        </View>
+                        {/* Sosyal Giriş */}
+                        <TouchableOpacity
+                            style={[styles.googleBtn, isLoading && styles.btnDisabled]}
+                            onPress={handleGoogleSignIn}
+                            disabled={isLoading}
+                            activeOpacity={0.9}
+                        >
+                            {googleLoading ? (
+                                <ActivityIndicator color={Colors.text.dark} />
+                            ) : (
+                                <>
+                                    <MaterialCommunityIcons name="google" size={20} color="#DB4437" />
+                                    <Text style={styles.googleBtnText}>{t("auth.google_signin")}</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
                     </View>
 
+                    {/* Footer */}
                     <View style={styles.footer}>
                         <Text style={styles.footerText}>{t("auth.no_account")} </Text>
                         <Link href="/(auth)/register" asChild>
@@ -189,13 +212,13 @@ const styles = StyleSheet.create({
         fontSize: Typography.sizes.xxxl,
         fontWeight: "800",
         color: Colors.text.dark,
-        letterSpacing: -0.5
+        letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: Typography.sizes.md,
         color: Colors.text.muted,
         marginTop: Spacing.xs,
-        fontWeight: "500"
+        fontWeight: "500",
     },
     form: { gap: Spacing.md },
     inputGroup: { gap: Spacing.xs },
@@ -203,7 +226,7 @@ const styles = StyleSheet.create({
         fontSize: Typography.sizes.sm,
         fontWeight: "700",
         color: Colors.text.muted,
-        marginLeft: 4
+        marginLeft: 4,
     },
     inputWrapper: {
         flexDirection: "row",
@@ -246,21 +269,28 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     line: { flex: 1, height: 1, backgroundColor: Colors.border.dark },
-    dividerText: { color: Colors.text.muted, fontSize: Typography.sizes.xs, fontWeight: "700", textTransform: "uppercase" },
-    socialRow: { flexDirection: "row", gap: Spacing.md },
-    socialBtn: {
-        flex: 1,
+    dividerText: {
+        color: Colors.text.muted,
+        fontSize: Typography.sizes.xs,
+        fontWeight: "700",
+        textTransform: "uppercase",
+    },
+    googleBtn: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: Colors.background.surface,
         borderRadius: BorderRadius.lg,
-        height: 50,
+        height: 56,
         borderWidth: 1,
         borderColor: Colors.border.dark,
-        gap: 8,
+        gap: 10,
     },
-    socialBtnText: { color: Colors.text.dark, fontSize: Typography.sizes.sm, fontWeight: "700" },
+    googleBtnText: {
+        color: Colors.text.dark,
+        fontSize: Typography.sizes.md,
+        fontWeight: "700",
+    },
     footer: { flexDirection: "row", justifyContent: "center", marginTop: Spacing.xl },
     footerText: { color: Colors.text.muted, fontSize: Typography.sizes.sm, fontWeight: "500" },
     link: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "800" },
@@ -278,5 +308,5 @@ const styles = StyleSheet.create({
         color: Colors.text.muted,
         letterSpacing: 0.5,
         textTransform: "uppercase",
-    }
+    },
 });

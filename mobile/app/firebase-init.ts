@@ -1,21 +1,15 @@
 /**
- * Firebase initialization for React Native
- * Must be imported before any Firebase usage
+ * Firebase initialization for React Native.
+ * @react-native-firebase/app otomatik olarak google-services.json'dan
+ * default app'i başlatır. Bu dosya sadece import tetikleyici olarak kullanılır.
  */
 
-import firebase from '@react-native-firebase/app';
+import firebase from "@react-native-firebase/app";
 
-// Firebase config from google-services.json
-const firebaseConfig = {
-  apiKey: 'AIzaSyCDqiBMaJd5g4FjAxWTpmJQe2tQX66dBoY',
-  projectId: 'depremapp-29518',
-  storageBucket: 'depremapp-29518.firebasestorage.app',
-  appId: '1:775124568904:android:037a7b1e889d368349417d',
-};
-
-// Initialize Firebase if not already initialized
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
+// Firebase default app zaten google-services.json'dan otomatik başlatılır.
+// Manuel initializeApp() çağrısı yapmaya GEREK YOK — çakışma riski yaratır.
+if (firebase.apps.length) {
+    console.log("[Firebase] Default app hazır:", firebase.app().name);
 }
 
 export default firebase;

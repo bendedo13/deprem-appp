@@ -60,6 +60,8 @@ i18n.use(initReactI18next).init({
     defaultNS: "translation",
     interpolation: { escapeValue: false },
     compatibilityJSON: "v4",
+    initImmediate: false,
+    react: { useSuspense: false },
 });
 
 export default i18n;

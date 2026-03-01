@@ -41,7 +41,21 @@
         "passwords_dont_match": "Οι κωδικοί δεν ταιριάζουν.",
         "password_too_short": "Ο κωδικός πρέπει να είναι τουλάχιστον 8 χαρακτήρες.",
         "error_login_generic": "Η σύνδεση απέτυχε. Παρακαλώ δοκιμάστε ξανά.",
-        "error_register_generic": "Η εγγραφή απέτυχε. Παρακαλώ δοκιμάστε ξανά."
+        "error_register_generic": "Η εγγραφή απέτυχε. Παρακαλώ δοκιμάστε ξανά.",
+        "password_placeholder": "At least 8 characters",
+        "or_continue_with": "or continue with",
+        "google_signin": "Sign in with Google",
+        "apple_signin": "Sign in with Apple",
+        "error_wrong_password": "Wrong password. Please try again.",
+        "error_user_not_found": "No account found with this email.",
+        "error_email_in_use": "This email is already registered.",
+        "error_invalid_email": "Invalid email address.",
+        "error_weak_password": "Password is too weak. Use at least 8 characters.",
+        "error_too_many_requests": "Too many attempts. Please wait a moment.",
+        "error_network": "No internet connection. Check your connection.",
+        "error_google_signin": "Google sign-in failed.",
+        "login_success": "Login successful!",
+        "register_success": "Account created!"
     },
     "map": {
         "title": "Σεισμικός χάρτης",

@@ -1,5 +1,5 @@
 /**
- * Kayıt ekranı — e-posta + şifre + şifre doğrulama.
+ * Kayıt ekranı — Firebase Auth ile e-posta + şifre kaydı.
  * Başarılı kayıtta ana sekmelere yönlendirir.
  */
 
@@ -18,8 +18,11 @@ import {
 } from "react-native";
 import { router, Link } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { register } from "../../src/services/authService";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+    firebaseRegister,
+    getFirebaseAuthErrorKey,
+} from "../../src/services/firebaseAuthService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function RegisterScreen() {
@@ -46,13 +49,11 @@ export default function RegisterScreen() {
 
         setLoading(true);
         try {
-            await register(email.trim().toLowerCase(), password);
+            await firebaseRegister(email.trim().toLowerCase(), password);
             router.replace("/(tabs)");
         } catch (err: unknown) {
-            const msg =
-                (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-                t("auth.error_register_generic");
-            Alert.alert(t("auth.error_register"), msg);
+            const errorKey = getFirebaseAuthErrorKey(err);
+            Alert.alert(t("auth.error_register"), t(errorKey));
         } finally {
             setLoading(false);
         }
@@ -65,7 +66,7 @@ export default function RegisterScreen() {
         >
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 <View style={styles.container}>
-                    {/* Header Section */}
+                    {/* Header */}
                     <View style={styles.header}>
                         <View style={styles.logoBox}>
                             <MaterialCommunityIcons name="shield-account-variant" size={40} color="#fff" />
@@ -83,12 +84,13 @@ export default function RegisterScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="ornek@email.com"
-                                    placeholderTextColor={Colors.text.muted + '80'}
+                                    placeholderTextColor={Colors.text.muted + "80"}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     autoComplete="email"
                                     value={email}
                                     onChangeText={setEmail}
+                                    editable={!loading}
                                 />
                             </View>
                         </View>
@@ -99,12 +101,13 @@ export default function RegisterScreen() {
                                 <MaterialCommunityIcons name="lock-outline" size={20} color={Colors.text.muted} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder={t("auth.password_placeholder") || "En az 8 karakter"}
-                                    placeholderTextColor={Colors.text.muted + '80'}
+                                    placeholder={t("auth.password_placeholder")}
+                                    placeholderTextColor={Colors.text.muted + "80"}
                                     secureTextEntry={!showPassword}
                                     autoComplete="new-password"
                                     value={password}
                                     onChangeText={setPassword}
+                                    editable={!loading}
                                 />
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
                                     <MaterialCommunityIcons
@@ -123,10 +126,11 @@ export default function RegisterScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="••••••••"
-                                    placeholderTextColor={Colors.text.muted + '80'}
+                                    placeholderTextColor={Colors.text.muted + "80"}
                                     secureTextEntry={!showPassword}
                                     value={confirm}
                                     onChangeText={setConfirm}
+                                    editable={!loading}
                                 />
                             </View>
                         </View>
@@ -148,6 +152,7 @@ export default function RegisterScreen() {
                         </TouchableOpacity>
                     </View>
 
+                    {/* Footer */}
                     <View style={styles.footer}>
                         <Text style={styles.footerText}>{t("auth.has_account")} </Text>
                         <Link href="/(auth)/login" asChild>
@@ -190,14 +195,14 @@ const styles = StyleSheet.create({
         fontSize: Typography.sizes.xxxl,
         fontWeight: "800",
         color: Colors.text.dark,
-        letterSpacing: -0.5
+        letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: Typography.sizes.md,
         color: Colors.text.muted,
         marginTop: Spacing.xs,
         fontWeight: "500",
-        textAlign: "center"
+        textAlign: "center",
     },
     form: { gap: Spacing.md },
     inputGroup: { gap: Spacing.xs },
@@ -205,7 +210,7 @@ const styles = StyleSheet.create({
         fontSize: Typography.sizes.sm,
         fontWeight: "700",
         color: Colors.text.muted,
-        marginLeft: 4
+        marginLeft: 4,
     },
     inputWrapper: {
         flexDirection: "row",
@@ -258,5 +263,5 @@ const styles = StyleSheet.create({
         color: Colors.text.muted,
         letterSpacing: 0.5,
         textTransform: "uppercase",
-    }
+    },
 });
