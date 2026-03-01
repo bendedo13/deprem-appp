@@ -102,10 +102,11 @@ class TaskReporter:
         # Git bilgileri
         commit_short = commit_hash[:8] if len(commit_hash) > 8 else commit_hash
         push_ok = any(t["name"] == "Git Push" and t["passed"] for t in self.tests)
+        push_icon = "\u2705" if push_ok else "\u274c"
         msg += f"""\U0001f4be *Git:*
   Commit: `{commit_short}`
   Branch: `{branch}`
-  Push: {'\u2705' if push_ok else '\u274c'}
+  Push: {push_icon}
 """
 
         # Hatalar

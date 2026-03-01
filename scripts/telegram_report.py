@@ -74,15 +74,11 @@ async def generate_summary(diff_content: str) -> str:
     if not diff_content:
         return "Değişiklik bulunamadı."
 
-    try:
-        client = Anthropic(api_key=ANTHROPIC_API_KEY)
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1500,
-            temperature=0,
-            messages=[{
-                "role": "user",
-                "content": f"""Aşağıdaki kod değişikliklerini incele ve yapılan işleri
+    # Model fallback listesi
+    models = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6"]
+    client = Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    prompt_content = f"""Aşağıdaki kod değişikliklerini incele ve yapılan işleri
 teknik olmayan bir dille, maddeler halinde Türkçe özetle.
 
 Format:
@@ -93,13 +89,23 @@ Format:
 ...
 
 Git Diff:
-{diff_content[:15000]}""",
-            }],
-        )
-        return message.content[0].text
-    except Exception as e:
-        logger.error(f"Özet oluşturma hatası: {e}")
-        return f"Özet oluşturulurken hata: {e}"
+{diff_content[:15000]}"""
+
+    for model in models:
+        try:
+            logger.info(f"Model deneniyor: {model}")
+            message = client.messages.create(
+                model=model,
+                max_tokens=1500,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt_content}],
+            )
+            return message.content[0].text
+        except Exception as e:
+            logger.warning(f"Model {model} başarısız: {e}")
+            continue
+
+    return "Özet oluşturulamadı (tüm modeller başarısız)."
 
 
 async def send_telegram_message(message: str):

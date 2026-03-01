@@ -242,8 +242,13 @@ async def get_project_files(project_path: Path, extensions: List[str]) -> str:
 # CLAUDE AI
 # ════════════════════════════════════════════════════════════
 
-def select_model(task: str, context_size: int) -> str:
-    """Görev karmaşıklığına göre model seç."""
+# Model listesi - öncelik sırasına göre denenecek
+MODELS_COMPLEX = ["claude-sonnet-4-6", "claude-sonnet-4-5-20241022"]
+MODELS_SIMPLE = ["claude-haiku-4-5-20251001", "claude-sonnet-4-6"]
+
+
+def select_models(task: str, context_size: int) -> List[str]:
+    """Görev karmaşıklığına göre model listesi döndür (fallback ile)."""
     complex_keywords = [
         "api", "database", "auth", "security", "algorithm", "refactor",
         "architecture", "migration", "integration", "entegrasyon",
@@ -252,20 +257,18 @@ def select_model(task: str, context_size: int) -> str:
     ]
     task_lower = task.lower()
 
-    # Karmaşık görev veya büyük context
     if any(kw in task_lower for kw in complex_keywords) or context_size > 50000:
-        return "claude-sonnet-4-6"
+        return MODELS_COMPLEX
+    return MODELS_SIMPLE
 
-    return "claude-haiku-4-5-20251001"
 
-
-async def ask_claude(task: str, context: str, project_name: str) -> str:
-    """Claude'a görev gönder ve kod değişikliklerini al."""
+async def ask_claude(task: str, context: str, project_name: str) -> tuple:
+    """Claude'a görev gönder ve kod değişikliklerini al. (response, model_used) döndürür."""
     if not client:
         raise Exception("Anthropic API anahtarı eksik!")
 
-    model = select_model(task, len(context))
-    logger.info(f"Model: {model} | Proje: {project_name}")
+    models = select_models(task, len(context))
+    logger.info(f"Denenecek modeller: {models} | Proje: {project_name}")
 
     system_prompt = """Sen uzman bir Türk yazılım geliştiricisin. Sana verilen proje dosyalarını ve görevi analiz ederek gerekli kod değişikliklerini yapmalısın.
 
@@ -300,14 +303,25 @@ Lütfen görevi yerine getirmek için gerekli kod değişikliklerini üret.
 Her dosya için <file> ve <explanation> taglarını kullan.
 Açıklamaları Türkçe ve detaylı yap."""
 
-    message = client.messages.create(
-        model=model,
-        max_tokens=16000,
-        temperature=0,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-    return message.content[0].text
+    last_error = None
+    for model in models:
+        try:
+            logger.info(f"Model deneniyor: {model}")
+            message = client.messages.create(
+                model=model,
+                max_tokens=16000,
+                temperature=0,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            logger.info(f"Model başarılı: {model}")
+            return message.content[0].text, model
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Model {model} başarısız: {e}")
+            continue
+
+    raise Exception(f"Tüm modeller başarısız oldu. Son hata: {last_error}")
 
 
 def apply_changes(response: str, project_path: Path, reporter: TaskReporter) -> List[str]:
@@ -721,13 +735,13 @@ async def handle_task_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         reporter.add_metric("context_size", len(context_data))
 
         # ADIM 2: Claude ile kodla
-        model = select_model(task_description, len(context_data))
+        models = select_models(task_description, len(context_data))
         await update.message.reply_text(
             f"🧠 *Adım 2/7:* Claude AI kodluyor...\n"
-            f"Model: `{model}`"
+            f"Model: `{models[0]}` (fallback: `{models[-1]}`)"
         , parse_mode="Markdown")
 
-        ai_response = await ask_claude(task_description, context_data, project_name)
+        ai_response, model = await ask_claude(task_description, context_data, project_name)
 
         # ADIM 3: Değişiklikleri uygula
         await update.message.reply_text("📝 *Adım 3/7:* Değişiklikler uygulanıyor...")
