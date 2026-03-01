@@ -1,0 +1,94 @@
+═══════════════════════════════════════════════════════════════
+🚀 VPS'TE ÇALIŞTIRMANIZ GEREKEN KOMUTLAR
+═══════════════════════════════════════════════════════════════
+
+1️⃣ VPS'e Bağlan:
+───────────────────────────────────────────────────────────────
+ssh root@your-vps-ip
+
+
+2️⃣ Proje Dizinine Git ve Güncellemeleri Çek:
+───────────────────────────────────────────────────────────────
+cd /opt/deprem-appp
+git pull origin main
+
+
+3️⃣ Script'leri Executable Yap:
+───────────────────────────────────────────────────────────────
+cd scripts
+chmod +x deploy_bot.sh test_bot.sh
+
+
+4️⃣ Bot'u Deploy Et:
+───────────────────────────────────────────────────────────────
+./deploy_bot.sh
+
+Bu script otomatik olarak:
+✅ Python bağımlılıklarını yükler
+✅ Environment variable'ları kontrol eder
+✅ Systemd service oluşturur
+✅ Bot'u başlatır
+
+
+5️⃣ Test Et:
+───────────────────────────────────────────────────────────────
+./test_bot.sh
+
+Bu script kontrol eder:
+✅ Service durumu
+✅ Environment variables
+✅ Python bağımlılıkları
+✅ Telegram API bağlantısı
+
+
+6️⃣ Log'ları İzle:
+───────────────────────────────────────────────────────────────
+sudo journalctl -u telegram-bot -f
+
+(Çıkmak için Ctrl+C)
+
+
+7️⃣ Telegram'dan Test Mesajı Gönder:
+───────────────────────────────────────────────────────────────
+Görev: depremapp - Test mesajı
+
+
+═══════════════════════════════════════════════════════════════
+📝 NOTLAR
+═══════════════════════════════════════════════════════════════
+
+• Eğer .env dosyası yoksa, oluşturun:
+  nano /opt/deprem-appp/.env
+  
+  İçine ekleyin:
+  TELEGRAM_BOT_TOKEN=your_token_here
+  ANTHROPIC_API_KEY=your_key_here
+
+• Bot'u yeniden başlatmak için:
+  sudo systemctl restart telegram-bot
+
+• Bot'u durdurmak için:
+  sudo systemctl stop telegram-bot
+
+• Bot durumunu kontrol etmek için:
+  sudo systemctl status telegram-bot
+
+
+═══════════════════════════════════════════════════════════════
+🎉 BAŞARILI DEPLOY SONRASI
+═══════════════════════════════════════════════════════════════
+
+Bot çalışmaya başladığında Telegram'dan şu formatta görev verebilirsiniz:
+
+Görev: [proje_adı] - [yapılacak iş]
+
+Örnekler:
+• Görev: depremapp - Ana sayfaya yeni buton ekle
+• Görev: eyeoftr - Login sayfasını iyileştir
+• Görev: faceseek - API'ye rate limiting ekle
+• Görev: astroloji - Burç yorumları sayfası ekle
+
+Bot size detaylı rapor gönderecek! 🎊
+
+
+═══════════════════════════════════════════════════════════════

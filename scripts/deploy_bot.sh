@@ -45,16 +45,26 @@ fi
 
 pip3 install -r requirements_bot.txt --quiet
 
-# 5. Environment variables kontrolü
-echo -e "${YELLOW}🔐 Environment variables kontrol ediliyor...${NC}"
+# 5. .env dosyasını oluştur (eğer yoksa)
+echo -e "${YELLOW}🔐 .env dosyası kontrol ediliyor...${NC}"
 
 if [ ! -f "$PROJECT_DIR/.env" ]; then
-    echo -e "${RED}❌ .env dosyası bulunamadı!${NC}"
-    echo -e "${YELLOW}Lütfen .env dosyasını oluşturun ve şu değişkenleri ekleyin:${NC}"
-    echo "TELEGRAM_BOT_TOKEN=your_token"
-    echo "ANTHROPIC_API_KEY=your_key"
-    exit 1
+    echo -e "${YELLOW}⚠️ .env dosyası bulunamadı, oluşturuluyor...${NC}"
+    
+    # setup_env.sh'ı çalıştır
+    if [ -f "$SCRIPTS_DIR/setup_env.sh" ]; then
+        chmod +x "$SCRIPTS_DIR/setup_env.sh"
+        bash "$SCRIPTS_DIR/setup_env.sh"
+    else
+        echo -e "${RED}❌ setup_env.sh bulunamadı!${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}✅ .env dosyası mevcut${NC}"
 fi
+
+# 6. Environment variables kontrolü
+echo -e "${YELLOW}🔐 Environment variables kontrol ediliyor...${NC}"
 
 # .env dosyasını yükle
 source "$PROJECT_DIR/.env"

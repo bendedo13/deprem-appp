@@ -5,6 +5,7 @@
 deploy/.env
 backend/firebase-service-account.json
 VPS_ENV_CONFIG.txt
+VPS_API_KEYS_PRIVATE.txt
 
 # Python
 __pycache__/
