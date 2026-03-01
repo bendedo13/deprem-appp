@@ -14,7 +14,7 @@
     },
     "extra": {
       "apiUrl": "http://46.4.123.77:8001",
-      "googleWebClientId": "YOUR_GOOGLE_WEB_CLIENT_ID_HERE"
+      "googleWebClientId": "775124568904-flr9bo452no12v9giofdlb743m8gvqk4.apps.googleusercontent.com"
     },
     "plugins": [
       "expo-sensors",
