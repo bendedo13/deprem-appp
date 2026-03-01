@@ -1,38 +1,7 @@
 /**
- * Uygulama genelinde kullanılan TypeScript tip tanımları.
+ * Uygulama genelinde kullanılan TypeScript tipleri.
  * Backend şemalarıyla birebir uyumlu.
  */
-
-// ─── Deprem ───────────────────────────────────────────────────────────────────
-
-export interface Earthquake {
-  id: string
-  source: string
-  magnitude: number
-  depth: number
-  latitude: number
-  longitude: number
-  location: string
-  magnitude_type: string
-  occurred_at: string
-}
-
-export interface EarthquakeListResponse {
-  items: Earthquake[]
-  total: number
-  page: number
-  page_size: number
-}
-
-export interface EarthquakeFilters {
-  min_magnitude?: number
-  max_magnitude?: number
-  hours?: number
-  page?: number
-  page_size?: number
-}
-
-// ─── Kullanıcı ────────────────────────────────────────────────────────────────
 
 export interface User {
   id: number
@@ -56,29 +25,24 @@ export interface TokenResponse {
   user: User
 }
 
-export interface LoginRequest {
-  email: string
-  password: string
+export interface Earthquake {
+  id: string
+  source: string
+  magnitude: number
+  depth: number
+  latitude: number
+  longitude: number
+  location: string
+  magnitude_type: string
+  occurred_at: string
 }
 
-export interface RegisterRequest {
-  email: string
-  password: string
+export interface EarthquakeListResponse {
+  items: Earthquake[]
+  total: number
+  page: number
+  page_size: number
 }
-
-export interface ProfileUpdateRequest {
-  name?: string
-  phone?: string
-  avatar?: string
-  email?: string
-}
-
-export interface PasswordChangeRequest {
-  current_password: string
-  new_password: string
-}
-
-// ─── Acil Kişi ────────────────────────────────────────────────────────────────
 
 export interface EmergencyContact {
   id: number
@@ -89,17 +53,6 @@ export interface EmergencyContact {
   methods: string[]
   priority: number
 }
-
-export interface EmergencyContactRequest {
-  name: string
-  phone: string
-  email?: string
-  relation: string
-  methods: string[]
-  priority: number
-}
-
-// ─── Bildirim Tercihleri ──────────────────────────────────────────────────────
 
 export interface NotificationPrefs {
   min_magnitude: number
@@ -114,16 +67,19 @@ export interface NotificationPrefs {
   aftershock_alerts: boolean
 }
 
-// ─── Risk ─────────────────────────────────────────────────────────────────────
-
-export interface RiskScoreRequest {
-  latitude: number
-  longitude: number
-  building_year: number
-  soil_class: string
+export interface Analytics {
+  period_days: number
+  total_earthquakes: number
+  avg_magnitude: number | null
+  max_magnitude: number | null
+  last_24h_count: number
+  last_24h_max_mag: number | null
+  daily_counts: { date: string; count: number }[]
+  magnitude_distribution: { range: string; count: number }[]
+  hotspots: { location: string; count: number; max_magnitude: number }[]
 }
 
-export interface RiskScoreResponse {
+export interface RiskScore {
   score: number
   level: string
   nearest_fault: string
@@ -134,50 +90,14 @@ export interface RiskScoreResponse {
   recommendations: string[]
 }
 
-// ─── Analitik ─────────────────────────────────────────────────────────────────
-
-export interface DailyCount {
-  date: string
-  count: number
-}
-
-export interface MagnitudeDistribution {
-  range: string
-  count: number
-}
-
-export interface HotSpot {
-  location: string
-  count: number
-  max_magnitude: number
-}
-
-export interface AnalyticsResponse {
-  period_days: number
+export interface AdminStats {
+  total_users: number
+  active_users: number
+  admin_users: number
   total_earthquakes: number
-  avg_magnitude: number | null
-  max_magnitude: number | null
-  last_24h_count: number
-  last_24h_max_mag: number | null
-  daily_counts: DailyCount[]
-  magnitude_distribution: MagnitudeDistribution[]
-  hotspots: HotSpot[]
-}
-
-// ─── Ben İyiyim ───────────────────────────────────────────────────────────────
-
-export interface ImSafeRequest {
-  include_location: boolean
-  custom_message?: string
-  contact_ids?: number[]
-  latitude?: number
-  longitude?: number
-}
-
-export interface ImSafeResponse {
-  status: string
-  message: string
-  notified_contacts: number
-  total_contacts: number
-  sms_sent: number
+  earthquakes_last_24h: number
+  earthquakes_last_7d: number
+  seismic_reports_total: number
+  users_with_fcm: number
+  users_with_location: number
 }

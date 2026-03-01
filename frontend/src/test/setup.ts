@@ -2,7 +2,6 @@
  * Vitest global test kurulum dosyası.
  * Her test dosyasından önce çalışır.
  */
-
 import '@testing-library/jest-dom'
 import { afterEach, beforeAll, afterAll } from 'vitest'
 import { cleanup } from '@testing-library/react'
@@ -13,7 +12,7 @@ afterEach(() => {
   cleanup()
 })
 
-// MSW mock sunucusunu başlat
+// MSW sunucusunu başlat/durdur
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
