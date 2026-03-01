@@ -15,7 +15,17 @@ cd /opt/deprem-appp/scripts
 pip install -r requirements_bot.txt
 ```
 
-## 3. Servis Kurulumu (Systemd)
+## 3. Ortam Değişkenleri (.env)
+Botun çalışması için ana proje dizinindeki `.env` dosyasında `TELEGRAM_BOT_TOKEN` ve `ANTHROPIC_API_KEY` tanımlı olmalıdır.
+
+`/opt/deprem-appp/.env` dosyasına şu satırları ekleyin:
+
+```env
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+## 4. Servis Kurulumu (Systemd)
 Eğer servis bulunamadı hatası alıyorsanız, servis dosyasını oluşturmanız gerekir:
 
 `/etc/systemd/system/ai-developer-bot.service`:

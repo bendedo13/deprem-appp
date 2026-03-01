@@ -11,7 +11,9 @@ from anthropic import Anthropic
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+# Load from .env file in parent directory if script is in scripts/
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -196,8 +198,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == '__main__':
     if not TELEGRAM_BOT_TOKEN:
-        logger.error("TELEGRAM_BOT_TOKEN eksik!")
-        exit(1)
+        logger.error("TELEGRAM_BOT_TOKEN eksik! .env dosyasını kontrol edin.")
+        # Try to load from input if env failed
+        TELEGRAM_BOT_TOKEN = "your_bot_token_here" # Placeholder, user needs to set this in env
+        
+    if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "your_bot_token_here":
+         logger.critical("Bot token is still missing. Exiting.")
+         exit(1)
         
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
