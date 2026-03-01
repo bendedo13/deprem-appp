@@ -105,10 +105,49 @@ async def get_project_files(project_path: Path, extensions: List[str] = ['.py', 
         logger.error(f"Error scanning files: {e}")
     return "\n".join(file_contents)
 
+def is_complex_task(task: str, context: str) -> bool:
+    """Görevin karmaşıklığını değerlendir."""
+    # Karmaşık görev belirtileri
+    complex_keywords = [
+        'api', 'database', 'authentication', 'auth', 'security', 'algorithm',
+        'optimization', 'performance', 'refactor', 'architecture', 'design pattern',
+        'integration', 'migration', 'complex', 'advanced', 'sistem', 'entegrasyon',
+        'veritabanı', 'güvenlik', 'algoritma', 'optimizasyon', 'mimari', 'karmaşık'
+    ]
+    
+    # Basit görev belirtileri
+    simple_keywords = [
+        'button', 'color', 'text', 'style', 'css', 'html', 'buton', 'renk',
+        'yazı', 'stil', 'basit', 'simple', 'test', 'fix typo', 'düzelt'
+    ]
+    
+    task_lower = task.lower()
+    
+    # Basit görev kontrolü
+    if any(keyword in task_lower for keyword in simple_keywords):
+        return False
+    
+    # Karmaşık görev kontrolü
+    if any(keyword in task_lower for keyword in complex_keywords):
+        return True
+    
+    # Context boyutuna göre karar ver
+    if len(context) > 50000:
+        return True
+    
+    # Varsayılan: orta seviye görev - Haiku kullan
+    return False
+
 async def ask_claude_to_code(task: str, context: str) -> str:
     """Send task and context to Claude and get the code changes."""
     if not client:
         raise Exception("Anthropic API key is missing.")
+
+    # Görev karmaşıklığına göre model seç
+    is_complex = is_complex_task(task, context)
+    model = "claude-3-5-sonnet-20241022" if is_complex else "claude-3-5-haiku-20241022"
+    
+    logger.info(f"Görev karmaşıklığı: {'Yüksek (Sonnet)' if is_complex else 'Düşük (Haiku)'}")
 
     system_prompt = """
     Sen uzman bir Türk yazılım geliştiricisin. Sana verilen proje dosyalarını ve görevi analiz ederek gerekli kod değişikliklerini yapmalısın.
@@ -148,7 +187,7 @@ async def ask_claude_to_code(task: str, context: str) -> str:
     
     try:
         message = client.messages.create(
-            model="claude-3-opus-20240229",
+            model=model,
             max_tokens=4000,
             temperature=0,
             system=system_prompt,
