@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     # Uygulama
     DEBUG: bool = False
+    APP_NAME: str = "QuakeSense"
+    APP_VERSION: str = "1.0.0"
     SECRET_KEY: str = "your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 gün
 
@@ -32,6 +34,7 @@ class Settings(BaseSettings):
 
     # CORS
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+
     @property
     def ALLOWED_ORIGINS_LIST(self) -> List[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
@@ -44,13 +47,7 @@ class Settings(BaseSettings):
     EMSC_API_URL: str = "https://www.seismicportal.eu/fdsnws/event/1"
     FETCH_INTERVAL_SECONDS: int = 30
 
-    # Firebase (Push notifications)
-    FIREBASE_PROJECT_ID: str = ""
-    FIREBASE_PRIVATE_KEY: str = ""
-    FIREBASE_CLIENT_EMAIL: str = ""
-    FIREBASE_CREDENTIALS_PATH: str = "firebase-service-account.json"
-
-    # ── Shake / deprem algılama sabitleri (EARTHQUAKE_DETECTION_ALGORITHM.md) ──
+    # ── Shake / deprem algılama sabitleri ──
     SHAKE_WINDOW_SECONDS: int = 5
     SHAKE_WINDOW_TTL_SECONDS: int = 10
     SHAKE_MIN_DEVICES_TO_CONFIRM: int = 10
@@ -62,11 +59,13 @@ class Settings(BaseSettings):
     FIREBASE_PROJECT_ID: str = ""
     FIREBASE_PRIVATE_KEY: str = ""
     FIREBASE_CLIENT_EMAIL: str = ""
+    FIREBASE_CREDENTIALS_PATH: str = "firebase-service-account.json"
 
     # ── Twilio (SMS/WhatsApp for Emergency Contacts) ──
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = ""
+    TWILIO_WHATSAPP_NUMBER: str = ""
 
     # ── OpenAI (Whisper for S.O.S Voice) ──
     OPENAI_API_KEY: str = ""
@@ -81,6 +80,10 @@ class Settings(BaseSettings):
     SOS_AUDIO_STORAGE_PATH: str = "/app/sos_audio"
     SOS_AUDIO_BASE_URL: str = "https://your-domain.com/sos_audio"
     SOS_RATE_LIMIT_PER_HOUR: int = 10
+
+    # ── i18n ──
+    DEFAULT_LANGUAGE: str = "tr"
+    SUPPORTED_LANGUAGES: List[str] = ["tr", "en"]
 
 
 @lru_cache
