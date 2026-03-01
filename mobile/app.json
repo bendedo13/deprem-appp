@@ -6,6 +6,12 @@
     "description": "QuakeSense is the ultimate life-saving technology designed to track global seismic activities with unprecedented speed and reliability.",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#230f0f"
+    },
     "extra": {
       "apiUrl": "http://46.4.123.77:8001"
     },

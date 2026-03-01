@@ -11,6 +11,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import SOSVoiceRecorder from '../../components/SOSVoiceRecorder';
@@ -35,9 +36,12 @@ export default function SOSScreen() {
         { text: 'İptal', style: 'cancel' },
         {
           text: '112 Ara',
-          onPress: () => {
-            // In real app, use Linking.openURL('tel:112')
-            Alert.alert('112 Aranıyor...', 'Gerçek uygulamada telefon açılır.');
+          onPress: async () => {
+            try {
+              await Linking.openURL('tel:112');
+            } catch (error) {
+              Alert.alert('Hata', '112 numarası aranmadı. Lütfen telefonunuzdan arayın.');
+            }
           },
         },
       ]

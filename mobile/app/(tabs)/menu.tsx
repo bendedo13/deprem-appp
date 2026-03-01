@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Linking, Platform } from "react-native";
 import { Link, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -29,10 +29,21 @@ export default function MenuScreen() {
     const handleShare = async () => {
         try {
             await Share.share({
-                message: "QuakeSense ile depremleri anlık takip edin, hayat kurtaran sismik sensör özelliğini keşfedin! https://quakesense.app",
+                message: t("common.share_message"),
             });
         } catch (error) {
             console.error(error);
+        }
+    };
+
+    const handleRate = async () => {
+        try {
+            const url = Platform.OS === 'ios'
+                ? 'https://apps.apple.com/app/quakesense/id6504180566'
+                : 'https://play.google.com/store/apps/details?id=com.quakesense';
+            await Linking.openURL(url);
+        } catch (error) {
+            Alert.alert(t("common.error"), t("common.error"));
         }
     };
 
@@ -100,7 +111,7 @@ export default function MenuScreen() {
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.support") || "Destek"}</Text>
                 <MenuItem icon="share-variant-outline" title={t("menu.share") || "Uygulamayı Paylaş"} onPress={handleShare} />
-                <MenuItem icon="star-outline" title={t("menu.rate") || "Puan Ver"} onPress={() => { }} />
+                <MenuItem icon="star-outline" title={t("menu.rate") || "Puan Ver"} onPress={handleRate} />
                 <MenuItem icon="logout-variant" title={t("auth.logout") || "Çıkış Yap"} onPress={handleLogout} color="#ef4444" />
             </View>
 

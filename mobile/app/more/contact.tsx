@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
+import { api } from "../../src/services/api";
 
 export default function ContactScreen() {
     const { t } = useTranslation();
@@ -14,17 +15,29 @@ export default function ContactScreen() {
 
     const handleSend = async () => {
         if (!name || !email || !message) {
-            Alert.alert("Hata", "Lütfen tüm alanları doldurun.");
+            Alert.alert(t("contact.error_fill_all"));
             return;
         }
         setLoading(true);
-        // Simüle edilmiş API çağrısı
-        setTimeout(() => {
-            setLoading(false);
+        try {
+            await api.post("/api/v1/contact/message", {
+                name,
+                email,
+                message,
+            });
             Alert.alert(t("contact.success"), "", [
-                { text: "Tamam", onPress: () => router.back() }
+                { text: t("contact.ok"), onPress: () => {
+                    setName("");
+                    setEmail("");
+                    setMessage("");
+                    router.back();
+                } }
             ]);
-        }, 1500);
+        } catch (error) {
+            Alert.alert(t("contact.send_error"));
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

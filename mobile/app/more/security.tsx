@@ -7,7 +7,7 @@ import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/t
 export default function SecurityScreen() {
     const { t } = useTranslation();
 
-    const SecurityItem = ({ icon, title, desc }: { icon: string, title: string, desc: string }) => (
+    const SecurityItem = ({ icon, title, desc }: { icon: any, title: string, desc: string }) => (
         <View style={styles.item}>
             <View style={styles.iconCircle}>
                 <MaterialCommunityIcons name={icon} size={24} color={Colors.primary} />

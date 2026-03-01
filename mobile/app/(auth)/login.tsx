@@ -130,11 +130,17 @@ export default function LoginScreen() {
                         </View>
 
                         <View style={styles.socialRow}>
-                            <TouchableOpacity style={styles.socialBtn}>
+                            <TouchableOpacity
+                                style={styles.socialBtn}
+                                onPress={() => Alert.alert(t("auth.social_not_available"), t("auth.social_not_available_desc", { provider: "Google" }))}
+                            >
                                 <MaterialCommunityIcons name="google" size={20} color={Colors.text.dark} />
                                 <Text style={styles.socialBtnText}>Google</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.socialBtn}>
+                            <TouchableOpacity
+                                style={styles.socialBtn}
+                                onPress={() => Alert.alert(t("auth.social_not_available"), t("auth.social_not_available_desc", { provider: "Apple" }))}
+                            >
                                 <MaterialCommunityIcons name="apple" size={20} color={Colors.text.dark} />
                                 <Text style={styles.socialBtnText}>Apple</Text>
                             </TouchableOpacity>
