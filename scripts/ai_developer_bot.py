@@ -54,9 +54,9 @@ if TELEGRAM_CHAT_ID:
 # ── Proje Yapılandırmaları ───────────────────────────────
 PROJECT_CONFIGS: Dict[str, dict] = {
     "eyeoftrv2": {
-        "path": BASE_DIR / "eyeoftrv2",
-        "github_repo": "bendedo13/eyeoftrv2",
-        "github_url": "https://github.com/bendedo13/eyeoftrv2",
+        "path": BASE_DIR / "eye-of-tr-v2",
+        "github_repo": "bendedo13/eye-of-tr-v2",
+        "github_url": "https://github.com/bendedo13/eye-of-tr-v2",
         "deploy_script": "deploy.sh",
         "test_commands": ["npm run build", "npm run lint"],
         "health_check": "http://localhost:3000",
@@ -701,14 +701,24 @@ async def handle_task_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     config = PROJECT_CONFIGS[project_name]
     project_path = config["path"]
 
+    # Proje klasörü yoksa otomatik clone et
     if not project_path.exists():
         await update.message.reply_text(
-            f"❌ Proje klasörü bulunamadı: `{project_path}`\n"
-            f"VPS'te projeyi clone edin:\n"
+            f"📥 Proje klasörü bulunamadı, otomatik clone ediliyor...\n"
             f"`git clone {config['github_url']} {project_path}`",
             parse_mode="Markdown",
         )
-        return
+        clone_url = f"https://github.com/{config['github_repo']}.git"
+        stdout, stderr, code = await run_command(
+            f"git clone {clone_url} {project_path}", Path("/opt"), timeout=120
+        )
+        if code != 0:
+            await update.message.reply_text(
+                f"❌ Clone başarısız!\n`{stderr[:300]}`",
+                parse_mode="Markdown",
+            )
+            return
+        await update.message.reply_text(f"✅ Proje başarıyla clone edildi: `{project_path}`", parse_mode="Markdown")
 
     # ── İş akışı başlat ──────────────────────────────────
     start_time = datetime.now()
@@ -843,7 +853,7 @@ async def handle_task_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         report += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🕐 {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
 
-        await send_long_message(update.message.bot, chat_id, report)
+        await send_long_message(context.bot, chat_id, report)
 
     except Exception as e:
         logger.error(f"Görev işleme hatası: {e}", exc_info=True)
