@@ -1,133 +1,179 @@
-import axios from 'axios';
+/**
+ * API istemci servisi.
+ * Axios tabanlı, JWT token yönetimi ve hata işleme dahil.
+ */
 
-const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
+import axios, { AxiosInstance, AxiosError } from 'axios'
+import type {
+  TokenResponse,
+  LoginRequest,
+  RegisterRequest,
+  User,
+  ProfileUpdateRequest,
+  PasswordChangeRequest,
+  Earthquake,
+  EarthquakeListResponse,
+  EarthquakeFilters,
+  EmergencyContact,
+  EmergencyContactRequest,
+  NotificationPrefs,
+  RiskScoreRequest,
+  RiskScoreResponse,
+  AnalyticsResponse,
+  ImSafeRequest,
+  ImSafeResponse,
+} from '../types'
 
-// Auth interceptor
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+// API temel URL'i
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+
+// Axios instance oluştur
+const apiClient: AxiosInstance = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 10000,
+})
+
+// İstek interceptor — JWT token ekle
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// Yanıt interceptor — 401 durumunda oturumu kapat
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token')
+      window.location.href = '/login'
     }
-    return config;
-});
+    return Promise.reject(error)
+  }
+)
+
+// ─── Auth Servisi ─────────────────────────────────────────────────────────────
 
 export const authService = {
-    login: async (credentials: any) => {
-        const { data } = await api.post('/users/login', credentials);
-        return data;
-    },
-    register: async (userData: any) => {
-        const { data } = await api.post('/users/register', userData);
-        return data;
-    },
-    getMe: async () => {
-        const { data } = await api.get('/users/me');
-        return data;
-    }
-};
+  async login(data: LoginRequest): Promise<TokenResponse> {
+    const response = await apiClient.post<TokenResponse>('/users/login', data)
+    return response.data
+  },
+
+  async register(data: RegisterRequest): Promise<TokenResponse> {
+    const response = await apiClient.post<TokenResponse>('/users/register', data)
+    return response.data
+  },
+
+  logout(): void {
+    localStorage.removeItem('access_token')
+  },
+}
+
+// ─── Kullanıcı Servisi ────────────────────────────────────────────────────────
 
 export const userService = {
-    updateMe: async (body: any) => {
-        const { data } = await api.patch('/users/me', body);
-        return data;
-    },
-    updateProfile: async (body: any) => {
-        const { data } = await api.put('/users/me', body);
-        return data;
-    },
-    changePassword: async (body: any) => {
-        const { data } = await api.put('/users/me/password', body);
-        return data;
-    },
-    deleteAccount: async () => {
-        await api.delete('/users/me');
-    },
-    getContacts: async () => {
-        const { data } = await api.get('/users/me/contacts');
-        return data;
-    },
-    addContact: async (contact: any) => {
-        const { data } = await api.post('/users/me/contacts', contact);
-        return data;
-    },
-    deleteContact: async (id: number) => {
-        await api.delete(`/users/me/contacts/${id}`);
-    },
-    getPreferences: async () => {
-        const { data } = await api.get('/users/me/preferences');
-        return data;
-    },
-    updatePreferences: async (prefs: any) => {
-        const { data } = await api.put('/users/me/preferences', prefs);
-        return data;
-    },
-    reportSafe: async (body?: { include_location: boolean, custom_message?: string, contact_ids?: number[] }) => {
-        const { data } = await api.post('/users/me/safe', body || {});
-        return data;
-    }
-};
+  async getProfile(): Promise<User> {
+    const response = await apiClient.get<User>('/users/me')
+    return response.data
+  },
+
+  async updateProfile(data: ProfileUpdateRequest): Promise<User> {
+    const response = await apiClient.put<User>('/users/me', data)
+    return response.data
+  },
+
+  async changePassword(data: PasswordChangeRequest): Promise<{ message: string }> {
+    const response = await apiClient.put<{ message: string }>('/users/me/password', data)
+    return response.data
+  },
+
+  async deleteAccount(): Promise<void> {
+    await apiClient.delete('/users/me')
+  },
+
+  async sendImSafe(data: ImSafeRequest): Promise<ImSafeResponse> {
+    const response = await apiClient.post<ImSafeResponse>('/users/i-am-safe', data)
+    return response.data
+  },
+}
+
+// ─── Deprem Servisi ───────────────────────────────────────────────────────────
 
 export const earthquakeService = {
-    getEarthquakes: async (limit = 50) => {
-        const response = await api.get(`/earthquakes?limit=${limit}`);
-        return response.data;
-    },
-    getStats: async (days = 7) => {
-        const response = await api.get(`/analytics?days=${days}`);
-        return response.data;
-    },
-    calculateRisk: async (riskData: { latitude: number, longitude: number, building_year?: number, soil_class?: string }) => {
-        const response = await api.post('/risk/score', riskData);
-        return response.data;
-    },
-    downloadRiskReport: async (riskData: { latitude: number, longitude: number, building_year?: number, soil_class?: string }) => {
-        const response = await api.post('/risk/report', riskData, {
-            responseType: 'blob'
-        });
-        return response.data;
-    }
-};
+  async getList(filters?: EarthquakeFilters): Promise<EarthquakeListResponse> {
+    const response = await apiClient.get<EarthquakeListResponse>('/earthquakes', {
+      params: filters,
+    })
+    return response.data
+  },
 
-export const adminService = {
-    getStats: async () => {
-        const { data } = await api.get('/admin/stats');
-        return data;
-    },
-    getUsers: async (skip = 0, limit = 50, search?: string) => {
-        const { data } = await api.get('/admin/users', {
-            params: { skip, limit, search }
-        });
-        return data;
-    },
-    updateUser: async (userId: number, body: { is_active?: boolean, is_admin?: boolean }) => {
-        const { data } = await api.patch(`/admin/users/${userId}`, body);
-        return data;
-    },
-    deleteUser: async (userId: number) => {
-        await api.delete(`/admin/users/${userId}`);
-    },
-    getEarthquakes: async (skip = 0, limit = 100, minMagnitude = 0) => {
-        const { data } = await api.get('/admin/earthquakes', {
-            params: { skip, limit, min_magnitude: minMagnitude }
-        });
-        return data;
-    },
-    createEarthquake: async (quake: any) => {
-        const { data } = await api.post('/admin/earthquakes', quake);
-        return data;
-    },
-    deleteEarthquake: async (quakeId: number) => {
-        await api.delete(`/admin/earthquakes/${quakeId}`);
-    },
-    broadcast: async (broadcast: { title: string, body: string, only_active: boolean }) => {
-        const { data } = await api.post('/admin/broadcast', broadcast);
-        return data;
-    }
-};
+  async getById(id: string): Promise<Earthquake> {
+    const response = await apiClient.get<Earthquake>(`/earthquakes/${id}`)
+    return response.data
+  },
+}
 
-export default api;
+// ─── Acil Kişi Servisi ────────────────────────────────────────────────────────
+
+export const contactService = {
+  async getContacts(): Promise<EmergencyContact[]> {
+    const response = await apiClient.get<EmergencyContact[]>('/users/me/contacts')
+    return response.data
+  },
+
+  async addContact(data: EmergencyContactRequest): Promise<EmergencyContact> {
+    const response = await apiClient.post<EmergencyContact>('/users/me/contacts', data)
+    return response.data
+  },
+
+  async deleteContact(id: number): Promise<void> {
+    await apiClient.delete(`/users/me/contacts/${id}`)
+  },
+}
+
+// ─── Bildirim Servisi ─────────────────────────────────────────────────────────
+
+export const notificationService = {
+  async getPreferences(): Promise<NotificationPrefs> {
+    const response = await apiClient.get<NotificationPrefs>('/users/me/preferences')
+    return response.data
+  },
+
+  async updatePreferences(data: NotificationPrefs): Promise<NotificationPrefs> {
+    const response = await apiClient.put<NotificationPrefs>('/users/me/preferences', data)
+    return response.data
+  },
+
+  async registerFcmToken(token: string): Promise<{ ok: boolean; message: string }> {
+    const response = await apiClient.post('/notifications/fcm-token', { fcm_token: token })
+    return response.data
+  },
+}
+
+// ─── Risk Servisi ─────────────────────────────────────────────────────────────
+
+export const riskService = {
+  async calculateScore(data: RiskScoreRequest): Promise<RiskScoreResponse> {
+    const response = await apiClient.post<RiskScoreResponse>('/risk/score', data)
+    return response.data
+  },
+}
+
+// ─── Analitik Servisi ─────────────────────────────────────────────────────────
+
+export const analyticsService = {
+  async getAnalytics(days?: number): Promise<AnalyticsResponse> {
+    const response = await apiClient.get<AnalyticsResponse>('/analytics', {
+      params: { days },
+    })
+    return response.data
+  },
+}
+
+export default apiClient
