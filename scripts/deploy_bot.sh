@@ -1,154 +1,182 @@
 #!/bin/bash
-
+# ════════════════════════════════════════════════════════
 # Telegram Bot Deploy Script
-# Bu script bot'u VPS'e deploy eder ve systemd service olarak çalıştırır
+# Bot'u VPS'e deploy eder ve systemd service olarak çalıştırır
+# ════════════════════════════════════════════════════════
 
 set -e
 
-echo "🤖 Telegram Bot Deploy Başlıyor..."
-
-# Renkler
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Değişkenler
 PROJECT_DIR="/opt/deprem-appp"
 SCRIPTS_DIR="$PROJECT_DIR/scripts"
+BOT_UTILS_DIR="$PROJECT_DIR/bot_utils"
 SERVICE_NAME="telegram-bot"
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
-# 1. Gerekli paketleri kontrol et
-echo -e "${YELLOW}📦 Gerekli paketleri kontrol ediliyor...${NC}"
+echo -e "${GREEN}════════════════════════════════════════${NC}"
+echo -e "${GREEN}🤖 AI Developer Telegram Bot Deploy${NC}"
+echo -e "${GREEN}════════════════════════════════════════${NC}"
+echo ""
 
+# 1. Python3 kontrolü
+echo -e "${YELLOW}1️⃣ Python3 kontrol ediliyor...${NC}"
 if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}❌ Python3 bulunamadı!${NC}"
-    exit 1
+    echo -e "${RED}❌ Python3 bulunamadı! Kuruluyor...${NC}"
+    apt-get update && apt-get install -y python3 python3-pip
 fi
+echo -e "${GREEN}✅ Python3: $(python3 --version)${NC}"
 
 # 2. Proje dizinine git
+if [ ! -d "$PROJECT_DIR" ]; then
+    echo -e "${RED}❌ Proje dizini bulunamadı: $PROJECT_DIR${NC}"
+    echo "Önce projeyi clone edin:"
+    echo "  git clone https://github.com/bendedo13/deprem-appp.git $PROJECT_DIR"
+    exit 1
+fi
 cd "$PROJECT_DIR"
 
-# 3. Git pull
-echo -e "${YELLOW}📥 Son değişiklikler çekiliyor...${NC}"
-git pull origin main
+# 3. Git pull (hata olursa devam et)
+echo -e "${YELLOW}2️⃣ Son değişiklikler çekiliyor...${NC}"
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
+git pull origin "$CURRENT_BRANCH" 2>/dev/null || echo -e "${YELLOW}⚠️ Git pull atlandı${NC}"
 
-# 4. Python bağımlılıklarını yükle
-echo -e "${YELLOW}📦 Python bağımlılıkları yükleniyor...${NC}"
-cd "$SCRIPTS_DIR"
-
-if [ ! -f "requirements_bot.txt" ]; then
+# 4. Python bağımlılıkları
+echo -e "${YELLOW}3️⃣ Python bağımlılıkları yükleniyor...${NC}"
+if [ -f "$SCRIPTS_DIR/requirements_bot.txt" ]; then
+    pip3 install -r "$SCRIPTS_DIR/requirements_bot.txt" --quiet --break-system-packages 2>/dev/null || \
+    pip3 install -r "$SCRIPTS_DIR/requirements_bot.txt" --quiet
+    echo -e "${GREEN}✅ Bağımlılıklar yüklendi${NC}"
+else
     echo -e "${RED}❌ requirements_bot.txt bulunamadı!${NC}"
     exit 1
 fi
 
-pip3 install -r requirements_bot.txt --quiet
-
-# 5. .env dosyasını oluştur (eğer yoksa)
-echo -e "${YELLOW}🔐 .env dosyası kontrol ediliyor...${NC}"
-
+# 5. .env kontrolü
+echo -e "${YELLOW}4️⃣ Environment variables kontrol ediliyor...${NC}"
 if [ ! -f "$PROJECT_DIR/.env" ]; then
-    echo -e "${YELLOW}⚠️ .env dosyası bulunamadı, oluşturuluyor...${NC}"
-    
-    # setup_env.sh'ı çalıştır
-    if [ -f "$SCRIPTS_DIR/setup_env.sh" ]; then
-        chmod +x "$SCRIPTS_DIR/setup_env.sh"
-        bash "$SCRIPTS_DIR/setup_env.sh"
+    if [ -f "$PROJECT_DIR/.env.example" ]; then
+        cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
+        echo -e "${YELLOW}⚠️ .env dosyası .env.example'dan oluşturuldu${NC}"
+        echo -e "${YELLOW}   Lütfen .env dosyasını düzenleyin:${NC}"
+        echo -e "${YELLOW}   nano $PROJECT_DIR/.env${NC}"
     else
-        echo -e "${RED}❌ setup_env.sh bulunamadı!${NC}"
+        echo -e "${RED}❌ .env dosyası bulunamadı!${NC}"
         exit 1
     fi
-else
-    echo -e "${GREEN}✅ .env dosyası mevcut${NC}"
 fi
 
-# 6. Environment variables kontrolü
-echo -e "${YELLOW}🔐 Environment variables kontrol ediliyor...${NC}"
-
-# .env dosyasını yükle
+# .env dosyasını yükle ve kontrol et
+set -a
 source "$PROJECT_DIR/.env"
+set +a
 
+MISSING_VARS=0
 if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
-    echo -e "${RED}❌ TELEGRAM_BOT_TOKEN tanımlı değil!${NC}"
-    exit 1
+    echo -e "${RED}❌ TELEGRAM_BOT_TOKEN eksik!${NC}"
+    MISSING_VARS=1
 fi
-
 if [ -z "$ANTHROPIC_API_KEY" ]; then
-    echo -e "${RED}❌ ANTHROPIC_API_KEY tanımlı değil!${NC}"
-    exit 1
+    echo -e "${RED}❌ ANTHROPIC_API_KEY eksik!${NC}"
+    MISSING_VARS=1
 fi
 
+if [ "$MISSING_VARS" -eq 1 ]; then
+    echo -e "${YELLOW}Düzenlemek için: nano $PROJECT_DIR/.env${NC}"
+    exit 1
+fi
 echo -e "${GREEN}✅ Environment variables OK${NC}"
 
-# 6. Systemd service dosyasını oluştur
-echo -e "${YELLOW}⚙️ Systemd service oluşturuluyor...${NC}"
+# 6. Bot dosyalarını kontrol et
+echo -e "${YELLOW}5️⃣ Bot dosyaları kontrol ediliyor...${NC}"
+for FILE in "$SCRIPTS_DIR/ai_developer_bot.py" "$BOT_UTILS_DIR/task_reporter.py" "$BOT_UTILS_DIR/__init__.py"; do
+    if [ -f "$FILE" ]; then
+        echo -e "${GREEN}  ✅ $(basename $FILE)${NC}"
+    else
+        echo -e "${RED}  ❌ $(basename $FILE) bulunamadı!${NC}"
+        exit 1
+    fi
+done
 
-sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+# 7. Python syntax kontrolü
+echo -e "${YELLOW}6️⃣ Python syntax kontrolü...${NC}"
+if python3 -c "import py_compile; py_compile.compile('$SCRIPTS_DIR/ai_developer_bot.py', doraise=True)" 2>/dev/null; then
+    echo -e "${GREEN}✅ Syntax OK${NC}"
+else
+    echo -e "${RED}❌ Python syntax hatası!${NC}"
+    python3 -c "import py_compile; py_compile.compile('$SCRIPTS_DIR/ai_developer_bot.py', doraise=True)"
+    exit 1
+fi
+
+# 8. Systemd service oluştur
+echo -e "${YELLOW}7️⃣ Systemd service oluşturuluyor...${NC}"
+cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=AI Developer Telegram Bot
 After=network.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=$SCRIPTS_DIR
-Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+WorkingDirectory=$PROJECT_DIR
 EnvironmentFile=$PROJECT_DIR/.env
 ExecStart=/usr/bin/python3 $SCRIPTS_DIR/ai_developer_bot.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
+KillMode=mixed
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
 EOF
-
 echo -e "${GREEN}✅ Service dosyası oluşturuldu${NC}"
 
-# 7. Service'i yeniden yükle
-echo -e "${YELLOW}🔄 Systemd daemon yeniden yükleniyor...${NC}"
-sudo systemctl daemon-reload
+# 9. Service yeniden yükle
+echo -e "${YELLOW}8️⃣ Systemd daemon yeniden yükleniyor...${NC}"
+systemctl daemon-reload
 
-# 8. Eski service'i durdur (varsa)
-if systemctl is-active --quiet "$SERVICE_NAME"; then
+# 10. Eski service'i durdur
+if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     echo -e "${YELLOW}⏸️ Mevcut service durduruluyor...${NC}"
-    sudo systemctl stop "$SERVICE_NAME"
+    systemctl stop "$SERVICE_NAME"
 fi
 
-# 9. Service'i enable et
-echo -e "${YELLOW}✅ Service enable ediliyor...${NC}"
-sudo systemctl enable "$SERVICE_NAME"
+# 11. Service enable + başlat
+echo -e "${YELLOW}9️⃣ Service başlatılıyor...${NC}"
+systemctl enable "$SERVICE_NAME" 2>/dev/null
+systemctl start "$SERVICE_NAME"
 
-# 10. Service'i başlat
-echo -e "${YELLOW}🚀 Service başlatılıyor...${NC}"
-sudo systemctl start "$SERVICE_NAME"
-
-# 11. Durum kontrolü
-sleep 2
+# 12. Durum kontrolü
+sleep 3
 
 if systemctl is-active --quiet "$SERVICE_NAME"; then
-    echo -e "${GREEN}✅ Bot başarıyla başlatıldı!${NC}"
     echo ""
-    echo -e "${GREEN}📊 Service Durumu:${NC}"
-    sudo systemctl status "$SERVICE_NAME" --no-pager -l
+    echo -e "${GREEN}════════════════════════════════════════${NC}"
+    echo -e "${GREEN}✅ Bot başarıyla deploy edildi!${NC}"
+    echo -e "${GREEN}════════════════════════════════════════${NC}"
     echo ""
-    echo -e "${GREEN}📝 Log'ları görmek için:${NC}"
-    echo "sudo journalctl -u $SERVICE_NAME -f"
+    systemctl status "$SERVICE_NAME" --no-pager -l 2>/dev/null | head -15
     echo ""
-    echo -e "${GREEN}🎉 Deploy tamamlandı!${NC}"
+    echo -e "${GREEN}📝 Komutlar:${NC}"
+    echo "  Log izle:      journalctl -u $SERVICE_NAME -f"
+    echo "  Yeniden başlat: systemctl restart $SERVICE_NAME"
+    echo "  Durdur:         systemctl stop $SERVICE_NAME"
+    echo "  Durum:          systemctl status $SERVICE_NAME"
+    echo ""
+    echo -e "${GREEN}🧪 Test:${NC}"
+    echo "  Telegram'dan: Görev: depremapp - Test mesajı"
+    echo ""
 else
+    echo -e "${RED}════════════════════════════════════════${NC}"
     echo -e "${RED}❌ Bot başlatılamadı!${NC}"
+    echo -e "${RED}════════════════════════════════════════${NC}"
     echo ""
-    echo -e "${YELLOW}Log'ları kontrol edin:${NC}"
-    sudo journalctl -u "$SERVICE_NAME" -n 50 --no-pager
+    journalctl -u "$SERVICE_NAME" -n 30 --no-pager
     exit 1
 fi
-
-# 12. Test mesajı
-echo ""
-echo -e "${YELLOW}🧪 Bot'u test etmek için Telegram'dan şu mesajı gönderin:${NC}"
-echo ""
-echo "Görev: depremapp - Test mesajı"
-echo ""
