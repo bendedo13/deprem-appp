@@ -18,6 +18,21 @@ NC='\033[0m'
 DEPLOY_DIR="/opt/deprem-appp/deploy"
 PROJECT_DIR="/opt/deprem-appp"
 
+# .env kontrolü
+if [ ! -f "$DEPLOY_DIR/.env" ]; then
+    echo -e "${RED}❌ HATA: $DEPLOY_DIR/.env dosyası bulunamadı!${NC}"
+    echo ""
+    echo "Lütfen önce .env dosyasını oluşturun:"
+    echo "  cp $DEPLOY_DIR/.env.example $DEPLOY_DIR/.env"
+    echo "  nano $DEPLOY_DIR/.env"
+    echo ""
+    echo "Minimum gerekli değişkenler:"
+    echo "  SERVER_IP=sunucu_ip_adresi"
+    echo "  DB_PASSWORD=güçlü_şifre"
+    echo "  SECRET_KEY=en_az_32_karakter_rastgele_string"
+    exit 1
+fi
+
 cd "$DEPLOY_DIR"
 
 # 1. Git pull
