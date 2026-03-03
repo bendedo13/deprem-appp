@@ -4,7 +4,7 @@ services:
     container_name: deprem_db
     environment:
       - POSTGRES_USER=deprem_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-deprem_secure_pass_change_me}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD ortam degiskeni gerekli}
       - POSTGRES_DB=deprem_db
     volumes:
       - deprem_postgres_data:/var/lib/postgresql/data
@@ -22,7 +22,7 @@ services:
   deprem_redis:
     image: redis:7-alpine
     container_name: deprem_redis
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - deprem_redis_data:/data
     healthcheck:
@@ -42,21 +42,31 @@ services:
       context: ../backend
       dockerfile: Dockerfile
     container_name: deprem_backend
-    tty: true
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://deprem_user:${DB_PASSWORD:-deprem_secure_pass_change_me}@deprem_db:5432/deprem_db
+      - DATABASE_URL=postgresql+asyncpg://deprem_user:${DB_PASSWORD}@deprem_db:5432/deprem_db
       - REDIS_URL=redis://deprem_redis:6379/0
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-service-account.json
-      - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY ortam degiskeni gerekli}
       - DEBUG=false
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://deprem.quakesense.com}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY:-}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL:-}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
     depends_on:
       deprem_db:
         condition: service_healthy
       deprem_redis:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
     networks:
       - deprem_net
 
@@ -67,16 +77,20 @@ services:
     container_name: deprem_celery
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
     environment:
-      - DATABASE_URL=postgresql+asyncpg://deprem_user:${DB_PASSWORD:-deprem_secure_pass_change_me}@deprem_db:5432/deprem_db
+      - DATABASE_URL=postgresql+asyncpg://deprem_user:${DB_PASSWORD}@deprem_db:5432/deprem_db
       - REDIS_URL=redis://deprem_redis:6379/0
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-service-account.json
-      - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024}
+      - SECRET_KEY=${SECRET_KEY}
     depends_on:
       deprem_redis:
         condition: service_healthy
       deprem_db:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
     networks:
       - deprem_net
 
@@ -85,10 +99,10 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://46.4.123.77:8001/api/v1
+        - VITE_API_URL=${VITE_API_URL:-/api/v1}
     container_name: deprem_frontend
     ports:
-      - "8002:80"
+      - "127.0.0.1:8002:80"
     restart: unless-stopped
     depends_on:
       - backend
@@ -98,7 +112,6 @@ services:
 volumes:
   deprem_postgres_data:
   deprem_redis_data:
-
 
 networks:
   deprem_net:

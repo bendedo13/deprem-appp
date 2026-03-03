@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+dist/
+*.log
+*.jks
+*.keystore
+google-play-service-account.json
+.env
+.env.local
+.env.production

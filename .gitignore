@@ -2,10 +2,17 @@
 .env
 .env.local
 .env.*.local
+.env.production
 deploy/.env
 backend/firebase-service-account.json
 VPS_ENV_CONFIG.txt
 VPS_API_KEYS_PRIVATE.txt
+
+# Secrets / Keystores
+*.keystore
+*.jks
+google-play-service-account.json
+firebase-service-account.json
 
 # Python
 __pycache__/
@@ -23,18 +30,27 @@ node_modules/
 dist/
 *.log
 npm-debug.log*
+yarn-error.log*
+.yarn/cache/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Build / Docker
 *.egg-info/
 .eggs/
 build/
+*.tsbuildinfo
+
+# Coverage / Testing
+coverage/
+.nyc_output/

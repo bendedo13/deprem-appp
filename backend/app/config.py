@@ -20,8 +20,8 @@ class Settings(BaseSettings):
 
     # Uygulama
     DEBUG: bool = False
-    SECRET_KEY: str = "your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 gün
+    SECRET_KEY: str = "CHANGE-THIS-IN-PRODUCTION-USE-OPENSSL-RAND-HEX-32"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 gün
 
     # Veritabanı
     DATABASE_URL: str = "postgresql+asyncpg://deprem_user:deprem_pass@localhost:5432/deprem_db"
@@ -58,11 +58,6 @@ class Settings(BaseSettings):
     SHAKE_GEOHASH_PRECISION: int = 5
     SHAKE_RATE_LIMIT_PER_DEVICE_SECONDS: int = 30
 
-    # ── Firebase (Push Notifications) ──
-    FIREBASE_PROJECT_ID: str = ""
-    FIREBASE_PRIVATE_KEY: str = ""
-    FIREBASE_CLIENT_EMAIL: str = ""
-
     # ── Twilio (SMS/WhatsApp for Emergency Contacts) ──
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
@@ -79,7 +74,7 @@ class Settings(BaseSettings):
 
     # ── S.O.S Audio Storage ──
     SOS_AUDIO_STORAGE_PATH: str = "/app/sos_audio"
-    SOS_AUDIO_BASE_URL: str = "https://your-domain.com/sos_audio"
+    SOS_AUDIO_BASE_URL: str = ""
     SOS_RATE_LIMIT_PER_HOUR: int = 10
 
 

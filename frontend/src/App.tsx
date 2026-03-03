@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster, toast } from 'react-hot-toast';
 import Navbar from './components/layout/Navbar';
 import CookieBanner from './components/ui/CookieBanner';
+import ErrorBoundary from './components/ErrorBoundary';
 import { requestPermissionAndGetToken, onMessageListener } from './services/pushNotification';
 import { useAuthStore } from './store/useAuthStore';
 
@@ -66,6 +67,7 @@ function App() {
   }
 
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <div className="min-h-screen bg-dark text-gray-100 font-sans selection:bg-primary/30 selection:text-white">
         <Toaster
@@ -127,6 +129,7 @@ function App() {
         </Suspense>
       </div>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

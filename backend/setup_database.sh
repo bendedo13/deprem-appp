@@ -4,7 +4,10 @@
 
 set -e
 
-echo "🔍 PostgreSQL bulunuyor..."
+# Rastgele güçlü şifre oluştur
+DB_PASSWORD=${DB_PASSWORD:-$(openssl rand -hex 16)}
+
+echo "PostgreSQL bulunuyor..."
 
 # PostgreSQL servisini bul
 PG_SERVICE=""
@@ -13,50 +16,35 @@ if systemctl is-active --quiet postgresql; then
 elif systemctl list-units --type=service --state=active | grep -q "postgresql@"; then
     PG_SERVICE=$(systemctl list-units --type=service --state=active | grep "postgresql@" | awk '{print $1}' | head -1)
 else
-    echo "❌ PostgreSQL servisi bulunamadı!"
-    echo "Kurulu PostgreSQL servisleri:"
-    systemctl list-units --type=service | grep postgres || echo "Hiç PostgreSQL servisi yok"
+    echo "HATA: PostgreSQL servisi bulunamadi!"
     exit 1
 fi
 
-echo "✓ PostgreSQL servisi bulundu: $PG_SERVICE"
-
-# PostgreSQL versiyonunu bul
-PG_VERSION=$(sudo -u postgres psql -t -c "SHOW server_version;" | cut -d'.' -f1 | tr -d ' ')
-echo "✓ PostgreSQL versiyonu: $PG_VERSION"
+echo "PostgreSQL servisi bulundu: $PG_SERVICE"
 
 # Database ve user oluştur
-echo "📊 Database oluşturuluyor..."
+echo "Database olusturuluyor..."
 
 sudo -u postgres psql << EOF
--- Database varsa sil ve yeniden oluştur (dikkatli kullan!)
--- DROP DATABASE IF EXISTS deprem_db;
--- DROP USER IF EXISTS deprem_user;
-
--- Database ve user oluştur
 CREATE DATABASE deprem_db;
-CREATE USER deprem_user WITH PASSWORD 'deprem2024secure';
+CREATE USER deprem_user WITH PASSWORD '$DB_PASSWORD';
 GRANT ALL PRIVILEGES ON DATABASE deprem_db TO deprem_user;
 ALTER DATABASE deprem_db OWNER TO deprem_user;
-
--- PostgreSQL 15+ için ek izinler
 \c deprem_db
 GRANT ALL ON SCHEMA public TO deprem_user;
-
 \q
 EOF
 
-echo "✅ Database başarıyla oluşturuldu!"
+echo "Database basariyla olusturuldu!"
 echo ""
-echo "📝 Bağlantı Bilgileri:"
+echo "Baglanti Bilgileri:"
 echo "  Database: deprem_db"
 echo "  User: deprem_user"
-echo "  Password: deprem2024secure"
+echo "  Password: $DB_PASSWORD"
 echo "  Host: localhost"
 echo "  Port: 5432"
 echo ""
-echo "🔐 .env dosyasına eklenecek satır:"
-echo "DATABASE_URL=postgresql+asyncpg://deprem_user:deprem2024secure@localhost:5432/deprem_db"
+echo ".env dosyasina eklenecek satir:"
+echo "DATABASE_URL=postgresql+asyncpg://deprem_user:${DB_PASSWORD}@localhost:5432/deprem_db"
 echo ""
-echo "🧪 Test etmek için:"
-echo "psql -U deprem_user -d deprem_db -h localhost"
+echo "ONEMLI: Bu sifreyi guvenli bir yerde saklayin!"

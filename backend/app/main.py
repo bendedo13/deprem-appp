@@ -8,9 +8,11 @@ Tüm router'ları, middleware ve lifespan yönetir.
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.redis import get_redis, close_redis
@@ -20,12 +22,16 @@ from app.tasks.fetch_earthquakes import start_periodic_fetch
 
 logger = logging.getLogger(__name__)
 
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Uygulama başlangıç ve kapanış."""
     logger.info("Deprem App başlatılıyor...")
-    # init_db() kaldırıldı - migration kullanıyoruz (alembic upgrade head)
     await start_periodic_fetch()
     logger.info("Uygulama hazır.")
     yield
@@ -37,19 +43,30 @@ app = FastAPI(
     title="Deprem App API",
     description="Türkiye deprem takip platformu API",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
 )
 
+# CORS — production'da wildcard yerine izin verilen origin'leri kullan
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS_LIST if not settings.DEBUG else ["*"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error("Beklenmeyen hata: %s %s — %s", request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Sunucu hatası. Lütfen daha sonra tekrar deneyin."},
+    )
+
 
 app.include_router(earthquakes.router, prefix="/api/v1/earthquakes", tags=["Depremler"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Kullanıcılar"])
