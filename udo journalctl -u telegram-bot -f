@@ -1,0 +1,20 @@
+[0;1;32m●[0m telegram-bot.service - AI Developer Telegram Bot
+     Loaded: loaded (/etc/systemd/system/telegram-bot.service; enabled; vendor preset: enabled)
+     Active: [0;1;32mactive (running)[0m since Tue 2026-03-03 00:05:55 UTC; 23s ago
+   Main PID: 4183044 (python3)
+      Tasks: 2 (limit: 14210)
+     Memory: 55.6M
+        CPU: 1.021s
+     CGroup: /system.slice/telegram-bot.service
+             └─4183044 /usr/bin/python3 /opt/deprem-appp/scripts/ai_developer_bot.py
+
+Mar 03 00:05:56 ubuntu python3[4183044]: 2026-03-03 00:05:56,883 - __main__ - INFO - ==================================================
+Mar 03 00:05:56 ubuntu python3[4183044]: 2026-03-03 00:05:56,964 - __main__ - INFO - Bot çalışıyor! Telegram'dan mesaj bekleniyor...
+Mar 03 00:05:57 ubuntu python3[4183044]: 2026-03-03 00:05:57,019 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8639321378:AAE9EeQxmpq9eYiyARECspAPBf9gvknEf2U/getMe "HTTP/1.1 200 OK"
+Mar 03 00:05:57 ubuntu python3[4183044]: 2026-03-03 00:05:57,047 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8639321378:AAE9EeQxmpq9eYiyARECspAPBf9gvknEf2U/setMyCommands "HTTP/1.1 200 OK"
+Mar 03 00:05:57 ubuntu python3[4183044]: 2026-03-03 00:05:57,047 - __main__ - INFO - Bot komutları kaydedildi.
+Mar 03 00:05:57 ubuntu python3[4183044]: 2026-03-03 00:05:57,063 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8639321378:AAE9EeQxmpq9eYiyARECspAPBf9gvknEf2U/deleteWebhook "HTTP/1.1 200 OK"
+Mar 03 00:05:57 ubuntu python3[4183044]: 2026-03-03 00:05:57,064 - apscheduler.scheduler - INFO - Scheduler started
+Mar 03 00:05:57 ubuntu python3[4183044]: 2026-03-03 00:05:57,065 - telegram.ext.Application - INFO - Application started
+Mar 03 00:06:07 ubuntu python3[4183044]: 2026-03-03 00:06:07,110 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8639321378:AAE9EeQxmpq9eYiyARECspAPBf9gvknEf2U/getUpdates "HTTP/1.1 200 OK"
+Mar 03 00:06:17 ubuntu python3[4183044]: 2026-03-03 00:06:17,124 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8639321378:AAE9EeQxmpq9eYiyARECspAPBf9gvknEf2U/getUpdates "HTTP/1.1 200 OK"

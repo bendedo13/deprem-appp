@@ -1,5 +1,5 @@
 """
-Bildirim tercihi şemaları.
+Bildirim tercihi Pydantic şemaları.
 """
 
 from datetime import time
@@ -9,25 +9,29 @@ from pydantic import BaseModel, Field
 
 
 class NotificationPrefIn(BaseModel):
-    """Bildirim tercihi güncelleme girdisi."""
-
-    min_magnitude: float = Field(default=3.0, ge=0.0, le=10.0, description="Minimum deprem büyüklüğü")
-    locations: List[str] = Field(default_factory=list, description="Takip edilen konumlar")
-    push_enabled: bool = Field(default=True, description="Push bildirimleri aktif mi?")
-    sms_enabled: bool = Field(default=False, description="SMS bildirimleri aktif mi?")
-    email_enabled: bool = Field(default=False, description="E-posta bildirimleri aktif mi?")
-    quiet_hours_enabled: bool = Field(default=False, description="Sessiz saatler aktif mi?")
-    quiet_start: Optional[time] = Field(default=None, description="Sessiz saat başlangıç")
-    quiet_end: Optional[time] = Field(default=None, description="Sessiz saat bitiş")
-    weekly_summary: bool = Field(default=False, description="Haftalık özet gönderilsin mi?")
-    aftershock_alerts: bool = Field(default=False, description="Artçı depremler bildirilsin mi?")
+    """Bildirim tercihi güncelleme isteği."""
+    min_magnitude: float = Field(default=3.0, ge=0.0, le=10.0)
+    radius_km: float = Field(default=500.0, ge=0.0, le=20000.0)
+    is_enabled: bool = True
+    locations: List[str] = Field(default_factory=list)
+    push_enabled: bool = True
+    sms_enabled: bool = False
+    email_enabled: bool = False
+    quiet_hours_enabled: bool = False
+    quiet_start: Optional[time] = None
+    quiet_end: Optional[time] = None
+    weekly_summary: bool = False
+    aftershock_alerts: bool = False
 
 
 class NotificationPrefOut(BaseModel):
-    """Bildirim tercihi yanıt şeması."""
-
+    """Bildirim tercihi yanıtı."""
+    id: int
+    user_id: int
     min_magnitude: float
-    locations: List[str]
+    radius_km: float
+    is_enabled: bool
+    locations: List[str] = Field(default_factory=list)
     push_enabled: bool
     sms_enabled: bool
     email_enabled: bool

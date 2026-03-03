@@ -1,59 +1,52 @@
 """
-S.O.S Voice Alert için Pydantic schemas.
-API request/response validation.
+S.O.S Voice Alert Pydantic şemaları.
 """
 
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class SOSAnalyzeResponse(BaseModel):
-    """S.O.S analyze endpoint response (async task başlatıldı)."""
-
-    task_id: str = Field(..., description="Celery task ID for tracking")
-    status: str = Field(default="accepted", description="Initial status")
-    message: str = Field(default="S.O.S kaydınız işleniyor...", description="User message")
+    """SOS analiz başlatma yanıtı."""
+    task_id: str
+    status: str
+    message: str
 
 
 class ExtractedSOSData(BaseModel):
-    """AI tarafından çıkarılan yapılandırılmış S.O.S verisi."""
-
-    sos_id: str = Field(..., description="S.O.S record UUID")
-    durum: str = Field(..., description="Enkaz Altında | Güvende | Bilinmiyor")
-    kisi_sayisi: int = Field(..., ge=1, description="Kişi sayısı")
-    aciliyet: str = Field(..., description="Kırmızı | Sarı | Yeşil")
-    lokasyon: str = Field(..., description="Konum bilgisi veya GPS")
-    orijinal_metin: str = Field(..., description="Whisper transcription")
+    """Ses kaydından çıkarılan SOS verisi."""
+    durum: str = Field(description="Durum açıklaması")
+    kisi_sayisi: int = Field(default=1, description="Kişi sayısı")
+    aciliyet: str = Field(default="orta", description="Aciliyet seviyesi")
+    lokasyon: str = Field(default="", description="Konum bilgisi")
+    orijinal_metin: Optional[str] = Field(None, description="Transkript metni")
 
 
 class SOSStatusResponse(BaseModel):
-    """S.O.S processing status response."""
-
-    status: str = Field(..., description="pending | processing | completed | failed")
-    extracted_data: Optional[ExtractedSOSData] = Field(None, description="Extracted data when completed")
-    error_message: Optional[str] = Field(None, description="Error message when failed")
+    """SOS işleme durumu yanıtı."""
+    status: str = Field(description="pending/processing/completed/failed")
+    extracted_data: Optional[ExtractedSOSData] = None
+    error_message: Optional[str] = None
 
 
 class SOSRecordOut(BaseModel):
-    """S.O.S record database output."""
-
-    id: UUID
+    """SOS kaydı yanıtı."""
+    id: str
     user_id: int
     durum: str
     kisi_sayisi: int
     aciliyet: str
     lokasyon: str
-    orijinal_metin: Optional[str]
+    orijinal_metin: Optional[str] = None
     audio_url: str
     audio_filename: str
-    latitude: Optional[float]
-    longitude: Optional[float]
-    processing_status: str
-    error_message: Optional[str]
-    created_at: datetime
-    updated_at: datetime
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    processing_status: Optional[str] = None
+    error_message: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

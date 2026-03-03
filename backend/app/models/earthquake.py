@@ -1,5 +1,5 @@
 """
-Deprem ORM modeli — TimescaleDB hypertable ile zaman serisi optimizasyonu.
+Deprem ORM modeli.
 """
 
 from datetime import datetime
@@ -12,7 +12,7 @@ from app.database import Base
 class Earthquake(Base):
     """
     Deprem kaydı.
-    TimescaleDB ile occurred_at üzerinden hypertable oluşturulması önerilir.
+    String primary key: kaynak + harici ID birleşimi (örn: 'afad-2024001234').
     """
 
     __tablename__ = "earthquakes"
@@ -20,18 +20,18 @@ class Earthquake(Base):
     # Kaynak bazlı birleşik ID (örn: "afad-2024001234")
     id: str = Column(String(64), primary_key=True)
 
-    # Veri kaynağı: afad | kandilli | usgs | emsc
+    # Veri kaynağı: afad | kandilli | usgs | emsc | manual
     source: str = Column(String(16), nullable=False, index=True)
 
     # Deprem parametreleri
     magnitude: float = Column(Float, nullable=False)
-    depth: float = Column(Float, nullable=False)
+    depth: float = Column(Float, nullable=False, default=10.0)
     latitude: float = Column(Float, nullable=False)
     longitude: float = Column(Float, nullable=False)
-    location: str = Column(String(256), nullable=False)
+    location: str = Column(String(256), nullable=False, default="")
     magnitude_type: str = Column(String(8), nullable=False, default="ML")
 
-    # Zaman (deprem zamanı — TimescaleDB partition key)
+    # Zaman (deprem zamanı)
     occurred_at: datetime = Column(
         DateTime(timezone=True),
         nullable=False,

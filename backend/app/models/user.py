@@ -1,12 +1,12 @@
 """
-Kullanıcı modeli.
-JWT kimlik doğrulama, FCM push bildirimi ve konum tabanlı uyarılar için kullanılır.
+Kullanıcı ORM modeli.
+JWT kimlik doğrulama, FCM push bildirimi ve konum takibi için alanlar içerir.
 """
 
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import String, Float, DateTime, Boolean
+from sqlalchemy import Boolean, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -19,43 +19,63 @@ if TYPE_CHECKING:
 
 
 class User(Base):
-    """Kullanıcı: JWT auth, FCM token ve konum tabanlı bildirim için."""
+    """Kullanıcı kaydı. E-posta + bcrypt şifre ile kimlik doğrulama."""
 
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    
-    # Profil Bilgileri
-    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    avatar: Mapped[str | None] = mapped_column(String(10), nullable=True)  # Emoji avatar
-    plan: Mapped[str] = mapped_column(String(20), default="free", nullable=False)
 
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    
-    fcm_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    
+    # Hesap durumu
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Profil bilgileri
+    name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    avatar: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    plan: Mapped[str] = mapped_column(String(20), nullable=False, default="free")
+
+    # Push bildirim token'ı
+    fcm_token: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+
+    # Konum (son bilinen)
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Zaman damgaları
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
     join_date: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
 
+    # İlişkiler
     emergency_contacts: Mapped[List["EmergencyContact"]] = relationship(
-        "EmergencyContact", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
+        "EmergencyContact",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="select",
     )
     notification_pref: Mapped[Optional["NotificationPref"]] = relationship(
-        "NotificationPref", back_populates="user", uselist=False, lazy="selectin", cascade="all, delete-orphan"
+        "NotificationPref",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+        lazy="select",
     )
     sos_records: Mapped[List["SOSRecord"]] = relationship(
-        "SOSRecord", back_populates="user", lazy="select"
+        "SOSRecord",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="select",
     )
 
     def __repr__(self) -> str:
-        return f"<User id={self.id} email={self.email!r}>"
+        return f"<User id={self.id} email={self.email!r} admin={self.is_admin}>"

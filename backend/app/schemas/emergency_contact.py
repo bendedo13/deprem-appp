@@ -1,56 +1,31 @@
 """
-Acil iletişim kişisi şemaları.
-Pydantic v2 — rules.md: type hints, validation.
+Acil iletişim kişisi Pydantic şemaları.
 """
 
-from typing import List, Literal, Optional
+from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field
 
 
 class EmergencyContactIn(BaseModel):
-    """Yeni acil kişi oluşturma girdisi."""
-
-    name: str
-    phone: str
+    """Acil kişi oluşturma/güncelleme isteği."""
+    name: str = Field(..., min_length=1, max_length=255)
+    phone: Optional[str] = Field(None, max_length=32)
     email: Optional[EmailStr] = None
-    relation: str = Field(default="Diğer", description="Yakınlık derecesi (Aile, Eş, Arkadaş vb.)")
-    # "push" da geçerli bir yöntem olarak eklendi
-    methods: List[Literal["push", "whatsapp", "sms", "email"]] = Field(
-        default=["push"], description="Bildirim yöntemleri"
-    )
-    priority: int = Field(default=1, ge=1, le=5, description="Öncelik sırası (1=En yüksek)")
-
-    @field_validator("name")
-    @classmethod
-    def name_not_empty(cls, v: str) -> str:
-        """İsim boş olamaz."""
-        if not v.strip():
-            raise ValueError("İsim boş olamaz.")
-        return v.strip()
-
-    @field_validator("phone")
-    @classmethod
-    def phone_format(cls, v: str) -> str:
-        """Telefon numarası basit format kontrolü."""
-        cleaned = v.strip()
-        if not cleaned:
-            raise ValueError("Telefon numarası boş olamaz.")
-        # Basit kontrol: sadece rakam ve +, boşluk içerebilir
-        if not cleaned.replace("+", "").replace(" ", "").replace("-", "").isdigit():
-            raise ValueError("Geçersiz telefon numarası.")
-        return cleaned
+    relation: str = Field(default="Diğer", max_length=50)
+    methods: List[str] = Field(default=["push"])
+    priority: int = Field(default=1, ge=1, le=10)
 
 
 class EmergencyContactOut(BaseModel):
-    """Acil kişi yanıt şeması."""
-
+    """Acil kişi yanıtı."""
     id: int
+    user_id: int
     name: str
-    phone: str
+    phone: Optional[str] = None
     email: Optional[str] = None
-    relation: str
-    methods: List[str]
-    priority: int
+    relation: str = "Diğer"
+    methods: List[str] = ["push"]
+    priority: int = 1
 
     model_config = {"from_attributes": True}
