@@ -389,8 +389,8 @@ async def git_push(root: str, msg: str, branch: str) -> dict:
     return r
 
 
-async def git_init_push(root: str, name: str) -> dict:
-    """Yeni proje: git init + GitHub repo + push."""
+async def git_init_local(root: str, name: str) -> dict:
+    """Yeni proje: sadece VPS'te lokal git init — GitHub'a push ETMEZ."""
     r = {"hash": "", "branch": "main", "pushed": False, "error": "", "url": ""}
     await sh("git init", root)
     await sh('git config user.name "AI Bot"', root)
@@ -404,24 +404,8 @@ async def git_init_push(root: str, name: str) -> dict:
 
     o, _, _ = await sh("git rev-parse HEAD", root)
     r["hash"] = o.strip()
-    r["url"] = f"https://github.com/{GITHUB_USER}/{name}"
-
-    # GitHub repo oluştur
-    _, _, c = await sh(f"gh repo create {GITHUB_USER}/{name} --public --source=. --remote=origin --push", root, 60)
-    if c == 0:
-        r["pushed"] = True
-        return r
-
-    # Fallback: API ile
-    if GITHUB_TOKEN:
-        await sh(f'curl -s -X POST -H "Authorization: token {GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/user/repos -d \'{{"name":"{name}","private":false}}\'', root, 30)
-        await sh(f"git remote add origin https://{GITHUB_TOKEN}@github.com/{GITHUB_USER}/{name}.git", root)
-        _, e, c = await sh("git push -u origin main", root, 60)
-        r["pushed"] = c == 0
-        if not r["pushed"]:
-            r["error"] = f"push: {e[:200]}"
-    else:
-        r["error"] = "GITHUB_TOKEN yok — sadece lokal"
+    r["url"] = f"file://{root}"
+    r["pushed"] = True  # Lokal commit başarılı = OK
     return r
 
 
@@ -562,10 +546,19 @@ async def do_task(bot, cid: int, pname: str, task: str):
                     f"⏱️ {int(elapsed)}s | 🧠 {model}\n\nCevap:\n{resp[:3000]}")
                 return
 
-            # Git
-            await send(bot, cid, f"💾 Git push... ({len(files_changed)} dosya)")
-            gres = await git_push(root, task, cfg["branch"])
-            if gres["error"]:
+            # Git — repo varsa GitHub'a push, yoksa sadece lokal commit
+            if cfg.get("repo"):
+                await send(bot, cid, f"💾 Git push... ({len(files_changed)} dosya)")
+                gres = await git_push(root, task, cfg["branch"])
+            else:
+                await send(bot, cid, f"💾 Lokal commit... ({len(files_changed)} dosya)")
+                await sh("git add -A", root)
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+                safe_msg = task[:80].replace('"', "'").replace('`', "'")
+                await sh(f'git commit -m "AI Bot: {safe_msg} [{ts}]"', root)
+                o, _, _ = await sh("git rev-parse HEAD", root)
+                gres = {"hash": o.strip(), "branch": cfg["branch"], "pushed": True, "error": ""}
+            if gres.get("error"):
                 errs.append(gres["error"])
 
             # Test
@@ -600,13 +593,20 @@ async def do_new(bot, cid: int, name: str, desc: str):
         await send(bot, cid, "❌ Geçersiz proje adı!")
         return
 
+    # Mevcut projelerle çakışma kontrolü
     root = f"/opt/{safe}"
     if Path(root).exists():
         await send(bot, cid, f"⚠️ /opt/{safe} zaten var! Farklı isim kullan.")
         return
 
+    # Bilinen proje dizinleriyle çakışma kontrolü
+    existing_dirs = {Path(c["path"]).name for c in PROJECTS.values()}
+    if safe in existing_dirs:
+        await send(bot, cid, f"⚠️ '{safe}' adı mevcut bir projeyle çakışıyor! Farklı isim kullan.")
+        return
+
     await send(bot, cid,
-        f"🆕 Yeni Proje!\n📂 {safe}\n📝 {desc[:200]}\n⏳ Claude yapı oluşturuyor...")
+        f"🆕 Yeni Proje (VPS Lokal)!\n📂 {root}\n📝 {desc[:200]}\n⏳ Claude yapı oluşturuyor...")
 
     try:
         resp, model = await ai_newproject(safe, desc)
@@ -618,8 +618,8 @@ async def do_new(bot, cid: int, name: str, desc: str):
             await send(bot, cid, "⚠️ Dosyalar oluşturulamadı, tekrar deneyin.")
             return
 
-        await send(bot, cid, "💾 Git repo oluşturuluyor...")
-        gres = await git_init_push(root, safe)
+        await send(bot, cid, "💾 Lokal git repo oluşturuluyor (GitHub'a push YOK)...")
+        gres = await git_init_local(root, safe)
         if gres["error"]:
             errs.append(gres["error"])
 
@@ -630,9 +630,16 @@ async def do_new(bot, cid: int, name: str, desc: str):
             if c != 0:
                 errs.append(f"npm: {e[:200]}")
 
-        # Kaydet
+        # pip install
+        if (Path(root) / "requirements.txt").exists():
+            await send(bot, cid, "📦 pip install...")
+            _, e, c = await sh("pip3 install -r requirements.txt --quiet --break-system-packages 2>/dev/null || pip3 install -r requirements.txt --quiet", root, 180)
+            if c != 0:
+                errs.append(f"pip: {e[:200]}")
+
+        # Kaydet — repo alanı boş (GitHub'a bağlı değil)
         new_cfg = {
-            "path": root, "repo": f"{GITHUB_USER}/{safe}", "branch": "main",
+            "path": root, "repo": "", "branch": "main",
             "cmd": safe[:10], "desc": desc[:100],
             "ext": [".ts", ".tsx", ".js", ".jsx", ".py", ".css", ".json"],
             "test": [], "deploy": "", "health": "",
@@ -647,7 +654,8 @@ async def do_new(bot, cid: int, name: str, desc: str):
 
     elapsed = (datetime.now() - t0).total_seconds()
     r = report(f"Yeni proje: {desc}", safe, model, files_changed, [], None, gres, elapsed, errs, "new")
-    r += f"\n\n💡 Artık /{safe[:10]} [görev] ile bu projede çalışabilirsiniz."
+    r += f"\n\n💡 Proje sadece VPS'te oluşturuldu: {root}"
+    r += f"\n💡 Artık /{safe[:10]} [görev] ile bu projede çalışabilirsiniz."
     await send(bot, cid, r)
 
 
@@ -898,27 +906,36 @@ async def post_init(app):
 
 
 def kill_old():
-    """Eski bot process'lerini kesinlikle öldür."""
+    """Eski bot process'lerini öldür — kendini ASLA öldürmez."""
     my = os.getpid()
+    killed = []
     try:
         r = subprocess.run(["pgrep", "-f", "bot.py"], capture_output=True, text=True, timeout=5)
         for line in (r.stdout or "").strip().split("\n"):
             if not line.strip():
                 continue
-            pid = int(line.strip())
+            try:
+                pid = int(line.strip())
+            except ValueError:
+                continue
             if pid != my:
                 try:
                     os.kill(pid, signal.SIGTERM)
+                    killed.append(pid)
                 except (ProcessLookupError, PermissionError):
                     pass
     except Exception:
         pass
-    _time.sleep(2)
-    try:
-        subprocess.run(["pkill", "-9", "-f", "bot.py"], capture_output=True, timeout=5)
-    except Exception:
-        pass
-    _time.sleep(1)
+
+    if killed:
+        _time.sleep(2)
+        # SIGKILL sadece hala yaşayan eski process'lere — kendimize ASLA
+        for pid in killed:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        _time.sleep(1)
 
 
 async def clean_webhook():

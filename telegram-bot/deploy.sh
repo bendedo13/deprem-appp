@@ -62,7 +62,7 @@ Type=simple
 User=root
 WorkingDirectory=$BOT_DIR
 EnvironmentFile=$BOT_DIR/.env
-ExecStart=/usr/bin/python3 $BOT_DIR/bot.py
+ExecStart=/usr/bin/python3 -u $BOT_DIR/bot.py
 Restart=always
 RestartSec=10
 KillMode=mixed
@@ -80,9 +80,7 @@ systemctl stop "$SVC" 2>/dev/null || true
 systemctl stop telegram-bot 2>/dev/null || true
 systemctl disable telegram-bot 2>/dev/null || true
 pkill -f "ai_developer_bot.py" 2>/dev/null || true
-pkill -f "bot.py" 2>/dev/null || true
-sleep 3
-pkill -9 -f "bot.py" 2>/dev/null || true
+# Eski bot process'lerini temizle (systemd zaten durdurdu)
 sleep 2
 
 systemctl enable "$SVC"
