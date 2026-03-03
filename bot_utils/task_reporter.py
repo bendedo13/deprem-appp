@@ -1,59 +1,58 @@
 """
-Bot Görev Raporlama Sistemi
-============================
-Telegram bot'unun her görevden sonra detaylı rapor oluşturmasını sağlar.
-Proje bazlı GitHub link desteği ile.
+TaskReporter — Görev Raporlama Yardımcısı
+==========================================
+Geriye dönük uyumluluk için korunmuştur.
+Yeni kodda doğrudan scripts/ai_developer_bot.py içindeki raporlama kullanılır.
 """
 
-import subprocess
+from __future__ import annotations
+
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 
 class TaskReporter:
-    """Telegram bot'u için görev raporlama sistemi."""
+    """Görev ilerlemesini takip eder ve Telegram mesajı üretir."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.start_time = datetime.now()
         self.changes: List[Dict] = []
         self.tests: List[Dict] = []
         self.errors: List[Dict] = []
         self.metrics: Dict = {}
 
-    def log_change(self, file_path: str, description: str, lines: Optional[str] = None):
-        """Değiştirilen dosyayı kaydet."""
-        self.changes.append({
-            "file": file_path,
-            "description": description,
-            "lines": lines,
-        })
+    # ── Kayıt metotları ──────────────────────────────────────
 
-    def add_test(self, test_name: str, status: bool, output: str = ""):
-        """Test sonucunu kaydet."""
+    def log_change(self, file_path: str, description: str, lines: Optional[str] = None) -> None:
+        self.changes.append({"file": file_path, "description": description, "lines": lines})
+
+    def add_test(self, name: str, passed: bool, output: str = "") -> None:
         self.tests.append({
-            "name": test_name,
-            "status": "\u2705" if status else "\u274c",
-            "passed": status,
+            "name": name,
+            "status": "✅" if passed else "❌",
+            "passed": passed,
             "output": output,
         })
 
-    def add_error(self, error_code: str, message: str, file_info: str = "", solution: str = ""):
-        """Hata bilgisini kaydet."""
+    def add_error(self, code: str, message: str, file_info: str = "", solution: str = "") -> None:
         self.errors.append({
-            "code": error_code,
+            "code": code,
             "message": message,
             "file": file_info,
             "solution": solution,
         })
 
-    def add_metric(self, metric_name: str, value):
-        """Performance metriğini kaydet."""
-        self.metrics[metric_name] = value
+    def add_metric(self, name: str, value) -> None:
+        self.metrics[name] = value
 
-    def get_elapsed_time(self) -> tuple:
-        """Geçen zamanı hesapla."""
-        elapsed = (datetime.now() - self.start_time).total_seconds()
-        return int(elapsed // 60), int(elapsed % 60)
+    # ── Hesaplama ────────────────────────────────────────────
+
+    def elapsed(self) -> tuple:
+        """(dakika, saniye) döndürür."""
+        secs = (datetime.now() - self.start_time).total_seconds()
+        return int(secs // 60), int(secs % 60)
+
+    # ── Rapor ────────────────────────────────────────────────
 
     def generate_telegram_message(
         self,
@@ -62,66 +61,57 @@ class TaskReporter:
         task_name: str,
         github_repo: str = "bendedo13/deprem-appp",
     ) -> str:
-        """Telegram için detaylı rapor mesajı oluştur."""
-        minutes, seconds = self.get_elapsed_time()
-        passed_tests = sum(1 for t in self.tests if t["passed"])
-        total_tests = len(self.tests)
-        status = "\u2705 BA\u015eARILI" if not self.errors else "\u274c HATALAR MEVCUT"
+        minutes, seconds = self.elapsed()
+        passed = sum(1 for t in self.tests if t["passed"])
+        total = len(self.tests)
+        status = "✅ BAŞARILI" if not self.errors else "❌ HATALAR MEVCUT"
 
-        msg = f"""\U0001f916 *AI DEVELOPER BOT - DETAYLI RAPOR*
-\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+        msg = (
+            f"🤖 *AI DEVELOPER BOT*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📌 *Görev:* {task_name}\n"
+            f"⏱️ *Süre:* {minutes}dk {seconds}s\n"
+            f"🎯 *Durum:* {status}\n"
+            f"🧪 *Testler:* {passed}/{total}\n\n"
+        )
 
-\U0001f4cc *G\u00f6rev:* {task_name}
-\u23f1\ufe0f *S\u00fcre:* {minutes}dk {seconds}s
-\U0001f3af *Durum:* {status}
-\U0001f9ea *Testler:* {passed_tests}/{total_tests} ge\u00e7ti
-
-"""
-        # Değişen dosyalar
         if self.changes:
-            msg += f"\U0001f4c2 *De\u011fi\u015fen Dosyalar ({len(self.changes)}):*\n"
-            for change in self.changes:
-                msg += f"  \u270f\ufe0f `{change['file']}`\n"
-                if change["description"]:
-                    for line in change["description"].split("\n")[:3]:
-                        line = line.strip("- ").strip()
-                        if line:
-                            msg += f"     \u2022 {line}\n"
-                if change["lines"]:
-                    msg += f"     \U0001f4cd Sat\u0131r: {change['lines']}\n"
+            msg += f"📂 *Değişen Dosyalar ({len(self.changes)}):*\n"
+            for ch in self.changes:
+                msg += f"  ✏️ `{ch['file']}`\n"
+                for line in (ch["description"] or "").split("\n")[:3]:
+                    line = line.strip("- ").strip()
+                    if line:
+                        msg += f"     • {line}\n"
             msg += "\n"
 
-        # Test sonuçları
         if self.tests:
-            msg += "\U0001f9ea *Test Sonu\u00e7lar\u0131:*\n"
-            for test in self.tests:
-                output = f" - {test['output']}" if test["output"] else ""
-                msg += f"  {test['status']} {test['name']}{output}\n"
+            msg += "🧪 *Test Sonuçları:*\n"
+            for t in self.tests:
+                suffix = f" — {t['output']}" if t["output"] else ""
+                msg += f"  {t['status']} {t['name']}{suffix}\n"
             msg += "\n"
 
-        # Git bilgileri
-        commit_short = commit_hash[:8] if len(commit_hash) > 8 else commit_hash
+        cshort = commit_hash[:8] if len(commit_hash) > 8 else commit_hash
         push_ok = any(t["name"] == "Git Push" and t["passed"] for t in self.tests)
-        push_icon = "\u2705" if push_ok else "\u274c"
-        msg += f"""\U0001f4be *Git:*
-  Commit: `{commit_short}`
-  Branch: `{branch}`
-  Push: {push_icon}
-"""
+        msg += (
+            f"💾 *Git:*\n"
+            f"  Commit: `{cshort}`\n"
+            f"  Branch: `{branch}`\n"
+            f"  Push: {'✅' if push_ok else '❌'}\n"
+        )
 
-        # Hatalar
         if self.errors:
-            msg += "\n\u274c *Hatalar:*\n"
+            msg += "\n❌ *Hatalar:*\n"
             for err in self.errors:
-                msg += f"  \u2022 [{err['code']}] {err['message']}\n"
+                msg += f"  • [{err['code']}] {err['message']}\n"
                 if err.get("solution"):
-                    msg += f"    \u2713 \u00c7\u00f6z\u00fcm: {err['solution']}\n"
+                    msg += f"    ✓ Çözüm: {err['solution']}\n"
 
-        # GitHub link
         if commit_hash and len(commit_hash) > 8:
-            msg += f"\n\U0001f517 *GitHub:* https://github.com/{github_repo}/commit/{commit_hash}\n"
+            msg += f"\n🔗 https://github.com/{github_repo}/commit/{commit_hash}\n"
 
-        msg += f"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\U0001f550 {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
+        msg += f"\n━━━━━━━━━━━━━━━━━━━━━━\n🕐 {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
         return msg
 
     def __repr__(self) -> str:
