@@ -20,6 +20,7 @@ const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 const AdminEarthquakes = lazy(() => import('./pages/admin/AdminEarthquakes'));
 const AdminBroadcast = lazy(() => import('./pages/admin/AdminBroadcast'));
+const AdminSOS = lazy(() => import('./pages/admin/AdminSOS'));
 
 // Legal Pages
 const GizlilikPolitikasi = lazy(() => import('./pages/legal/GizlilikPolitikasi'));
@@ -119,6 +120,7 @@ function App() {
               <Route path="users" element={<AdminUsers />} />
               <Route path="earthquakes" element={<AdminEarthquakes />} />
               <Route path="broadcast" element={<AdminBroadcast />} />
+              <Route path="sos" element={<AdminSOS />} />
             </Route>
 
             {/* Fallback */}
