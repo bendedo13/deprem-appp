@@ -30,13 +30,27 @@ from telegram.constants import ParseMode
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-# TaskReporter import
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+# TaskReporter import — both deployment paths supported:
+# 1. /opt/deprem-appp/scripts/ai_developer_bot.py  → bot_utils is at parent.parent/bot_utils
+# 2. /opt/ai-developer-bot/bot.py                  → bot_utils is in same directory
+_bot_dir = Path(__file__).resolve().parent
+for _p in (_bot_dir, _bot_dir.parent):
+    if (_p / "bot_utils" / "task_reporter.py").exists():
+        sys.path.insert(0, str(_p))
+        break
 from bot_utils.task_reporter import TaskReporter
 
 # ── Environment ──────────────────────────────────────────
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
+# EnvironmentFile in systemd injects vars; load_dotenv is a fallback for local dev
+_env_candidates = [
+    _bot_dir / ".env",
+    _bot_dir.parent / ".env",
+    Path("/opt/deprem-appp/.env"),
+]
+for _env_path in _env_candidates:
+    if _env_path.exists():
+        load_dotenv(dotenv_path=_env_path)
+        break
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
@@ -877,7 +891,10 @@ async def handle_task_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ════════════════════════════════════════════════════════════
 
 async def post_init(application):
-    """Bot başladıktan sonra komutları kaydet."""
+    """Bot başladıktan sonra webhook temizle ve komutları kaydet."""
+    # Önce webhook'u sil ve pending güncellemeleri temizle (asyncio çakışmasını önler)
+    await application.bot.delete_webhook(drop_pending_updates=True)
+
     commands = [
         BotCommand("start", "Bot'u başlat"),
         BotCommand("help", "Yardım ve kullanım kılavuzu"),
@@ -887,7 +904,11 @@ async def post_init(application):
         BotCommand("deploy", "Manuel deploy: /deploy [proje]"),
     ]
     await application.bot.set_my_commands(commands)
+    logger.info("Webhook + offset temizlendi")
     logger.info("Bot komutları kaydedildi.")
+
+
+VPS_IP = os.getenv("VPS_IP", "localhost")
 
 
 def main():
@@ -899,11 +920,16 @@ def main():
     if not ANTHROPIC_API_KEY:
         logger.warning("ANTHROPIC_API_KEY eksik. AI özellikleri devre dışı olacak.")
 
+    # Proje komut kısaltmalarını listele
+    all_commands = sorted(set(list(PROJECT_CONFIGS.keys()) + list(PROJECT_ALIASES.keys())))
+    project_cmds = ", ".join(f"/{c}" for c in all_commands)
+
     logger.info("=" * 50)
-    logger.info("AI Developer Bot başlatılıyor...")
+    logger.info("AI Developer Bot v5 başlatılıyor...")
     logger.info(f"Projeler: {', '.join(PROJECT_CONFIGS.keys())}")
-    logger.info(f"Yetkili ID'ler: {ALLOWED_CHAT_IDS or 'Herkese açık (dev mode)'}")
+    logger.info(f"VPS: {VPS_IP}")
     logger.info("=" * 50)
+    logger.info(f"Proje komutları: {project_cmds}")
 
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
 
@@ -920,8 +946,12 @@ def main():
         MessageHandler(filters.TEXT & (~filters.COMMAND), handle_task_message)
     )
 
-    logger.info("Bot çalışıyor! Telegram'dan mesaj bekleniyor...")
-    application.run_polling(drop_pending_updates=True)
+    logger.info("Bot çalışıyor!")
+    try:
+        application.run_polling(drop_pending_updates=False)  # already cleaned in post_init
+    except Exception as e:
+        logger.critical(f"Bot polling hatası: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
