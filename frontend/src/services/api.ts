@@ -22,10 +22,17 @@ import type {
   AnalyticsResponse,
   ImSafeRequest,
   ImSafeResponse,
+  AdminStats,
+  AdminUser,
+  AdminEarthquake,
+  AdminSOSRecord,
 } from '../types'
 
 // API temel URL'i
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+
+// Token storage key (tek yerde yönet)
+const TOKEN_KEY = 'token'
 
 // Axios instance oluştur
 const apiClient: AxiosInstance = axios.create({
@@ -38,7 +45,7 @@ const apiClient: AxiosInstance = axios.create({
 
 // İstek interceptor — JWT token ekle
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
+  const token = localStorage.getItem(TOKEN_KEY)
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -50,7 +57,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('access_token')
+      localStorage.removeItem(TOKEN_KEY)
       window.location.href = '/login'
     }
     return Promise.reject(error)
@@ -70,8 +77,13 @@ export const authService = {
     return response.data
   },
 
+  async getMe(): Promise<User> {
+    const response = await apiClient.get<User>('/users/me')
+    return response.data
+  },
+
   logout(): void {
-    localStorage.removeItem('access_token')
+    localStorage.removeItem(TOKEN_KEY)
   },
 }
 
@@ -98,6 +110,35 @@ export const userService = {
   },
 
   async sendImSafe(data: ImSafeRequest): Promise<ImSafeResponse> {
+    const response = await apiClient.post<ImSafeResponse>('/users/i-am-safe', data)
+    return response.data
+  },
+
+  async getContacts(): Promise<EmergencyContact[]> {
+    const response = await apiClient.get<EmergencyContact[]>('/users/me/contacts')
+    return response.data
+  },
+
+  async addContact(data: EmergencyContactRequest): Promise<EmergencyContact> {
+    const response = await apiClient.post<EmergencyContact>('/users/me/contacts', data)
+    return response.data
+  },
+
+  async deleteContact(id: number): Promise<void> {
+    await apiClient.delete(`/users/me/contacts/${id}`)
+  },
+
+  async getPreferences(): Promise<NotificationPrefs> {
+    const response = await apiClient.get<NotificationPrefs>('/users/me/preferences')
+    return response.data
+  },
+
+  async updatePreferences(data: NotificationPrefs): Promise<NotificationPrefs> {
+    const response = await apiClient.put<NotificationPrefs>('/users/me/preferences', data)
+    return response.data
+  },
+
+  async reportSafe(data: ImSafeRequest): Promise<ImSafeResponse> {
     const response = await apiClient.post<ImSafeResponse>('/users/i-am-safe', data)
     return response.data
   },
@@ -172,6 +213,76 @@ export const analyticsService = {
     const response = await apiClient.get<AnalyticsResponse>('/analytics', {
       params: { days },
     })
+    return response.data
+  },
+}
+
+// ─── Admin Servisi ────────────────────────────────────────────────────────────
+
+export const adminService = {
+  async getStats(): Promise<AdminStats> {
+    const response = await apiClient.get<AdminStats>('/admin/stats')
+    return response.data
+  },
+
+  async getUsers(skip = 0, limit = 50, search?: string): Promise<AdminUser[]> {
+    const response = await apiClient.get<AdminUser[]>('/admin/users', {
+      params: { skip, limit, search: search || undefined },
+    })
+    return response.data
+  },
+
+  async updateUser(userId: number, data: { is_active?: boolean; is_admin?: boolean; plan?: string }): Promise<AdminUser> {
+    const response = await apiClient.patch<AdminUser>(`/admin/users/${userId}`, data)
+    return response.data
+  },
+
+  async deleteUser(userId: number): Promise<void> {
+    await apiClient.delete(`/admin/users/${userId}`)
+  },
+
+  async getEarthquakes(skip = 0, limit = 100, minMagnitude = 0): Promise<AdminEarthquake[]> {
+    const response = await apiClient.get<AdminEarthquake[]>('/admin/earthquakes', {
+      params: { skip, limit, min_magnitude: minMagnitude },
+    })
+    return response.data
+  },
+
+  async createEarthquake(data: {
+    magnitude: number
+    depth: number
+    latitude: number
+    longitude: number
+    location: string
+    occurred_at?: string
+    source?: string
+  }): Promise<AdminEarthquake> {
+    const response = await apiClient.post<AdminEarthquake>('/admin/earthquakes', data)
+    return response.data
+  },
+
+  async deleteEarthquake(quakeId: string): Promise<void> {
+    await apiClient.delete(`/admin/earthquakes/${quakeId}`)
+  },
+
+  async getSosRecords(skip = 0, limit = 50, aciliyet?: string): Promise<AdminSOSRecord[]> {
+    const response = await apiClient.get<AdminSOSRecord[]>('/admin/sos-records', {
+      params: { skip, limit, aciliyet: aciliyet || undefined },
+    })
+    return response.data
+  },
+
+  async deleteSosRecord(sosId: string): Promise<void> {
+    await apiClient.delete(`/admin/sos-records/${sosId}`)
+  },
+
+  async broadcast(data: { title: string; body: string; only_active: boolean }): Promise<{ sent: number; total_targets: number }> {
+    const response = await apiClient.post<{ sent: number; total_targets: number }>('/admin/broadcast', data)
+    return response.data
+  },
+
+  async getSystemHealth(): Promise<{ database: string; redis: string; timestamp: string }> {
+    const response = await apiClient.get('/admin/system/health')
     return response.data
   },
 }

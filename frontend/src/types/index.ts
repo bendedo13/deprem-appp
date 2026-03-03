@@ -98,6 +98,136 @@ export interface AdminStats {
   earthquakes_last_24h: number
   earthquakes_last_7d: number
   seismic_reports_total: number
+  sos_records_total: number
+  sos_records_last_24h: number
   users_with_fcm: number
   users_with_location: number
+  premium_users: number
+}
+
+export interface AdminUser {
+  id: number
+  email: string
+  is_active: boolean
+  is_admin: boolean
+  name: string | null
+  phone: string | null
+  avatar: string | null
+  plan: string
+  fcm_token: string | null
+  latitude: number | null
+  longitude: number | null
+  created_at: string
+  join_date: string | null
+}
+
+export interface AdminEarthquake {
+  id: string
+  source: string | null
+  magnitude: number
+  depth: number | null
+  latitude: number
+  longitude: number
+  location: string | null
+  occurred_at: string
+  created_at: string
+}
+
+export interface AdminSOSRecord {
+  id: string
+  user_id: number
+  durum: string
+  kisi_sayisi: number
+  aciliyet: string
+  lokasyon: string
+  orijinal_metin: string | null
+  latitude: number | null
+  longitude: number | null
+  processing_status: string | null
+  error_message: string | null
+  created_at: string | null
+}
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+}
+
+export interface ProfileUpdateRequest {
+  name?: string | null
+  phone?: string | null
+  avatar?: string | null
+  latitude?: number | null
+  longitude?: number | null
+}
+
+export interface PasswordChangeRequest {
+  current_password: string
+  new_password: string
+}
+
+export interface EarthquakeFilters {
+  min_magnitude?: number
+  max_magnitude?: number
+  hours?: number
+  source?: string
+  skip?: number
+  limit?: number
+}
+
+export interface EmergencyContactRequest {
+  name: string
+  phone: string
+  email?: string | null
+  relation: string
+  methods?: string[]
+  priority?: number
+}
+
+export interface RiskScoreRequest {
+  latitude: number
+  longitude: number
+  building_year?: number
+  floor_count?: number
+  soil_class?: string
+}
+
+export interface RiskScoreResponse {
+  score: number
+  level: string
+  nearest_fault: string
+  fault_distance_km: number
+  soil_class: string
+  building_year: number
+  factors: Record<string, number>
+  recommendations: string[]
+}
+
+export interface AnalyticsResponse {
+  period_days: number
+  total_earthquakes: number
+  avg_magnitude: number | null
+  max_magnitude: number | null
+  last_24h_count: number
+  last_24h_max_mag: number | null
+  daily_counts: { date: string; count: number }[]
+  magnitude_distribution: { range: string; count: number }[]
+  hotspots: { location: string; count: number; max_magnitude: number }[]
+}
+
+export interface ImSafeRequest {
+  message?: string
+  latitude?: number
+  longitude?: number
+}
+
+export interface ImSafeResponse {
+  ok: boolean
+  message: string
+  contacts_notified: number
 }

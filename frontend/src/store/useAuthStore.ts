@@ -1,16 +1,6 @@
 import { create } from 'zustand';
 import { authService } from '../services/api';
-
-interface User {
-    id: number;
-    email: string;
-    is_admin: boolean;
-    is_active: boolean;
-    fcm_token?: string;
-    latitude?: number;
-    longitude?: number;
-    created_at: string;
-}
+import type { User } from '../types';
 
 interface AuthState {
     user: User | null;
@@ -18,7 +8,7 @@ interface AuthState {
     loading: boolean;
     setUser: (user: User | null) => void;
     setToken: (token: string | null) => void;
-    login: (credentials: any) => Promise<void>;
+    login: (credentials: { email: string; password: string }) => Promise<void>;
     logout: () => void;
     checkAuth: () => Promise<void>;
 }
@@ -64,7 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         try {
             const user = await authService.getMe();
             set({ user, loading: false });
-        } catch (error) {
+        } catch {
             localStorage.removeItem('token');
             set({ user: null, token: null, loading: false });
         }
