@@ -120,7 +120,7 @@ PROJECTS: Dict[str, dict] = {
 }
 
 ALIASES = {
-    "deprem": "depremapp", "deprem-appp": "depremapp", "depremappp": "depremapp",
+    "deprem": "depremapp", "depremappp": "depremapp",
     "eye": "eyeoftrv2", "eyeoftr": "eyeoftrv2",
     "astro": "astroloji",
 }
@@ -976,7 +976,7 @@ def main():
                     ("chat", cmd_chat), ("yeni", cmd_yeni), ("new", cmd_yeni)]:
         app.add_handler(CommandHandler(cmd, fn))
 
-    # Proje komutları
+    # Proje komutları — Telegram sadece [a-z0-9_] kabul eder, tire/özel karakter yasak
     sys_cmds = {"start", "help", "projects", "status", "health", "deploy", "chat", "yeni", "new"}
     proj_cmds = set()
     for n, c in PROJECTS.items():
@@ -986,13 +986,19 @@ def main():
         proj_cmds.add(a)
     proj_cmds -= sys_cmds
 
-    for cmd in proj_cmds:
+    # Geçersiz komut isimlerini filtrele (tire, boşluk, özel karakter içerenler)
+    valid_cmds = {c for c in proj_cmds if re.match(r'^[a-z0-9_]+$', c)}
+    invalid = proj_cmds - valid_cmds
+    if invalid:
+        log.warning(f"Geçersiz komut isimleri atlandı: {invalid}")
+
+    for cmd in valid_cmds:
         app.add_handler(CommandHandler(cmd, cmd_project))
 
     # Serbest metin
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    log.info(f"Proje komutları: /{', /'.join(sorted(proj_cmds))}")
+    log.info(f"Proje komutları: /{', /'.join(sorted(valid_cmds))}")
     log.info("Bot çalışıyor!")
     app.run_polling(drop_pending_updates=True)
 
