@@ -1,6 +1,6 @@
 #!/bin/bash
 # ════════════════════════════════════════════════════════
-# Telegram Bot Deploy Script
+# AI Developer Telegram Bot — Deploy Script v3
 # Bot'u VPS'e deploy eder ve systemd service olarak çalıştırır
 # ════════════════════════════════════════════════════════
 
@@ -18,34 +18,33 @@ SERVICE_NAME="telegram-bot"
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
 echo -e "${GREEN}════════════════════════════════════════${NC}"
-echo -e "${GREEN}🤖 AI Developer Telegram Bot Deploy${NC}"
+echo -e "${GREEN}🤖 AI Developer Bot v3 — Deploy${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
 
 # 1. Python3 kontrolü
-echo -e "${YELLOW}1️⃣ Python3 kontrol ediliyor...${NC}"
+echo -e "${YELLOW}1/8 Python3 kontrol ediliyor...${NC}"
 if ! command -v python3 &> /dev/null; then
     echo -e "${RED}❌ Python3 bulunamadı! Kuruluyor...${NC}"
     apt-get update && apt-get install -y python3 python3-pip
 fi
 echo -e "${GREEN}✅ Python3: $(python3 --version)${NC}"
 
-# 2. Proje dizinine git
+# 2. Proje dizini kontrol
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo -e "${RED}❌ Proje dizini bulunamadı: $PROJECT_DIR${NC}"
-    echo "Önce projeyi clone edin:"
-    echo "  git clone https://github.com/bendedo13/deprem-appp.git $PROJECT_DIR"
+    echo -e "${RED}❌ Proje dizini yok: $PROJECT_DIR${NC}"
+    echo "Clone edin: git clone https://github.com/bendedo13/deprem-appp.git $PROJECT_DIR"
     exit 1
 fi
 cd "$PROJECT_DIR"
 
-# 3. Git pull (hata olursa devam et)
-echo -e "${YELLOW}2️⃣ Son değişiklikler çekiliyor...${NC}"
+# 3. Git pull
+echo -e "${YELLOW}2/8 Son değişiklikler çekiliyor...${NC}"
 CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
 git pull origin "$CURRENT_BRANCH" 2>/dev/null || echo -e "${YELLOW}⚠️ Git pull atlandı${NC}"
 
 # 4. Python bağımlılıkları
-echo -e "${YELLOW}3️⃣ Python bağımlılıkları yükleniyor...${NC}"
+echo -e "${YELLOW}3/8 Python bağımlılıkları yükleniyor...${NC}"
 if [ -f "$SCRIPTS_DIR/requirements_bot.txt" ]; then
     pip3 install -r "$SCRIPTS_DIR/requirements_bot.txt" --quiet --break-system-packages 2>/dev/null || \
     pip3 install -r "$SCRIPTS_DIR/requirements_bot.txt" --quiet
@@ -56,12 +55,11 @@ else
 fi
 
 # 5. .env kontrolü
-echo -e "${YELLOW}4️⃣ Environment variables kontrol ediliyor...${NC}"
+echo -e "${YELLOW}4/8 Environment variables kontrol ediliyor...${NC}"
 if [ ! -f "$PROJECT_DIR/.env" ]; then
     if [ -f "$PROJECT_DIR/.env.example" ]; then
         cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
-        echo -e "${YELLOW}⚠️ .env dosyası .env.example'dan oluşturuldu${NC}"
-        echo -e "${YELLOW}   Lütfen .env dosyasını düzenleyin:${NC}"
+        echo -e "${YELLOW}⚠️ .env dosyası oluşturuldu — düzenlemeyi unutma:${NC}"
         echo -e "${YELLOW}   nano $PROJECT_DIR/.env${NC}"
     else
         echo -e "${RED}❌ .env dosyası bulunamadı!${NC}"
@@ -69,29 +67,21 @@ if [ ! -f "$PROJECT_DIR/.env" ]; then
     fi
 fi
 
-# .env dosyasını yükle ve kontrol et
 set -a
 source "$PROJECT_DIR/.env"
 set +a
 
-MISSING_VARS=0
-if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
-    echo -e "${RED}❌ TELEGRAM_BOT_TOKEN eksik!${NC}"
-    MISSING_VARS=1
-fi
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-    echo -e "${RED}❌ ANTHROPIC_API_KEY eksik!${NC}"
-    MISSING_VARS=1
-fi
-
-if [ "$MISSING_VARS" -eq 1 ]; then
-    echo -e "${YELLOW}Düzenlemek için: nano $PROJECT_DIR/.env${NC}"
+MISSING=0
+[ -z "$TELEGRAM_BOT_TOKEN" ] && echo -e "${RED}❌ TELEGRAM_BOT_TOKEN eksik!${NC}" && MISSING=1
+[ -z "$ANTHROPIC_API_KEY" ] && echo -e "${RED}❌ ANTHROPIC_API_KEY eksik!${NC}" && MISSING=1
+if [ "$MISSING" -eq 1 ]; then
+    echo -e "${YELLOW}Düzenle: nano $PROJECT_DIR/.env${NC}"
     exit 1
 fi
 echo -e "${GREEN}✅ Environment variables OK${NC}"
 
-# 6. Bot dosyalarını kontrol et
-echo -e "${YELLOW}5️⃣ Bot dosyaları kontrol ediliyor...${NC}"
+# 6. Bot dosyaları kontrol
+echo -e "${YELLOW}5/8 Bot dosyaları kontrol ediliyor...${NC}"
 for FILE in "$SCRIPTS_DIR/ai_developer_bot.py" "$BOT_UTILS_DIR/task_reporter.py" "$BOT_UTILS_DIR/__init__.py"; do
     if [ -f "$FILE" ]; then
         echo -e "${GREEN}  ✅ $(basename $FILE)${NC}"
@@ -102,7 +92,7 @@ for FILE in "$SCRIPTS_DIR/ai_developer_bot.py" "$BOT_UTILS_DIR/task_reporter.py"
 done
 
 # 7. Python syntax kontrolü
-echo -e "${YELLOW}6️⃣ Python syntax kontrolü...${NC}"
+echo -e "${YELLOW}6/8 Python syntax kontrolü...${NC}"
 if python3 -c "import py_compile; py_compile.compile('$SCRIPTS_DIR/ai_developer_bot.py', doraise=True)" 2>/dev/null; then
     echo -e "${GREEN}✅ Syntax OK${NC}"
 else
@@ -112,10 +102,10 @@ else
 fi
 
 # 8. Systemd service oluştur
-echo -e "${YELLOW}7️⃣ Systemd service oluşturuluyor...${NC}"
+echo -e "${YELLOW}7/8 Systemd service oluşturuluyor...${NC}"
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=AI Developer Telegram Bot
+Description=AI Developer Telegram Bot v3
 After=network.target
 Wants=network-online.target
 
@@ -137,33 +127,25 @@ WantedBy=multi-user.target
 EOF
 echo -e "${GREEN}✅ Service dosyası oluşturuldu${NC}"
 
-# 9. Service yeniden yükle
-echo -e "${YELLOW}8️⃣ Systemd daemon yeniden yükleniyor...${NC}"
+# 9. Service yeniden başlat
+echo -e "${YELLOW}8/8 Service başlatılıyor...${NC}"
 systemctl daemon-reload
 
-# 10. Eski service ve orphan process'leri durdur
-if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-    echo -e "${YELLOW}⏸️ Mevcut service durduruluyor...${NC}"
-    systemctl stop "$SERVICE_NAME"
-fi
-
-# Orphan bot process'lerini temizle (Conflict hatası önleme)
-echo -e "${YELLOW}🧹 Orphan bot process'leri temizleniyor...${NC}"
+# Mevcut service ve orphan process'leri durdur
+systemctl stop "$SERVICE_NAME" 2>/dev/null || true
 pkill -f "ai_developer_bot.py" 2>/dev/null || true
 sleep 2
 
-# 11. Service enable + başlat
-echo -e "${YELLOW}9️⃣ Service başlatılıyor...${NC}"
 systemctl enable "$SERVICE_NAME" 2>/dev/null
 systemctl start "$SERVICE_NAME"
 
-# 12. Durum kontrolü
+# Durum kontrolü
 sleep 3
 
 if systemctl is-active --quiet "$SERVICE_NAME"; then
     echo ""
     echo -e "${GREEN}════════════════════════════════════════${NC}"
-    echo -e "${GREEN}✅ Bot başarıyla deploy edildi!${NC}"
+    echo -e "${GREEN}✅ Bot v3 başarıyla deploy edildi!${NC}"
     echo -e "${GREEN}════════════════════════════════════════${NC}"
     echo ""
     systemctl status "$SERVICE_NAME" --no-pager -l 2>/dev/null | head -15
@@ -175,7 +157,7 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
     echo "  Durum:          systemctl status $SERVICE_NAME"
     echo ""
     echo -e "${GREEN}🧪 Test:${NC}"
-    echo "  Telegram'dan: Görev: depremapp - Test mesajı"
+    echo "  Telegram'dan: /deprem test mesajı gönder"
     echo ""
 else
     echo -e "${RED}════════════════════════════════════════${NC}"

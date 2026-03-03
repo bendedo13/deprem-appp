@@ -1,14 +1,8 @@
 """
-Bot Utilities - Telegram Bot Yardımcı Modülleri
-===============================================
-
-Bu paket Telegram bot'u için gerekli yardımcı fonksiyonları içerir.
-
-Modules:
-    task_reporter: Görev raporlama sistemi
+Bot Utilities — Telegram Bot yardımcı modülleri.
 """
 
 from .task_reporter import TaskReporter
 
 __all__ = ["TaskReporter"]
-__version__ = "1.0.0"
+__version__ = "3.0.0"
