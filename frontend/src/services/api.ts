@@ -22,6 +22,7 @@ import type {
   AnalyticsResponse,
   ImSafeRequest,
   ImSafeResponse,
+  AdminStats,
 } from '../types'
 
 // API temel URL'i
@@ -70,6 +71,11 @@ export const authService = {
     return response.data
   },
 
+  async getMe(): Promise<User> {
+    const response = await apiClient.get<User>('/users/me')
+    return response.data
+  },
+
   logout(): void {
     localStorage.removeItem('access_token')
   },
@@ -101,6 +107,35 @@ export const userService = {
     const response = await apiClient.post<ImSafeResponse>('/users/i-am-safe', data)
     return response.data
   },
+
+  // Proxy methods — components call these on userService
+  async reportSafe(data: ImSafeRequest): Promise<ImSafeResponse> {
+    return this.sendImSafe(data)
+  },
+
+  async getContacts(): Promise<EmergencyContact[]> {
+    const response = await apiClient.get<EmergencyContact[]>('/users/me/contacts')
+    return response.data
+  },
+
+  async addContact(data: EmergencyContactRequest): Promise<EmergencyContact> {
+    const response = await apiClient.post<EmergencyContact>('/users/me/contacts', data)
+    return response.data
+  },
+
+  async deleteContact(id: number): Promise<void> {
+    await apiClient.delete(`/users/me/contacts/${id}`)
+  },
+
+  async getPreferences(): Promise<NotificationPrefs> {
+    const response = await apiClient.get<NotificationPrefs>('/users/me/preferences')
+    return response.data
+  },
+
+  async updatePreferences(data: Partial<NotificationPrefs>): Promise<NotificationPrefs> {
+    const response = await apiClient.put<NotificationPrefs>('/users/me/preferences', data)
+    return response.data
+  },
 }
 
 // ─── Deprem Servisi ───────────────────────────────────────────────────────────
@@ -113,8 +148,30 @@ export const earthquakeService = {
     return response.data
   },
 
+  async getEarthquakes(limit?: number): Promise<Earthquake[]> {
+    const response = await apiClient.get<EarthquakeListResponse>('/earthquakes', {
+      params: { page_size: limit || 50 },
+    })
+    return response.data.items || []
+  },
+
+  async getStats(days?: number): Promise<any> {
+    const response = await apiClient.get('/analytics', { params: { days } })
+    return response.data
+  },
+
   async getById(id: string): Promise<Earthquake> {
     const response = await apiClient.get<Earthquake>(`/earthquakes/${id}`)
+    return response.data
+  },
+
+  async calculateRisk(data: RiskScoreRequest): Promise<RiskScoreResponse> {
+    const response = await apiClient.post<RiskScoreResponse>('/risk/score', data)
+    return response.data
+  },
+
+  async downloadRiskReport(data: RiskScoreRequest): Promise<Blob> {
+    const response = await apiClient.post('/risk/report', data, { responseType: 'blob' })
     return response.data
   },
 }
@@ -172,6 +229,47 @@ export const analyticsService = {
     const response = await apiClient.get<AnalyticsResponse>('/analytics', {
       params: { days },
     })
+    return response.data
+  },
+}
+
+// ─── Admin Servisi ────────────────────────────────────────────────────────────
+
+export const adminService = {
+  async getStats(): Promise<AdminStats> {
+    const response = await apiClient.get<AdminStats>('/admin/stats')
+    return response.data
+  },
+
+  async getUsers(offset?: number, limit?: number, search?: string): Promise<User[]> {
+    const response = await apiClient.get<User[]>('/admin/users', {
+      params: { offset, limit, search },
+    })
+    return response.data
+  },
+
+  async updateUser(id: number, data: Partial<User>): Promise<User> {
+    const response = await apiClient.patch<User>(`/admin/users/${id}`, data)
+    return response.data
+  },
+
+  async deleteUser(id: number): Promise<void> {
+    await apiClient.delete(`/admin/users/${id}`)
+  },
+
+  async getEarthquakes(offset?: number, limit?: number, minMag?: number): Promise<Earthquake[]> {
+    const response = await apiClient.get<Earthquake[]>('/admin/earthquakes', {
+      params: { offset, limit, min_magnitude: minMag },
+    })
+    return response.data
+  },
+
+  async deleteEarthquake(id: number): Promise<void> {
+    await apiClient.delete(`/admin/earthquakes/${id}`)
+  },
+
+  async broadcast(data: { title: string; body: string; min_magnitude?: number }): Promise<any> {
+    const response = await apiClient.post('/admin/broadcast', data)
     return response.data
   },
 }
