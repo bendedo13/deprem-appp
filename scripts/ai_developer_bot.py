@@ -13,12 +13,14 @@ import os
 import re
 import logging
 import asyncio
+import fcntl
 from typing import List, Optional, Dict
 from pathlib import Path
 from datetime import datetime
 import sys
 
 from telegram import Update, BotCommand
+from telegram.error import Conflict as TelegramConflict
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
@@ -910,6 +912,48 @@ async def post_init(application):
 
 VPS_IP = os.getenv("VPS_IP", "localhost")
 
+_PID_FILE = "/tmp/ai-developer-bot.pid"
+_pid_lock_fh = None  # keep file handle open to hold the lock
+
+
+def _acquire_pid_lock() -> bool:
+    """Tek instance garantisi: flock ile PID dosyasını kilitle.
+
+    Returns False if another instance is already running.
+    """
+    global _pid_lock_fh
+    try:
+        _pid_lock_fh = open(_PID_FILE, "w")
+        fcntl.flock(_pid_lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _pid_lock_fh.write(str(os.getpid()))
+        _pid_lock_fh.flush()
+        return True
+    except BlockingIOError:
+        try:
+            with open(_PID_FILE) as _f:
+                existing = _f.read().strip()
+        except OSError:
+            existing = "?"
+        logger.critical(
+            "Başka bir bot örneği zaten çalışıyor (PID: %s). "
+            "Önce 'systemctl stop ai-developer-bot' çalıştırın.",
+            existing,
+        )
+        return False
+
+
+async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tüm handler hatalarını yakala; Conflict durumunda temiz çıkış yap."""
+    err = context.error
+    if isinstance(err, TelegramConflict):
+        logger.critical(
+            "Telegram 409 Conflict: Aynı token ile başka bir bot örneği çalışıyor! "
+            "Servis kapatılıyor — systemd yeniden başlatacak."
+        )
+        # Exit with code 1 so systemd/RestartSec kicks in after the other instance stops.
+        os._exit(1)  # os._exit is intentional: sys.exit() raises SystemExit which PTB may swallow
+    logger.error("Handler istisnası:", exc_info=err)
+
 
 def main():
     """Bot'u başlat."""
@@ -919,6 +963,10 @@ def main():
 
     if not ANTHROPIC_API_KEY:
         logger.warning("ANTHROPIC_API_KEY eksik. AI özellikleri devre dışı olacak.")
+
+    # Tek instance kontrolü
+    if not _acquire_pid_lock():
+        sys.exit(1)
 
     # Proje komut kısaltmalarını listele
     all_commands = sorted(set(list(PROJECT_CONFIGS.keys()) + list(PROJECT_ALIASES.keys())))
@@ -945,6 +993,9 @@ def main():
     application.add_handler(
         MessageHandler(filters.TEXT & (~filters.COMMAND), handle_task_message)
     )
+
+    # Hata handler'ı — Conflict hatalarında temiz çıkış sağlar
+    application.add_error_handler(_error_handler)
 
     logger.info("Bot çalışıyor!")
     try:

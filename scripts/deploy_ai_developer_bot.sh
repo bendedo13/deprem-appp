@@ -118,8 +118,19 @@ echo -e "${GREEN}✅ Syntax OK${NC}"
 # 9. Systemd service oluştur
 echo -e "${YELLOW}[8/8] Systemd service güncelleniyor...${NC}"
 
-# Eski service durdur
+# Eski service durdur ve kalan process'leri temizle
 systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+sleep 3
+# Stale python3 bot process'leri zorla kapat (sadece /opt/ai-developer-bot/bot.py)
+_STALE=$(ps aux 2>/dev/null | grep "[p]ython3.*$BOT_FILE" | awk '{print $2}' || true)
+for _PID in $_STALE; do
+    if [ "$_PID" -gt 0 ] 2>/dev/null; then
+        echo -e "${YELLOW}⚠️ Eski bot process kapatılıyor: PID $_PID${NC}"
+        kill "$_PID" 2>/dev/null || true
+    fi
+done
+# PID kilit dosyasını sil
+rm -f /tmp/ai-developer-bot.pid
 
 # VPS IP'yi .env'den al (yoksa detect et)
 VPS_IP=$(grep "^VPS_IP=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'")
@@ -146,7 +157,7 @@ EnvironmentFile=$ENV_FILE
 Environment="PYTHONPATH=$BOT_DIR"
 ExecStart=/usr/bin/python3 $BOT_FILE
 Restart=always
-RestartSec=10
+RestartSec=15
 StandardOutput=journal
 StandardError=journal
 KillMode=mixed
