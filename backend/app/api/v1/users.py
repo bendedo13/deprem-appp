@@ -12,16 +12,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.core.redis import get_redis
 from app.models.user import User
 from app.models.emergency_contact import EmergencyContact
 from app.models.notification_pref import NotificationPref
 from app.schemas.user import (
-    UserRegisterIn, UserLoginIn, UserUpdateIn, UserOut, TokenOut,
+    UserRegisterIn, UserLoginIn, GoogleOAuthIn, UserUpdateIn, UserOut, TokenOut,
     ProfileUpdate, PasswordChange, ImSafeRequest
 )
 from app.schemas.emergency_contact import EmergencyContactIn, EmergencyContactOut
 from app.schemas.notification_pref import NotificationPrefIn, NotificationPrefOut
 from app.services.auth import hash_password, verify_password, create_access_token, decode_token
+from app.services.google_auth import verify_google_token, get_or_create_user_from_google
+from app.services.rate_limiter import check_rate_limit, increment_failed_attempt, clear_failed_attempts
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -62,36 +65,147 @@ async def get_current_user(
     status_code=status.HTTP_201_CREATED,
     summary="Yeni kullanıcı kaydı",
 )
-async def register(body: UserRegisterIn, db: AsyncSession = Depends(get_db)) -> TokenOut:
-    """E-posta ve şifre ile kullanıcı oluşturur. Aynı e-posta varsa 409 döner."""
+async def register(
+    body: UserRegisterIn,
+    db: AsyncSession = Depends(get_db),
+    redis = Depends(get_redis)
+) -> TokenOut:
+    """E-posta ve şifre ile kullanıcı oluşturur. Rate limit: 5 deneme/15 dakika."""
+    # Rate limit kontrolü
+    rate_key = f"auth_failed:{body.email}"
+    allowed, _ = await check_rate_limit(redis, rate_key)
+    if not allowed:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Çok fazla deneme. 15 dakika sonra tekrar deneyin.")
+
+    # E-posta zaten kayıtlı mı?
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none():
+        await increment_failed_attempt(redis, rate_key)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bu e-posta adresi zaten kayıtlı.")
 
+    # Kullanıcı oluştur
     user = User(email=body.email, password_hash=hash_password(body.password))
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
+    # Başarılı - sayacı temizle
+    await clear_failed_attempts(redis, rate_key)
     token = create_access_token(user.id, user.email)
     logger.info("Yeni kullanıcı kaydedildi: id=%d email=%s", user.id, user.email)
     return TokenOut(access_token=token, user=UserOut.model_validate(user))
 
 
 @router.post("/login", response_model=TokenOut, summary="Kullanıcı girişi")
-async def login(body: UserLoginIn, db: AsyncSession = Depends(get_db)) -> TokenOut:
-    """E-posta/şifre doğrular, JWT döner. Hatalı bilgide 401 (güvenlik: hangi alan hatalı belli olmaz)."""
+async def login(
+    body: UserLoginIn,
+    db: AsyncSession = Depends(get_db),
+    redis = Depends(get_redis)
+) -> TokenOut:
+    """E-posta/şifre doğrular, JWT döner. Rate limit: 5 deneme/15 dakika."""
+    # Rate limit kontrolü
+    rate_key = f"auth_failed:{body.email}"
+    allowed, _ = await check_rate_limit(redis, rate_key)
+    if not allowed:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Çok fazla deneme. 15 dakika sonra tekrar deneyin.")
+
+    # E-posta ve şifre doğrula
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(body.password, user.password_hash):
+        await increment_failed_attempt(redis, rate_key)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-posta veya şifre hatalı.")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hesap devre dışı.")
 
+    # Başarılı - sayacı temizle
+    await clear_failed_attempts(redis, rate_key)
     token = create_access_token(user.id, user.email)
     logger.info("Kullanıcı girişi: id=%d", user.id)
     return TokenOut(access_token=token, user=UserOut.model_validate(user))
+
+
+# ─── Google OAuth Endpoint'leri ──────────────────────────────────────────────
+
+@router.post(
+    "/oauth/google",
+    response_model=TokenOut,
+    status_code=status.HTTP_200_OK,
+    summary="Google OAuth ile giriş/kayıt"
+)
+async def google_oauth(
+    body: GoogleOAuthIn,
+    db: AsyncSession = Depends(get_db),
+    redis = Depends(get_redis)
+) -> TokenOut:
+    """
+    Google ID token doğrular, kullanıcıyı oluşturur veya getirir, JWT döner.
+    Rate limit: 5 deneme/15 dakika. Invalid token/hatalı email'de increment.
+    """
+    # Token doğrula
+    token_data = await verify_google_token(body.token)
+    if not token_data:
+        logger.warning("Google OAuth: Token doğrulama başarısız")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google token doğrulaması başarısız."
+        )
+
+    email = token_data.get("email")
+    rate_key = f"auth_failed:{email}"
+
+    # Rate limit kontrolü (var olan ya da yeni kullanıcı için)
+    allowed, _ = await check_rate_limit(redis, rate_key)
+    if not allowed:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Çok fazla deneme. 15 dakika sonra tekrar deneyin.")
+
+    # Kullanıcıyı al veya oluştur
+    name = token_data.get("name")
+    picture = token_data.get("picture")
+
+    user, is_new = await get_or_create_user_from_google(
+        email=email,
+        name=name,
+        picture_url=picture,
+        db_session=db
+    )
+
+    if not user:
+        await increment_failed_attempt(redis, rate_key)
+        logger.error("Google OAuth: Kullanıcı oluşturulamadı: %s", email)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Kullanıcı oluşturma başarısız.")
+
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hesap devre dışı.")
+
+    # Başarılı - sayacı temizle
+    await clear_failed_attempts(redis, rate_key)
+    token = create_access_token(user.id, user.email)
+    action = "Yeni kullanıcı" if is_new else "Mevcut kullanıcı"
+    logger.info("Google OAuth %s: id=%d email=%s", action, user.id, email)
+
+    return TokenOut(access_token=token, user=UserOut.model_validate(user))
+
+
+@router.post(
+    "/oauth/apple",
+    response_model=TokenOut,
+    status_code=status.HTTP_200_OK,
+    summary="Apple OAuth ile giriş/kayıt"
+)
+async def apple_oauth(
+    body: GoogleOAuthIn,  # Aynı schema (token gerekli)
+    db: AsyncSession = Depends(get_db)
+) -> TokenOut:
+    """
+    Apple ID token doğrular, kullanıcıyı oluşturur veya getirir, JWT döner.
+    Not: Apple token doğrulaması Google'dan daha kompleks (JWK key rotation gerektirir).
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Apple OAuth şu anda geliştirme aşamasında. Lütfen Google OAuth kullanın."
+    )
 
 
 # ─── Profil Endpoint'leri ─────────────────────────────────────────────────────

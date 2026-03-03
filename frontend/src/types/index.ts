@@ -101,3 +101,68 @@ export interface AdminStats {
   users_with_fcm: number
   users_with_location: number
 }
+
+// ─── Request/Response Types ─────────────────────────────────────
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+  full_name?: string
+}
+
+export interface ProfileUpdateRequest {
+  name?: string
+  phone?: string
+  avatar?: string
+}
+
+export interface PasswordChangeRequest {
+  current_password: string
+  new_password: string
+}
+
+export interface EarthquakeFilters {
+  page?: number
+  page_size?: number
+  min_magnitude?: number
+  max_magnitude?: number
+  source?: string
+  days?: number
+}
+
+export interface EmergencyContactRequest {
+  name: string
+  phone: string
+  email?: string
+  relation?: string
+  methods?: string[]
+}
+
+export interface RiskScoreRequest {
+  latitude: number
+  longitude: number
+  building_year?: number
+  floor_count?: number
+  soil_class?: string
+}
+
+export interface RiskScoreResponse extends RiskScore {}
+
+export interface AnalyticsResponse extends Analytics {}
+
+export interface ImSafeRequest {
+  custom_message?: string
+  include_location?: boolean
+  latitude?: number
+  longitude?: number
+}
+
+export interface ImSafeResponse {
+  message: string
+  notified_contacts: number
+}

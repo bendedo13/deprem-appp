@@ -22,8 +22,13 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     APP_NAME: str = "QuakeSense"
     APP_VERSION: str = "1.0.0"
-    SECRET_KEY: str = "your-super-secret-key-min-32-chars-change-this-in-production-deprem-2024"
+    SECRET_KEY: str = "Benalan.1"  # rules.md: Kullanıcı tarafından belirlendi
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 gün
+
+    # Google OAuth (Firebase ayarlandı)
+    GOOGLE_CLIENT_ID: str = "775124568904-flr9bo452no12v9giofdlb743m8gvqk4.apps.googleusercontent.com"
+    GOOGLE_API_KEY: str = "AIzaSyCDqiBMaJd5g4FjAxWTpmJQe2tQX66dBoY"
+    FIREBASE_PROJECT_ID: str = "depremapp-29518"
 
     # Veritabanı
     DATABASE_URL: str = "postgresql+asyncpg://deprem_user:deprem_pass@localhost:5432/deprem_db"

@@ -21,6 +21,12 @@ class UserLoginIn(BaseModel):
     password: str
 
 
+class GoogleOAuthIn(BaseModel):
+    """Google OAuth token isteği."""
+    token: str = Field(min_length=20, description="Google ID token")
+    device_type: Optional[str] = Field(None, pattern="^(ios|android|web)$")
+
+
 class UserUpdateIn(BaseModel):
     """Teknik güncelleme (FCM token, konum)."""
     fcm_token: Optional[str] = Field(None, max_length=512)

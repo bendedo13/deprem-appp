@@ -9,73 +9,73 @@ Create Date: 2026-01-01
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.sql import table, column
-from passlib.context import CryptContext
+import bcrypt
 
 revision = "008"
 down_revision = "007"
 branch_labels = None
 depends_on = None
 
-# Şifre hash'leme için bcrypt context
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # Admin bilgileri
 ADMIN_EMAIL = "bendedo13@gmail.com"
 ADMIN_PASSWORD = "Benalan.1"
 
 
+def _hash_password(password: str) -> str:
+    """Bcrypt ile şifre hash'le (passlib kullanmadan)."""
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+
 def upgrade() -> None:
     """Admin kullanıcısını oluştur veya güncelle."""
-    # Tablo referansı (ORM olmadan direkt SQL)
-    users_table = table(
-        "users",
-        column("email", sa.String),
-        column("password_hash", sa.String),
-        column("is_active", sa.Boolean),
-        column("is_admin", sa.Boolean),
+    conn = op.get_bind()
+
+    # Users tablosu var mı kontrol et
+    result = conn.execute(
+        sa.text(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
+        )
     )
+    table_exists = result.scalar()
+    if not table_exists:
+        print("[008] Users tablosu henüz yok, skip.")
+        return
 
     # Şifreyi hash'le
-    password_hash = _pwd_context.hash(ADMIN_PASSWORD)
-
-    # Bağlantıyı al
-    conn = op.get_bind()
+    password_hash = _hash_password(ADMIN_PASSWORD)
 
     # Admin kullanıcısı var mı kontrol et
     result = conn.execute(
         sa.text("SELECT id FROM users WHERE email = :email"),
-        {"email": ADMIN_EMAIL}
+        {"email": ADMIN_EMAIL},
     )
     existing = result.fetchone()
 
     if existing:
-        # Varsa şifreyi ve admin yetkisini güncelle
         conn.execute(
             sa.text(
                 "UPDATE users SET password_hash = :ph, is_admin = true, is_active = true "
                 "WHERE email = :email"
             ),
-            {"ph": password_hash, "email": ADMIN_EMAIL}
+            {"ph": password_hash, "email": ADMIN_EMAIL},
         )
-        print(f"[008] Admin kullanıcısı güncellendi: {ADMIN_EMAIL}")
+        print(f"[008] Admin güncellendi: {ADMIN_EMAIL}")
     else:
-        # Yoksa oluştur
         conn.execute(
             sa.text(
                 "INSERT INTO users (email, password_hash, is_active, is_admin) "
                 "VALUES (:email, :ph, true, true)"
             ),
-            {"email": ADMIN_EMAIL, "ph": password_hash}
+            {"email": ADMIN_EMAIL, "ph": password_hash},
         )
-        print(f"[008] Admin kullanıcısı oluşturuldu: {ADMIN_EMAIL}")
+        print(f"[008] Admin oluşturuldu: {ADMIN_EMAIL}")
 
 
 def downgrade() -> None:
-    """Admin kullanıcısını sil (dikkatli kullan!)."""
+    """Admin kullanıcısını sil."""
     conn = op.get_bind()
     conn.execute(
         sa.text("DELETE FROM users WHERE email = :email AND is_admin = true"),
-        {"email": ADMIN_EMAIL}
+        {"email": ADMIN_EMAIL},
     )
-    print(f"[008] Admin kullanıcısı silindi: {ADMIN_EMAIL}")
