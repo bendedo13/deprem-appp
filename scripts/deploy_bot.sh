@@ -1,6 +1,6 @@
 #!/bin/bash
 # ════════════════════════════════════════════════════════
-# AI Developer Telegram Bot — Deploy Script v3
+# AI Developer Telegram Bot — Deploy Script v4
 # Bot'u VPS'e deploy eder ve systemd service olarak çalıştırır
 # ════════════════════════════════════════════════════════
 
@@ -18,7 +18,7 @@ SERVICE_NAME="telegram-bot"
 SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
 echo -e "${GREEN}════════════════════════════════════════${NC}"
-echo -e "${GREEN}🤖 AI Developer Bot v3 — Deploy${NC}"
+echo -e "${GREEN}🤖 AI Developer Bot v4 — Deploy${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
 
@@ -105,7 +105,7 @@ fi
 echo -e "${YELLOW}7/8 Systemd service oluşturuluyor...${NC}"
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=AI Developer Telegram Bot v3
+Description=AI Developer Telegram Bot v4
 After=network.target
 Wants=network-online.target
 
@@ -131,9 +131,12 @@ echo -e "${GREEN}✅ Service dosyası oluşturuldu${NC}"
 echo -e "${YELLOW}8/8 Service başlatılıyor...${NC}"
 systemctl daemon-reload
 
-# Mevcut service ve orphan process'leri durdur
+# Mevcut service ve orphan process'leri TAMAMEN durdur (409 Conflict fix)
 systemctl stop "$SERVICE_NAME" 2>/dev/null || true
 pkill -f "ai_developer_bot.py" 2>/dev/null || true
+sleep 3
+# Hala yaşıyorsa SIGKILL
+pkill -9 -f "ai_developer_bot.py" 2>/dev/null || true
 sleep 2
 
 systemctl enable "$SERVICE_NAME" 2>/dev/null
@@ -145,7 +148,7 @@ sleep 3
 if systemctl is-active --quiet "$SERVICE_NAME"; then
     echo ""
     echo -e "${GREEN}════════════════════════════════════════${NC}"
-    echo -e "${GREEN}✅ Bot v3 başarıyla deploy edildi!${NC}"
+    echo -e "${GREEN}✅ Bot v4 başarıyla deploy edildi!${NC}"
     echo -e "${GREEN}════════════════════════════════════════${NC}"
     echo ""
     systemctl status "$SERVICE_NAME" --no-pager -l 2>/dev/null | head -15
