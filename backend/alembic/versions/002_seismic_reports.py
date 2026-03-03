@@ -5,6 +5,7 @@ rules.md: her yeni model için migration yaz.
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 revision = "002"
@@ -13,8 +14,16 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(name: str) -> bool:
+    conn = op.get_bind()
+    insp = inspect(conn)
+    return name in insp.get_table_names()
+
+
 def upgrade() -> None:
     """seismic_reports tablosunu oluştur."""
+    if _table_exists("seismic_reports"):
+        return
     op.create_table(
         "seismic_reports",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),

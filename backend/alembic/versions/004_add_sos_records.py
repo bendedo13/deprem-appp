@@ -7,6 +7,7 @@ Create Date: 2024-02-23
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -16,7 +17,15 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(name: str) -> bool:
+    conn = op.get_bind()
+    insp = inspect(conn)
+    return name in insp.get_table_names()
+
+
 def upgrade() -> None:
+    if _table_exists('sos_records'):
+        return
     # Create sos_records table
     op.create_table(
         'sos_records',
@@ -38,7 +47,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    
+
     # Create indexes
     op.create_index('idx_sos_user_created', 'sos_records', ['user_id', 'created_at'], unique=False)
     op.create_index('idx_sos_aciliyet', 'sos_records', ['aciliyet'], unique=False)
