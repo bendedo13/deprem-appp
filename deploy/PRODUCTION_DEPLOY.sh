@@ -88,7 +88,7 @@ echo ""
 # STEP 4: DOCKER BUILD (NO CACHE)
 # ═══════════════════════════════════════════════════════════════
 echo -e "${YELLOW}[4/8] Docker image build ediliyor (--no-cache)...${NC}"
-docker compose -f docker-compose.prod.yml build --no-cache deprem_backend deprem_celery
+docker compose -f docker-compose.prod.yml build --no-cache backend celery
 echo -e "${GREEN}✓ Build tamamlandı${NC}"
 echo ""
 
