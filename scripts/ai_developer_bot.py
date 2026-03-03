@@ -11,9 +11,11 @@ Görev formatı: Görev: [proje] - [açıklama]
 
 import os
 import re
+import signal
 import logging
 import asyncio
 import fcntl
+import subprocess
 from typing import List, Optional, Dict
 from pathlib import Path
 from datetime import datetime
@@ -915,6 +917,38 @@ VPS_IP = os.getenv("VPS_IP", "localhost")
 _PID_FILE = "/tmp/ai-developer-bot.pid"
 _pid_lock_fh = None  # keep file handle open to hold the lock
 
+_BOT_FILE = str(Path(__file__).resolve())
+
+
+def _kill_stale_bot_instances() -> None:
+    """Aynı bot dosyasını çalıştıran diğer Python process'lerini öldür."""
+    my_pid = os.getpid()
+    try:
+        result = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+        for line in result.stdout.splitlines():
+            if "python" not in line or _BOT_FILE not in line:
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            try:
+                pid = int(parts[1])
+                if pid == my_pid:
+                    continue
+                logger.warning("Eski bot process temizleniyor: PID %s", pid)
+                os.kill(pid, signal.SIGTERM)
+                import time as _time
+                _time.sleep(2)
+                try:
+                    os.kill(pid, 0)  # hâlâ çalışıyor mu?
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass  # SIGTERM yeterliydi
+            except (ValueError, ProcessLookupError, PermissionError) as exc:
+                logger.debug("PID kill atlandı: %s", exc)
+    except Exception as exc:
+        logger.warning("Stale process temizleme hatası: %s", exc)
+
 
 def _acquire_pid_lock() -> bool:
     """Tek instance garantisi: flock ile PID dosyasını kilitle.
@@ -943,15 +977,16 @@ def _acquire_pid_lock() -> bool:
 
 
 async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Tüm handler hatalarını yakala; Conflict durumunda temiz çıkış yap."""
+    """Tüm handler hatalarını yakala; Conflict durumunda diğer instance'ları temizle ve bekle."""
     err = context.error
     if isinstance(err, TelegramConflict):
         logger.critical(
             "Telegram 409 Conflict: Aynı token ile başka bir bot örneği çalışıyor! "
-            "Servis kapatılıyor — systemd yeniden başlatacak."
+            "Diğer instance'lar temizleniyor, 30 saniye bekleniyor..."
         )
-        # Exit with code 1 so systemd/RestartSec kicks in after the other instance stops.
-        os._exit(1)  # os._exit is intentional: sys.exit() raises SystemExit which PTB may swallow
+        _kill_stale_bot_instances()
+        await asyncio.sleep(30)
+        return  # PTB polling döngüsü devam eder
     logger.error("Handler istisnası:", exc_info=err)
 
 
@@ -963,6 +998,9 @@ def main():
 
     if not ANTHROPIC_API_KEY:
         logger.warning("ANTHROPIC_API_KEY eksik. AI özellikleri devre dışı olacak.")
+
+    # Diğer bot instance'larını temizle, ardından PID kilidi al
+    _kill_stale_bot_instances()
 
     # Tek instance kontrolü
     if not _acquire_pid_lock():

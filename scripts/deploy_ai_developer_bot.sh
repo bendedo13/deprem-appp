@@ -156,8 +156,10 @@ WorkingDirectory=$BOT_DIR
 EnvironmentFile=$ENV_FILE
 Environment="PYTHONPATH=$BOT_DIR"
 ExecStart=/usr/bin/python3 $BOT_FILE
-Restart=always
+Restart=on-failure
 RestartSec=15
+StartLimitBurst=5
+StartLimitIntervalSec=300
 StandardOutput=journal
 StandardError=journal
 KillMode=mixed
