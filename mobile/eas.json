@@ -36,7 +36,7 @@
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
             },
             "cache": {
-                "key": "production-v4",
+                "key": "production-v5",
                 "paths": [
                     ".expo"
                 ]
