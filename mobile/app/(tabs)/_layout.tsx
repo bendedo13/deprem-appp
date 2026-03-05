@@ -1,7 +1,8 @@
 import { Tabs } from "expo-router";
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, StyleSheet } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { Colors } from "../../src/constants/theme";
+import { Colors, BorderRadius, Shadows } from "../../src/constants/theme";
 
 export default function TabsLayout() {
     const { t } = useTranslation();
@@ -9,16 +10,20 @@ export default function TabsLayout() {
         <Tabs
             screenOptions={{
                 tabBarStyle: {
-                    backgroundColor: Colors.background.dark,
-                    borderTopColor: Colors.background.surface,
-                    height: 60,
+                    backgroundColor: Colors.background.surface,
+                    borderTopWidth: 1,
+                    borderTopColor: Colors.border.glass,
+                    height: 64,
                     paddingBottom: 8,
+                    paddingTop: 4,
                 },
                 tabBarActiveTintColor: Colors.primary,
                 tabBarInactiveTintColor: Colors.text.muted,
-                headerStyle: { backgroundColor: Colors.background.dark },
-                headerTintColor: Colors.text.dark,
-                headerTitleStyle: { fontWeight: "800", fontSize: 18 },
+                tabBarLabelStyle: {
+                    fontSize: 10,
+                    fontWeight: "700",
+                    letterSpacing: 0.3,
+                },
                 headerShown: false,
             }}
         >
@@ -27,7 +32,7 @@ export default function TabsLayout() {
                 options={{
                     title: t("tabs.earthquakes"),
                     tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="earth" color={color} size={size + 4} />
+                        <MaterialCommunityIcons name="pulse" color={color} size={size + 2} />
                     ),
                 }}
             />
@@ -36,8 +41,28 @@ export default function TabsLayout() {
                 options={{
                     title: t("tabs.map"),
                     tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="map-marker-radius" color={color} size={size + 4} />
+                        <MaterialCommunityIcons name="map-marker-radius" color={color} size={size + 2} />
                     ),
+                }}
+            />
+            <Tabs.Screen
+                name="sos"
+                options={{
+                    title: "S.O.S",
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.sosTabIcon, focused && styles.sosTabIconActive]}>
+                            <MaterialCommunityIcons
+                                name="alert-circle"
+                                color={focused ? "#fff" : Colors.danger}
+                                size={22}
+                            />
+                        </View>
+                    ),
+                    tabBarLabelStyle: {
+                        fontSize: 10,
+                        fontWeight: "800",
+                        color: Colors.danger,
+                    },
                 }}
             />
             <Tabs.Screen
@@ -45,10 +70,26 @@ export default function TabsLayout() {
                 options={{
                     title: t("tabs.menu"),
                     tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="menu" color={color} size={size + 4} />
+                        <MaterialCommunityIcons name="cog-outline" color={color} size={size + 2} />
                     ),
                 }}
             />
         </Tabs>
     );
 }
+
+const styles = StyleSheet.create({
+    sosTabIcon: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: Colors.danger + "15",
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop: -4,
+    },
+    sosTabIconActive: {
+        backgroundColor: Colors.danger,
+        ...Shadows.sm,
+    },
+});

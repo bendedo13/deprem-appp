@@ -18,7 +18,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWebSocket } from "../../src/hooks/useWebSocket";
 import { useTranslation } from "react-i18next";
-import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
+import { Colors, Typography, Spacing, BorderRadius, Glass } from "../../src/constants/theme";
 
 interface EQ {
     id: string;
@@ -32,10 +32,10 @@ interface EQ {
 }
 
 function magnitudeColor(m: number): string {
-    if (m >= 6) return Colors.primary;
-    if (m >= 5) return Colors.status.warning;
+    if (m >= 6) return Colors.danger;
+    if (m >= 5) return Colors.accent;
     if (m >= 4) return "#ca8a04";
-    return Colors.status.success;
+    return Colors.primary;
 }
 
 function timeAgo(iso: string): string {
@@ -121,12 +121,12 @@ export default function MapScreen() {
 
                                 <View style={styles.statsContainer}>
                                     <View style={styles.statBox}>
-                                        <MaterialCommunityIcons name="arrow-down" size={24} color={Colors.primary} />
+                                        <MaterialCommunityIcons name="arrow-down" size={24} color={Colors.accent} />
                                         <Text style={styles.statLabel}>{t("map.depth")}</Text>
                                         <Text style={styles.statValue}>{selected.depth?.toFixed(1) ?? "—"} km</Text>
                                     </View>
                                     <View style={styles.statBox}>
-                                        <MaterialCommunityIcons name="map-marker" size={24} color={Colors.primary} />
+                                        <MaterialCommunityIcons name="map-marker" size={24} color={Colors.accent} />
                                         <Text style={styles.statLabel}>Koordinatlar</Text>
                                         <Text style={styles.statValue}>{selected.latitude.toFixed(2)}, {selected.longitude.toFixed(2)}</Text>
                                     </View>
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.md,
         paddingVertical: Spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.background.surface,
+        borderBottomColor: Colors.border.glass,
     },
     headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
     dot: { width: 8, height: 8, borderRadius: 4 },
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     statLabel: { color: Colors.text.muted, fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
     statValue: { color: Colors.text.dark, fontSize: Typography.sizes.md, fontWeight: "700" },
     closeBtn: {
-        backgroundColor: Colors.primary,
+        backgroundColor: Colors.accent,
         borderRadius: BorderRadius.lg,
         height: 52,
         alignItems: "center",

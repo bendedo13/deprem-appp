@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuakeSense - Saniyeler Hayat Kurtarir</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --navy: #0a0e17;
+            --surface: #111827;
+            --elevated: #1f2937;
+            --emerald: #10B981;
+            --emerald-dark: #059669;
+            --orange: #F97316;
+            --red: #DC2626;
+            --text: #F1F5F9;
+            --muted: #6B7280;
+            --glass-border: rgba(255,255,255,0.08);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--navy);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Seismic wave animation */
+        @keyframes seismicPulse {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(3); opacity: 0; }
+        }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+        @keyframes slideUp { from{opacity:0;transform:translateY(40px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes countUp { from{opacity:0} to{opacity:1} }
+
+        .seismic-bg {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            border: 1px solid rgba(16,185,129,0.15);
+            transform: translate(-50%,-50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .seismic-bg::before, .seismic-bg::after {
+            content: '';
+            position: absolute;
+            inset: -80px;
+            border-radius: 50%;
+            border: 1px solid rgba(16,185,129,0.08);
+        }
+        .seismic-bg::after { inset: -160px; border-color: rgba(16,185,129,0.04); }
+
+        .pulse-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 2px solid var(--emerald);
+            transform: translate(-50%,-50%);
+            animation: seismicPulse 3s ease-out infinite;
+        }
+        .pulse-ring:nth-child(2) { animation-delay: 1s; }
+        .pulse-ring:nth-child(3) { animation-delay: 2s; }
+
+        /* Nav */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 100;
+            padding: 16px 0;
+            background: rgba(10,14,23,0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .nav-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--emerald);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .logo-text { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+        .nav-links { display: flex; align-items: center; gap: 32px; }
+        .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--text); }
+        .btn-primary {
+            background: var(--emerald);
+            color: #fff;
+            padding: 12px 28px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary:hover { background: var(--emerald-dark); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(16,185,129,0.3); }
+
+        /* Hero */
+        .hero {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 120px 24px 80px;
+        }
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            max-width: 800px;
+            animation: slideUp 0.8s ease-out;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.2);
+            padding: 8px 20px;
+            border-radius: 100px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--emerald);
+            margin-bottom: 32px;
+        }
+        .hero-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--emerald); animation: float 2s ease-in-out infinite; }
+        .hero h1 {
+            font-size: clamp(40px, 7vw, 72px);
+            font-weight: 900;
+            line-height: 1.05;
+            letter-spacing: -2px;
+            margin-bottom: 24px;
+        }
+        .hero h1 .highlight { color: var(--emerald); }
+        .hero h1 .orange { color: var(--orange); }
+        .hero p {
+            font-size: 18px;
+            color: var(--muted);
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.7;
+        }
+        .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn-outline {
+            padding: 12px 28px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            border: 2px solid var(--elevated);
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .btn-outline:hover { border-color: var(--emerald); color: var(--emerald); }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            margin-top: 80px;
+            flex-wrap: wrap;
+        }
+        .stat { text-align: center; }
+        .stat-value { font-size: 36px; font-weight: 900; color: var(--emerald); }
+        .stat-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+        /* Features */
+        .section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 120px 24px;
+        }
+        .section-header {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+        .section-tag {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--emerald);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+        }
+        .section-title {
+            font-size: 40px;
+            font-weight: 900;
+            letter-spacing: -1px;
+            margin-bottom: 16px;
+        }
+        .section-desc {
+            font-size: 16px;
+            color: var(--muted);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 24px;
+        }
+        .feature-card {
+            background: var(--surface);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 36px;
+            transition: all 0.3s;
+        }
+        .feature-card:hover {
+            border-color: rgba(16,185,129,0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .feature-card h3 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+        .feature-card p { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+        /* Tech Section */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 48px;
+            align-items: center;
+        }
+        .tech-visual {
+            background: var(--surface);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 48px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .tech-visual::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(16,185,129,0.05) 0%, transparent 60%);
+        }
+        .wave-svg { width: 100%; max-width: 400px; position: relative; z-index: 1; }
+        .tech-content h3 { font-size: 32px; font-weight: 900; margin-bottom: 16px; letter-spacing: -1px; }
+        .tech-content p { color: var(--muted); margin-bottom: 24px; line-height: 1.7; }
+        .tech-list { list-style: none; }
+        .tech-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        .tech-list .check {
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+            background: rgba(16,185,129,0.1);
+            color: var(--emerald);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-weight: 700;
+        }
+
+        /* Pricing */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .price-card {
+            background: var(--surface);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .price-card.featured {
+            border-color: var(--emerald);
+            position: relative;
+            overflow: hidden;
+        }
+        .price-card.featured::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at top, rgba(16,185,129,0.08) 0%, transparent 60%);
+        }
+        .price-tag {
+            display: inline-block;
+            background: var(--emerald);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 16px;
+            border-radius: 100px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+        .price-card h3 { font-size: 24px; font-weight: 800; margin-bottom: 8px; position: relative; z-index: 1; }
+        .price-amount { font-size: 48px; font-weight: 900; margin: 16px 0; position: relative; z-index: 1; }
+        .price-amount span { font-size: 16px; color: var(--muted); font-weight: 500; }
+        .price-features { list-style: none; text-align: left; margin: 24px 0; position: relative; z-index: 1; }
+        .price-features li { padding: 8px 0; color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+        .price-features li::before { content: '\2713'; color: var(--emerald); font-weight: 700; }
+
+        /* CTA */
+        .cta-section {
+            text-align: center;
+            padding: 100px 24px;
+            background: var(--surface);
+            border-top: 1px solid var(--glass-border);
+            position: relative;
+        }
+        .cta-section h2 { font-size: 40px; font-weight: 900; margin-bottom: 16px; letter-spacing: -1px; }
+        .cta-section p { color: var(--muted); margin-bottom: 32px; font-size: 16px; }
+        .btn-large {
+            padding: 18px 48px;
+            font-size: 18px;
+            border-radius: 16px;
+            font-weight: 800;
+        }
+
+        /* Footer */
+        footer {
+            padding: 48px 24px;
+            text-align: center;
+            border-top: 1px solid var(--glass-border);
+        }
+        .footer-brand { font-size: 14px; color: var(--muted); font-weight: 600; }
+        .footer-brand strong { color: var(--text); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .tech-grid { grid-template-columns: 1fr; }
+            .stats-bar { gap: 24px; }
+            .hero h1 { font-size: 36px; letter-spacing: -1px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="seismic-bg">
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring"></div>
+</div>
+
+<!-- Navigation -->
+<nav>
+    <div class="nav-inner">
+        <a class="logo" href="#">
+            <div class="logo-icon">&#x1F6E1;</div>
+            <span class="logo-text">QuakeSense</span>
+        </a>
+        <div class="nav-links">
+            <a href="#features">Ozellikler</a>
+            <a href="#technology">Teknoloji</a>
+            <a href="#pricing">Planlar</a>
+            <a href="#" class="btn-primary">Uygulamayi Indir</a>
+        </div>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="hero-content">
+        <div class="hero-badge">
+            <span class="dot"></span>
+            AI Destekli Erken Uyari Sistemi
+        </div>
+        <h1>
+            <span class="highlight">Saniyeler</span><br>
+            Hayat <span class="orange">Kurtarir</span>
+        </h1>
+        <p>
+            Telefon sensorleri ve yapay zeka ile depremi saniyeler oncesinden tespit eden,
+            hayat kurtaran profesyonel deprem takip platformu.
+        </p>
+        <div class="hero-cta">
+            <a href="#" class="btn-primary btn-large">10 Gunluk Ucretsiz Deneme &#x2192;</a>
+            <a href="#technology" class="btn-outline">Nasil Calisir?</a>
+        </div>
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-value">&lt;0.3s</div>
+                <div class="stat-label">Gecikme Suresi</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">50K+</div>
+                <div class="stat-label">Aktif Kullanici</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">%99.7</div>
+                <div class="stat-label">Dogruluk Orani</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">7/24</div>
+                <div class="stat-label">Canli Izleme</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features -->
+<section class="section" id="features">
+    <div class="section-header">
+        <div class="section-tag">Ozellikler</div>
+        <h2 class="section-title">Hayat Kurtaran Teknoloji</h2>
+        <p class="section-desc">Gelismis sensor analizi ve yapay zeka ile deprem oncesi kritik saniyeleri kazanin.</p>
+    </div>
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon" style="background:rgba(16,185,129,0.1)">&#x1F4F1;</div>
+            <h3>Telefon Sensor Algilama</h3>
+            <p>Ivmeolcer ve jiroskop verileri STA/LTA algoritmasi ile gercek zamanli analiz edilir. P-dalgasi saniyeler icinde tespit edilir.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon" style="background:rgba(249,115,22,0.1)">&#x1F916;</div>
+            <h3>AI Veri Dogrulama</h3>
+            <p>Yapay zeka modeli, binlerce cihazdan gelen titresim verilerini carpistirir. Yanlis alarm orani %0.3 altindadir.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon" style="background:rgba(220,38,38,0.1)">&#x1F6A8;</div>
+            <h3>S.O.S Sesli Yardim</h3>
+            <p>Tek butonla sesli acil durum bildirimi. Konum bilgisi otomatik paylasim ve acil kisi bilgilendirmesi.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon" style="background:rgba(59,130,246,0.1)">&#x1F5FA;</div>
+            <h3>Canli Sismik Harita</h3>
+            <p>Turkiye ve dunya genelinde anlik deprem takibi. Kandilli ve AFAD verileri tek ekranda birlestirilir.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon" style="background:rgba(245,158,11,0.1)">&#x1F3E0;</div>
+            <h3>Bina Risk Raporu</h3>
+            <p>Bulundugunuz binanin deprem risk seviyesini analiz edin. Zemin yapisina gore kisisellestirilmis rapor alin.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon" style="background:rgba(16,185,129,0.1)">&#x1F4E2;</div>
+            <h3>Akilli Bildirimler</h3>
+            <p>Buyukluk ve konum bazli filtreli bildirimler. Sessiz saatler ve haftalik ozet raporu ile kontrol sizde.</p>
+        </div>
+    </div>
+</section>
+
+<!-- Technology -->
+<section class="section" id="technology">
+    <div class="tech-grid">
+        <div class="tech-visual">
+            <svg class="wave-svg" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#059669;stop-opacity:0.2"/>
+                        <stop offset="50%" style="stop-color:#10B981;stop-opacity:1"/>
+                        <stop offset="100%" style="stop-color:#34D399;stop-opacity:0.2"/>
+                    </linearGradient>
+                </defs>
+                <!-- P-Wave -->
+                <path d="M 0 100 Q 20 100, 40 80 Q 60 60, 80 100 Q 100 140, 120 100 Q 140 60, 160 100 Q 180 140, 200 100" stroke="url(#waveGrad)" stroke-width="3" fill="none" opacity="0.8"/>
+                <!-- S-Wave -->
+                <path d="M 200 100 Q 210 40, 220 100 Q 230 160, 240 100 Q 250 30, 260 100 Q 270 170, 280 100 Q 290 40, 300 100 Q 310 170, 320 100 Q 330 40, 340 100" stroke="#F97316" stroke-width="2.5" fill="none" opacity="0.7"/>
+                <!-- Labels -->
+                <text x="80" y="40" fill="#10B981" font-size="11" font-weight="700" font-family="Inter">P-Dalgasi</text>
+                <text x="260" y="40" fill="#F97316" font-size="11" font-weight="700" font-family="Inter">S-Dalgasi</text>
+                <!-- Timeline -->
+                <line x1="0" y1="170" x2="400" y2="170" stroke="#1f2937" stroke-width="1"/>
+                <line x1="200" y1="165" x2="200" y2="175" stroke="#10B981" stroke-width="2"/>
+                <text x="160" y="190" fill="#6B7280" font-size="10" font-family="Inter">Erken Uyari Penceresi</text>
+            </svg>
+        </div>
+        <div class="tech-content">
+            <div class="section-tag">Teknoloji</div>
+            <h3>P-Dalgasi Analizi ile Erken Uyari</h3>
+            <p>Deprem dalgalari iki asamada yayilir. Hizli ilerleyen P-dalgasini tespit ederek, yikici S-dalgasi gelmeden once sizi uyaririz.</p>
+            <ul class="tech-list">
+                <li><span class="check">&#10003;</span> STA/LTA algoritmasi ile gercek zamanli ivmeolcer analizi</li>
+                <li><span class="check">&#10003;</span> Crowd-sourced veri dogrulama (binlerce cihaz)</li>
+                <li><span class="check">&#10003;</span> 0.3 saniyenin altinda alarm uretimi</li>
+                <li><span class="check">&#10003;</span> Kandilli + AFAD resmi verileriyle carpistirma</li>
+                <li><span class="check">&#10003;</span> Dusuk pil tuketimi icin optimize edilmis sensor okuma</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- Pricing -->
+<section class="section" id="pricing">
+    <div class="section-header">
+        <div class="section-tag">Planlar</div>
+        <h2 class="section-title">Guvenliginize Yatirim Yapin</h2>
+        <p class="section-desc">10 gun ucretsiz deneyin. Kredi karti gerekmez.</p>
+    </div>
+    <div class="pricing-grid">
+        <div class="price-card">
+            <h3>Ucretsiz</h3>
+            <div class="price-amount">$0<span>/ay</span></div>
+            <ul class="price-features">
+                <li>Son deprem listesi</li>
+                <li>Temel bildirimler</li>
+                <li>1 acil iletisim kisisi</li>
+                <li>Canli sismik harita</li>
+            </ul>
+            <a href="#" class="btn-outline" style="width:100%;justify-content:center">Basla</a>
+        </div>
+        <div class="price-card featured">
+            <div class="price-tag">En Populer</div>
+            <h3>Pro</h3>
+            <div class="price-amount" style="color:var(--emerald)">$4.99<span>/ay</span></div>
+            <ul class="price-features">
+                <li>AI erken uyari sistemi</li>
+                <li>Sinir sensoru algilama</li>
+                <li>S.O.S sesli mesaj</li>
+                <li>5 acil iletisim kisisi</li>
+                <li>Bina risk raporu</li>
+                <li>Reklamsiz deneyim</li>
+            </ul>
+            <a href="#" class="btn-primary" style="width:100%;justify-content:center">10 Gun Ucretsiz Dene</a>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+    <h2>Depreme <span style="color:var(--emerald)">Hazirlikli</span> Olun</h2>
+    <p>Her saniye degerli. QuakeSense ile ailenizi ve kendinizi koruma altina alin.</p>
+    <a href="#" class="btn-primary btn-large">10 Gunluk Deneme Surumunu Baslat &#x2192;</a>
+</section>
+
+<!-- Footer -->
+<footer>
+    <p class="footer-brand">Developed by <strong>ALAN</strong> | 2019 - 2026. Tum haklari saklidir.</p>
+</footer>
+
+</body>
+</html>
