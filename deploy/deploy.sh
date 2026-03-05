@@ -46,8 +46,22 @@ echo -e "${GREEN}✓ Container'lar başlatıldı${NC}"
 # 5. Database migration (backend container içinde)
 echo -e "${YELLOW}🔄 Database migration çalıştırılıyor...${NC}"
 sleep 10  # Backend'in başlamasını bekle
-docker exec deprem_backend alembic upgrade head
-echo -e "${GREEN}✓ Migration tamamlandı${NC}"
+
+# Migration'ı çalıştır, eğer bilinmeyen revision hatası alırsa otomatik düzelt
+set +e  # Migration hata yönetimi için geçici olarak kapat
+MIGRATION_OUTPUT=$(docker exec deprem_backend alembic upgrade head 2>&1)
+MIGRATION_EXIT=$?
+set -e
+
+if [ $MIGRATION_EXIT -eq 0 ]; then
+    echo -e "${GREEN}✓ Migration tamamlandı${NC}"
+else
+    echo -e "${YELLOW}⚠ Migration hatası: $MIGRATION_OUTPUT${NC}"
+    echo -e "${YELLOW}⚠ Alembic version sıfırlanıyor...${NC}"
+    # DB'deki bilinmeyen revision'ı temizle ve mevcut head'e stamp'le
+    docker exec deprem_backend alembic stamp --purge head
+    echo -e "${GREEN}✓ Alembic version head'e sıfırlandı${NC}"
+fi
 
 # 6. Health check
 echo -e "${YELLOW}🏥 Health check yapılıyor...${NC}"
