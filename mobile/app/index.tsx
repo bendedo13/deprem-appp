@@ -1,19 +1,25 @@
-import { useShakeDetection } from "../src/hooks/useShakeDetection";
-import { Text, View } from "react-native";
+/**
+ * Root index — Auth durumunu kontrol edip yönlendirme yapar.
+ * Stack navigator (_layout.tsx) zaten mount olduğu için router.replace güvenle çalışır.
+ */
 
-export default function Home() {
-  useShakeDetection({
-    enabled: true,
-    onShakeReported: (confirmed) => {
-      if (confirmed) console.log("Deprem doğrulandı (backend).");
-    },
-  });
+import { useEffect } from "react";
+import { View, ActivityIndicator } from "react-native";
+import { router } from "expo-router";
+import { onAuthStateChanged } from "../src/services/firebaseAuthService";
+import { Colors } from "../src/constants/theme";
 
-  return (
-    <View style={{ flex: 1, justifyContent: "center", padding: 24 }}>
-      <Text style={{ fontSize: 18, textAlign: "center" }}>
-        Deprem App – Sarsıntı algılama aktif. Cihazı sallayın; sinyal backend'e gidecek.
-      </Text>
-    </View>
-  );
+export default function Index() {
+    useEffect(() => {
+        const unsub = onAuthStateChanged((user) => {
+            router.replace(user ? "/(tabs)" : "/(auth)/login");
+        });
+        return unsub;
+    }, []);
+
+    return (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.background.dark }}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+    );
 }
