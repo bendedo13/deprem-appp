@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#230f0f"
+      "backgroundColor": "#0a0e17"
     },
     "extra": {
       "apiUrl": "http://46.4.123.77:8001",
@@ -21,13 +21,13 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Konum, deprem sinyali göndermek için kullanılır."
+          "locationAlwaysAndWhenInUsePermission": "Konum, deprem sinyali gondermek icin kullanilir."
         }
       ],
       [
         "expo-av",
         {
-          "microphonePermission": "S.O.S sesli mesaj göndermek için mikrofon izni gereklidir."
+          "microphonePermission": "S.O.S sesli mesaj gondermek icin mikrofon izni gereklidir."
         }
       ],
       "@react-native-firebase/app",
@@ -44,6 +44,13 @@
             "buildToolsVersion": "34.0.0"
           }
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-1173265458993328~5191916494",
+          "iosAppId": "ca-app-pub-1173265458993328~5191916494"
+        }
       ]
     ],
     "android": {
@@ -51,7 +58,7 @@
       "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#230f0f"
+        "backgroundColor": "#0a0e17"
       },
       "permissions": [
         "android.permission.VIBRATE",
@@ -67,9 +74,5 @@
       "bundleIdentifier": "com.quakesense",
       "googleServicesFile": "./GoogleService-Info.plist"
     }
-  },
-  "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-1173265458993328~5191916494",
-    "ios_app_id": "ca-app-pub-1173265458993328~5191916494"
   }
 }
