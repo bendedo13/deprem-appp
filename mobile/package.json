@@ -7,7 +7,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "clean": "rm -rf node_modules package-lock.json yarn.lock && yarn install",
-    "doctor": "npx expo-doctor"
+    "doctor": "npx expo-doctor",
+    "postinstall": "node scripts/fix-expo-gradle.js"
   },
   "engines": {
     "node": ">=18.19.1",
