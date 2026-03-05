@@ -71,3 +71,15 @@ export async function hasToken(): Promise<boolean> {
     const token = await SecureStore.getItemAsync(TOKEN_KEY);
     return !!token;
 }
+
+/**
+ * Firebase ID token ile backend'den JWT alır ve SecureStore'a kaydeder.
+ * Google Sign-In ve Firebase Email/Password girişlerinden sonra çağrılmalıdır.
+ */
+export async function syncFirebaseToken(firebaseIdToken: string): Promise<UserOut> {
+    const { data } = await api.post<TokenOut>("/api/v1/users/auth/firebase", {
+        firebase_token: firebaseIdToken,
+    });
+    await SecureStore.setItemAsync(TOKEN_KEY, data.access_token);
+    return data.user;
+}

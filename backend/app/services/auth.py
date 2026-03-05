@@ -1,6 +1,6 @@
 """
 JWT kimlik doğrulama servisi.
-Şifre hash'leme (Argon2), token üretme ve doğrulama işlemleri.
+Şifre hash'leme (Argon2), token üretme/doğrulama ve Firebase ID token doğrulama.
 rules.md: API key/secret asla kodda olmaz — SECRET_KEY .env'den gelir.
 """
 
@@ -12,6 +12,16 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.config import settings
+
+try:
+    import firebase_admin
+    from firebase_admin import auth as firebase_auth
+
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app()
+    _firebase_available = True
+except Exception:
+    _firebase_available = False
 
 logger = logging.getLogger(__name__)
 
@@ -78,4 +88,22 @@ def decode_token(token: str) -> Optional[dict]:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[_ALGORITHM])
     except JWTError as exc:
         logger.warning("Token doğrulama başarısız: %s", exc)
+        return None
+
+
+def verify_firebase_token(id_token: str) -> Optional[dict]:
+    """
+    Firebase ID token'ı doğrular.
+
+    Returns:
+        Firebase decoded token dict (uid, email, name vb.) veya geçersizse None.
+    """
+    if not _firebase_available:
+        logger.warning("Firebase Admin SDK yüklü değil, token doğrulanamadı.")
+        return None
+    try:
+        decoded = firebase_auth.verify_id_token(id_token)
+        return decoded
+    except Exception as exc:
+        logger.warning("Firebase token doğrulama başarısız: %s", exc)
         return None

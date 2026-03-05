@@ -22,7 +22,9 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
     firebaseRegister,
     getFirebaseAuthErrorKey,
+    getIdToken,
 } from "../../src/services/firebaseAuthService";
+import { syncFirebaseToken } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function RegisterScreen() {
@@ -50,6 +52,9 @@ export default function RegisterScreen() {
         setLoading(true);
         try {
             await firebaseRegister(email.trim().toLowerCase(), password);
+            // Firebase ID token'ı backend'e senkronize et (backend JWT al)
+            const idToken = await getIdToken();
+            if (idToken) await syncFirebaseToken(idToken);
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const errorKey = getFirebaseAuthErrorKey(err);

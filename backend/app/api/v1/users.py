@@ -21,7 +21,7 @@ from app.schemas.user import (
 )
 from app.schemas.emergency_contact import EmergencyContactIn, EmergencyContactOut
 from app.schemas.notification_pref import NotificationPrefIn, NotificationPrefOut
-from app.services.auth import hash_password, verify_password, create_access_token, decode_token
+from app.services.auth import hash_password, verify_password, create_access_token, decode_token, verify_firebase_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -91,6 +91,49 @@ async def login(body: UserLoginIn, db: AsyncSession = Depends(get_db)) -> TokenO
 
     token = create_access_token(user.id, user.email)
     logger.info("Kullanıcı girişi: id=%d", user.id)
+    return TokenOut(access_token=token, user=UserOut.model_validate(user))
+
+
+@router.post("/auth/firebase", response_model=TokenOut, summary="Firebase token ile giriş/kayıt")
+async def firebase_auth_login(
+    body: dict = Body(..., example={"firebase_token": "eyJ..."}),
+    db: AsyncSession = Depends(get_db),
+) -> TokenOut:
+    """
+    Firebase ID token doğrular. Kullanıcı DB'de yoksa otomatik oluşturur.
+    Google Sign-In ve Firebase Email/Password ile giriş yapan kullanıcılar için.
+    """
+    firebase_token = body.get("firebase_token")
+    if not firebase_token:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="firebase_token gerekli.")
+
+    decoded = verify_firebase_token(firebase_token)
+    if not decoded:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Geçersiz Firebase token.")
+
+    email = decoded.get("email")
+    if not email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Firebase token'da e-posta bulunamadı.")
+
+    # Kullanıcıyı DB'de bul veya oluştur
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            email=email,
+            password_hash="firebase_auth",
+            name=decoded.get("name"),
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        logger.info("Firebase ile yeni kullanıcı: id=%d email=%s", user.id, user.email)
+    elif not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hesap devre dışı.")
+
+    token = create_access_token(user.id, user.email)
+    logger.info("Firebase auth giriş: id=%d", user.id)
     return TokenOut(access_token=token, user=UserOut.model_validate(user))
 
 

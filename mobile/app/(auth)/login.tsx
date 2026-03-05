@@ -23,7 +23,9 @@ import {
     firebaseLogin,
     googleSignIn,
     getFirebaseAuthErrorKey,
+    getIdToken,
 } from "../../src/services/firebaseAuthService";
+import { syncFirebaseToken } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function LoginScreen() {
@@ -42,6 +44,9 @@ export default function LoginScreen() {
         setLoading(true);
         try {
             await firebaseLogin(email.trim().toLowerCase(), password);
+            // Firebase ID token'ı backend'e senkronize et (backend JWT al)
+            const idToken = await getIdToken();
+            if (idToken) await syncFirebaseToken(idToken);
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const errorKey = getFirebaseAuthErrorKey(err);
@@ -55,6 +60,9 @@ export default function LoginScreen() {
         setGoogleLoading(true);
         try {
             await googleSignIn();
+            // Firebase ID token'ı backend'e senkronize et (backend JWT al)
+            const idToken = await getIdToken();
+            if (idToken) await syncFirebaseToken(idToken);
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const code = (err as { code?: string })?.code;

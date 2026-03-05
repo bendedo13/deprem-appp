@@ -48,10 +48,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — production'da wildcard yerine izin verilen origin'leri kullan
+# CORS — wildcard + credentials birlikte kullanılamaz (HTTP spec).
+# DEBUG modunda localhost origin'leri, production'da ALLOWED_ORIGINS_LIST kullanılır.
+_debug_origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS_LIST if not settings.DEBUG else ["*"],
+    allow_origins=_debug_origins if settings.DEBUG else settings.ALLOWED_ORIGINS_LIST,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
