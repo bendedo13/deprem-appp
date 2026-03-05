@@ -1,12 +1,9 @@
 /**
- * Postinstall script — Gradle 8.8 uyumluluk yaması.
+ * Postinstall script — Gradle 8.8 compatibility patch.
  *
- * expo-modules-core@1.12.x içindeki ExpoModulesCorePlugin.gradle
- * dosyasında `components.release` ifadesi Gradle 8.8 ile çalışmaz.
- * Bu script güvenli bir `findByName` çağrısına çevirir.
- *
- * Ayrıca `useExpoPublishing` bloğunu uygulama build'lerinde
- * tamamen atlamak için güvenli bir kontrol ekler.
+ * expo-modules-core@1.12.x ExpoModulesCorePlugin.gradle uses
+ * `components.release` which fails with Gradle 8.8 (shipped by RN 0.74.5).
+ * This script replaces it with a safe `findByName` call.
  */
 
 const fs = require('fs');
