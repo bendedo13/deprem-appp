@@ -50,7 +50,7 @@ export default function TabsLayout() {
                 options={{
                     title: t("tabs.sensor"),
                     tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="waveform" color={color} size={size + 2} />
+                        <MaterialCommunityIcons name="shield-alert-outline" color={color} size={size + 2} />
                     ),
                 }}
             />

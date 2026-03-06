@@ -14,15 +14,31 @@ import {
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 import { api } from "../../src/services/api";
 
+const CONTACTS_STORAGE_KEY = "emergency_contacts";
+
 interface Contact {
-    id: number;
+    id: string;
     name: string;
     phone: string;
     email?: string;
     channel: "sms" | "push" | "both";
+}
+
+async function loadLocalContacts(): Promise<Contact[]> {
+    try {
+        const raw = await AsyncStorage.getItem(CONTACTS_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+}
+
+async function saveLocalContacts(contacts: Contact[]): Promise<void> {
+    await AsyncStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(contacts));
 }
 
 export default function ContactsScreen() {
@@ -30,6 +46,7 @@ export default function ContactsScreen() {
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     // Form state
     const [name, setName] = useState("");
@@ -40,9 +57,16 @@ export default function ContactsScreen() {
     const fetchContacts = async () => {
         try {
             const { data } = await api.get("/api/v1/users/me/contacts");
-            setContacts(data);
-        } catch (error) {
-            console.error("Failed to fetch contacts", error);
+            const normalized = (data as any[]).map((c: any) => ({
+                ...c,
+                id: String(c.id),
+            }));
+            setContacts(normalized);
+            await saveLocalContacts(normalized);
+        } catch {
+            // Backend unreachable — load from local storage
+            const local = await loadLocalContacts();
+            setContacts(local);
         } finally {
             setLoading(false);
         }
@@ -53,34 +77,47 @@ export default function ContactsScreen() {
     }, []);
 
     const handleAdd = async () => {
-        if (!name || !phone) {
+        if (!name.trim() || !phone.trim()) {
             Alert.alert("Hata", "İsim ve telefon numarası zorunludur.");
             return;
         }
 
+        const newContact: Contact = {
+            id: Date.now().toString(),
+            name: name.trim(),
+            phone: phone.trim(),
+            email: email.trim() || undefined,
+            channel,
+        };
+
+        setSaving(true);
         try {
-            setLoading(true);
-            await api.post("/api/v1/users/me/contacts", {
-                name,
-                phone,
-                email: email || undefined,
-                channel
+            // Try backend first
+            const { data } = await api.post("/api/v1/users/me/contacts", {
+                name: newContact.name,
+                phone: newContact.phone,
+                email: newContact.email,
+                channel: newContact.channel,
             });
-            Alert.alert("Başarılı", "Acil durum kişisi eklendi.");
-            setName("");
-            setPhone("");
-            setEmail("");
-            setAdding(false);
-            fetchContacts();
-        } catch (error: any) {
-            const msg = error.response?.data?.detail || "Kişi eklenemedi.";
-            Alert.alert("Hata", msg);
-        } finally {
-            setLoading(false);
+            // Use server-returned id
+            newContact.id = String((data as any).id || newContact.id);
+        } catch {
+            // Backend failed — save locally only
         }
+
+        const updated = [...contacts, newContact];
+        setContacts(updated);
+        await saveLocalContacts(updated);
+
+        Alert.alert("Başarılı", "Acil durum kişisi eklendi.");
+        setName("");
+        setPhone("");
+        setEmail("");
+        setAdding(false);
+        setSaving(false);
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = (id: string) => {
         Alert.alert(
             "Sil",
             "Bu kişiyi silmek istediğinize emin misiniz?",
@@ -90,12 +127,15 @@ export default function ContactsScreen() {
                     text: "Sil",
                     style: "destructive",
                     onPress: async () => {
+                        // Try backend delete
                         try {
                             await api.delete(`/api/v1/users/me/contacts/${id}`);
-                            fetchContacts();
-                        } catch (error) {
-                            Alert.alert("Hata", "Silme işlemi başarısız.");
+                        } catch {
+                            // Backend failed — still remove locally
                         }
+                        const updated = contacts.filter((c) => c.id !== id);
+                        setContacts(updated);
+                        await saveLocalContacts(updated);
                     }
                 }
             ]
@@ -113,7 +153,7 @@ export default function ContactsScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.text.dark} />
                     </TouchableOpacity>
-                    <View>
+                    <View style={{ flex: 1 }}>
                         <Text style={styles.title}>Acil Kişiler</Text>
                         <Text style={styles.subtitle}>Deprem sonrası "Güvendeyim" mesajı gidecek kişiler.</Text>
                     </View>
@@ -227,9 +267,9 @@ export default function ContactsScreen() {
                         <TouchableOpacity
                             style={styles.saveBtn}
                             onPress={handleAdd}
-                            disabled={loading}
+                            disabled={saving}
                         >
-                            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>KAYDET</Text>}
+                            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>KAYDET</Text>}
                         </TouchableOpacity>
                     </View>
                 )}

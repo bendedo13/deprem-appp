@@ -33,6 +33,7 @@ try {
 } catch {
     // AdMob not available
 }
+import { router } from "expo-router";
 import { api } from "../../src/services/api";
 import { iAmSafe } from "../../src/services/authService";
 import { useWebSocket, EarthquakeEvent } from "../../src/hooks/useWebSocket";
@@ -203,7 +204,7 @@ export default function DashboardScreen() {
                     </View>
                 </View>
                 <View style={styles.headerActions}>
-                    <TouchableOpacity style={styles.headerBtn}>
+                    <TouchableOpacity style={styles.headerBtn} onPress={() => router.push("/more/notification-list")}>
                         <MaterialCommunityIcons name="bell-outline" size={22} color={Colors.text.dark} />
                     </TouchableOpacity>
                 </View>

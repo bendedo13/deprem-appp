@@ -33,9 +33,20 @@ export default function AboutScreen() {
                     </Text>
                 </View>
 
-                <View style={styles.branding}>
-                    <MaterialCommunityIcons name="code-tags" size={16} color={Colors.text.muted} />
-                    <Text style={styles.brandingText}>{t("menu.developed_by")}</Text>
+                {/* Data source trust banner */}
+                <View style={styles.trustCard}>
+                    <View style={styles.trustIconBox}>
+                        <MaterialCommunityIcons name="shield-check" size={24} color={Colors.primary} />
+                    </View>
+                    <Text style={styles.trustText}>
+                        Deprem verileri resmi devlet kurumu API'lerinden anlık olarak sağlanmaktadır.
+                    </Text>
+                </View>
+
+                {/* Copyright */}
+                <View style={styles.copyrightSection}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.copyrightText}>developed by Alan 2017-2026 ©</Text>
                 </View>
             </ScrollView>
         </View>
@@ -62,7 +73,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     headerTitle: { fontSize: Typography.sizes.lg, fontWeight: "800", color: Colors.text.dark },
-    content: { padding: Spacing.xl },
+    content: { padding: Spacing.xl, paddingBottom: Spacing.xxxl },
     logoSection: { alignItems: "center", marginBottom: Spacing.xxl },
     logoBox: {
         width: 100,
@@ -89,13 +100,46 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.xl,
     },
     text: { fontSize: Typography.sizes.md, lineHeight: 24, color: Colors.text.dark, textAlign: "center" },
-    branding: {
+    trustCard: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "center",
-        marginTop: Spacing.xl,
-        gap: 8,
-        opacity: 0.5,
+        backgroundColor: Colors.primary + "08",
+        borderRadius: BorderRadius.xl,
+        padding: Spacing.lg,
+        gap: Spacing.md,
+        borderWidth: 1,
+        borderColor: Colors.primary + "20",
+        marginBottom: Spacing.xxl,
     },
-    brandingText: { fontSize: 12, fontWeight: "800", color: Colors.text.muted, textTransform: "uppercase" },
+    trustIconBox: {
+        width: 44,
+        height: 44,
+        borderRadius: BorderRadius.lg,
+        backgroundColor: Colors.primary + "15",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    trustText: {
+        flex: 1,
+        fontSize: Typography.sizes.sm,
+        fontWeight: "600",
+        color: Colors.primary,
+        lineHeight: 20,
+    },
+    copyrightSection: {
+        alignItems: "center",
+        gap: Spacing.md,
+    },
+    dividerLine: {
+        width: 60,
+        height: 1,
+        backgroundColor: Colors.border.glass,
+    },
+    copyrightText: {
+        fontSize: 11,
+        fontWeight: "600",
+        color: Colors.text.muted,
+        letterSpacing: 0.5,
+        opacity: 0.7,
+    },
 });
