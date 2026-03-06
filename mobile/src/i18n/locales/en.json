@@ -91,6 +91,7 @@
         "error_weak_password": "Password is too weak. Use at least 8 characters.",
         "error_too_many_requests": "Too many attempts. Please wait a moment.",
         "error_network": "No internet connection. Check your connection.",
+        "error_operation_not_allowed": "This sign-in method is not enabled. Enable it in Firebase Console.",
         "error_google_signin": "Google sign-in failed.",
         "login_success": "Login successful!",
         "register_success": "Account created!"

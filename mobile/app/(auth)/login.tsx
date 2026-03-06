@@ -53,7 +53,8 @@ export default function LoginScreen() {
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const errorKey = getFirebaseAuthErrorKey(err);
-            Alert.alert(t("auth.error_login"), t(errorKey));
+            const code = (err as { code?: string })?.code ?? "unknown";
+            Alert.alert(t("auth.error_login"), `${t(errorKey)}\n\n[${code}]`);
         } finally {
             setLoading(false);
         }
@@ -73,7 +74,8 @@ export default function LoginScreen() {
         } catch (err: unknown) {
             const code = (err as { code?: string })?.code;
             if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
-            Alert.alert(t("auth.error_login"), t("auth.error_google_signin"));
+            const msg = (err as { message?: string })?.message ?? "";
+            Alert.alert(t("auth.error_login"), `${t("auth.error_google_signin")}\n\n[${code || msg}]`);
         } finally {
             setGoogleLoading(false);
         }

@@ -62,7 +62,8 @@ export default function RegisterScreen() {
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const errorKey = getFirebaseAuthErrorKey(err);
-            Alert.alert(t("auth.error_register"), t(errorKey));
+            const code = (err as { code?: string })?.code ?? "unknown";
+            Alert.alert(t("auth.error_register"), `${t(errorKey)}\n\n[${code}]`);
         } finally {
             setLoading(false);
         }

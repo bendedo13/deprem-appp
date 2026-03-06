@@ -29,6 +29,10 @@ function ensureGoogleConfigured() {
 
 export function getFirebaseAuthErrorKey(error: unknown): string {
     const code = (error as { code?: string })?.code ?? "";
+    const message = (error as { message?: string })?.message ?? "";
+
+    // Debug: gerçek hata kodunu logla
+    console.warn("[Firebase Auth Error] code:", code, "message:", message);
 
     switch (code) {
         case "auth/wrong-password":
@@ -46,6 +50,8 @@ export function getFirebaseAuthErrorKey(error: unknown): string {
             return "auth.error_too_many_requests";
         case "auth/network-request-failed":
             return "auth.error_network";
+        case "auth/operation-not-allowed":
+            return "auth.error_operation_not_allowed";
         default:
             return "auth.error_login_generic";
     }

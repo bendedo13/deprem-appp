@@ -91,6 +91,7 @@
         "error_weak_password": "Şifre çok zayıf. En az 8 karakter kullanın.",
         "error_too_many_requests": "Çok fazla deneme. Lütfen biraz bekleyin.",
         "error_network": "İnternet bağlantısı yok. Bağlantınızı kontrol edin.",
+        "error_operation_not_allowed": "Bu giriş yöntemi aktif değil. Firebase Console'dan etkinleştirin.",
         "error_google_signin": "Google ile giriş başarısız.",
         "login_success": "Giriş başarılı!",
         "register_success": "Hesabınız oluşturuldu!"
