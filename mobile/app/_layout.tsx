@@ -7,17 +7,17 @@ import { useEffect } from "react";
 import { Stack } from "expo-router";
 import "./firebase-init";
 import { setBackgroundEarthquakeHandler, setupFcmEarthquakeHandler } from "../src/services/fcmEarthquakeHandler";
-import { InterstitialAd, AdEventType } from "react-native-google-mobile-ads";
-import { getInterstitialId } from "../src/services/adService";
 import "../src/i18n";
 
 setBackgroundEarthquakeHandler();
 
 export default function RootLayout() {
     useEffect(() => {
-        // AdMob Interstitial
+        // AdMob Interstitial — try/catch ile sarılı (native module yoksa crash önlenir)
         let adCleanup = () => {};
         try {
+            const { InterstitialAd, AdEventType } = require("react-native-google-mobile-ads");
+            const { getInterstitialId } = require("../src/services/adService");
             const interstitial = InterstitialAd.createForAdRequest(getInterstitialId(), {
                 requestNonPersonalizedAdsOnly: true,
             });

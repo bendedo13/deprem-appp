@@ -52,9 +52,13 @@ export default function RegisterScreen() {
         setLoading(true);
         try {
             await firebaseRegister(email.trim().toLowerCase(), password);
-            // Firebase ID token'ı backend'e senkronize et (backend JWT al)
-            const idToken = await getIdToken();
-            if (idToken) await syncFirebaseToken(idToken);
+            // Backend sync — hata olsa da devam et (Firebase auth yeterli)
+            try {
+                const idToken = await getIdToken();
+                if (idToken) await syncFirebaseToken(idToken);
+            } catch (syncErr) {
+                console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
+            }
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const errorKey = getFirebaseAuthErrorKey(err);

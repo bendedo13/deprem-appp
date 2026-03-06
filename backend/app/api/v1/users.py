@@ -103,13 +103,24 @@ async def firebase_auth_login(
     Firebase ID token doğrular. Kullanıcı DB'de yoksa otomatik oluşturur.
     Google Sign-In ve Firebase Email/Password ile giriş yapan kullanıcılar için.
     """
+    from app.services.auth import _firebase_available
+
+    if not _firebase_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Firebase servisi yapılandırılmamış.",
+        )
+
     firebase_token = body.get("firebase_token")
     if not firebase_token:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="firebase_token gerekli.")
 
     decoded = verify_firebase_token(firebase_token)
     if not decoded:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Geçersiz Firebase token.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Firebase token doğrulanamadı. Yeniden giriş yapın.",
+        )
 
     email = decoded.get("email")
     if not email:

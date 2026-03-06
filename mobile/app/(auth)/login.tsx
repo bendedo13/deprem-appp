@@ -44,9 +44,12 @@ export default function LoginScreen() {
         setLoading(true);
         try {
             await firebaseLogin(email.trim().toLowerCase(), password);
-            // Firebase ID token'ı backend'e senkronize et (backend JWT al)
-            const idToken = await getIdToken();
-            if (idToken) await syncFirebaseToken(idToken);
+            try {
+                const idToken = await getIdToken();
+                if (idToken) await syncFirebaseToken(idToken);
+            } catch (syncErr) {
+                console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
+            }
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const errorKey = getFirebaseAuthErrorKey(err);
@@ -60,13 +63,15 @@ export default function LoginScreen() {
         setGoogleLoading(true);
         try {
             await googleSignIn();
-            // Firebase ID token'ı backend'e senkronize et (backend JWT al)
-            const idToken = await getIdToken();
-            if (idToken) await syncFirebaseToken(idToken);
+            try {
+                const idToken = await getIdToken();
+                if (idToken) await syncFirebaseToken(idToken);
+            } catch (syncErr) {
+                console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
+            }
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const code = (err as { code?: string })?.code;
-            // Kullanıcı iptal ettiyse hata gösterme
             if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
             Alert.alert(t("auth.error_login"), t("auth.error_google_signin"));
         } finally {

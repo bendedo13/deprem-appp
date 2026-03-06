@@ -1,10 +1,10 @@
 """
 JWT kimlik doğrulama servisi.
 Şifre hash'leme (Argon2), token üretme/doğrulama ve Firebase ID token doğrulama.
-rules.md: API key/secret asla kodda olmaz — SECRET_KEY .env'den gelir.
 """
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -13,40 +13,74 @@ from passlib.context import CryptContext
 
 from app.config import settings
 
-try:
-    import firebase_admin
-    from firebase_admin import auth as firebase_auth
-
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app()
-    _firebase_available = True
-except Exception:
-    _firebase_available = False
-
 logger = logging.getLogger(__name__)
 
-# Argon2 ile şifre hash'leme (modern, güvenli, 72 byte limiti yok)
-# Fallback olarak bcrypt (eski hash'ler için)
+_firebase_available = False
+firebase_auth = None
+
+try:
+    import firebase_admin
+    from firebase_admin import auth as firebase_auth_module, credentials
+
+    if not firebase_admin._apps:
+        cred_path = getattr(settings, "FIREBASE_CREDENTIALS_PATH", "firebase-service-account.json")
+
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+            logger.info("Firebase Admin SDK başlatıldı (JSON: %s)", cred_path)
+
+        elif all([
+            getattr(settings, "FIREBASE_PROJECT_ID", ""),
+            getattr(settings, "FIREBASE_PRIVATE_KEY", ""),
+            getattr(settings, "FIREBASE_CLIENT_EMAIL", ""),
+        ]):
+            private_key = settings.FIREBASE_PRIVATE_KEY.replace("\\n", "\n")
+            cred_dict = {
+                "type": "service_account",
+                "project_id": settings.FIREBASE_PROJECT_ID,
+                "private_key_id": getattr(settings, "FIREBASE_PRIVATE_KEY_ID", ""),
+                "private_key": private_key,
+                "client_email": settings.FIREBASE_CLIENT_EMAIL,
+                "client_id": "",
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            logger.info("Firebase Admin SDK başlatıldı (env variables)")
+
+        else:
+            raise ValueError(
+                "Firebase credentials bulunamadı! "
+                "FIREBASE_CREDENTIALS_PATH veya FIREBASE_PROJECT_ID+FIREBASE_PRIVATE_KEY+"
+                "FIREBASE_CLIENT_EMAIL ayarlayın."
+            )
+
+    firebase_auth = firebase_auth_module
+    _firebase_available = True
+    logger.info("Firebase Admin SDK hazır ✓")
+
+except Exception as e:
+    logger.error("Firebase Admin SDK başlatılamadı: %s", e)
+    _firebase_available = False
+
+
+# Argon2 ile şifre hash'leme
 _pwd_context = CryptContext(
     schemes=["argon2", "bcrypt"],
     deprecated="auto",
-    argon2__rounds=2,  # Performans için optimize edilmiş
+    argon2__rounds=2,
 )
 
-# JWT algoritması
 _ALGORITHM = "HS256"
 
 
 def hash_password(plain: str) -> str:
-    """Düz metin şifreyi Argon2 ile hash'ler."""
     return _pwd_context.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """
-    Düz metin şifreyi hash ile karşılaştırır.
-    Argon2 ve bcrypt hash'lerini destekler (backward compatibility).
-    """
     try:
         return _pwd_context.verify(plain, hashed)
     except Exception as exc:
@@ -55,16 +89,6 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(user_id: int, email: str) -> str:
-    """
-    JWT access token oluşturur.
-
-    Args:
-        user_id: Kullanıcı ID'si (sub claim).
-        email: Kullanıcı e-postası (payload'a eklenir).
-
-    Returns:
-        İmzalı JWT string.
-    """
     expire = datetime.now(tz=timezone.utc) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
@@ -78,12 +102,6 @@ def create_access_token(user_id: int, email: str) -> str:
 
 
 def decode_token(token: str) -> Optional[dict]:
-    """
-    JWT token'ı doğrular ve payload'ı döndürür.
-
-    Returns:
-        Payload dict veya geçersizse None.
-    """
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[_ALGORITHM])
     except JWTError as exc:
@@ -92,18 +110,14 @@ def decode_token(token: str) -> Optional[dict]:
 
 
 def verify_firebase_token(id_token: str) -> Optional[dict]:
-    """
-    Firebase ID token'ı doğrular.
-
-    Returns:
-        Firebase decoded token dict (uid, email, name vb.) veya geçersizse None.
-    """
-    if not _firebase_available:
-        logger.warning("Firebase Admin SDK yüklü değil, token doğrulanamadı.")
+    """Firebase ID token doğrular."""
+    if not _firebase_available or firebase_auth is None:
+        logger.error("Firebase Admin SDK kullanılamıyor — credentials eksik.")
         return None
     try:
-        decoded = firebase_auth.verify_id_token(id_token)
+        decoded = firebase_auth.verify_id_token(id_token, check_revoked=False)
+        logger.debug("Firebase token doğrulandı: uid=%s", decoded.get("uid"))
         return decoded
     except Exception as exc:
-        logger.warning("Firebase token doğrulama başarısız: %s", exc)
+        logger.warning("Firebase token doğrulama hatası: %s", exc)
         return None
