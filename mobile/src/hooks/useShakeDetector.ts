@@ -1,7 +1,10 @@
 /**
- * useShakeDetector hook — Gelişmiş sismik algılama.
- * Butterworth bandpass filtreleme + Recursive STA/LTA + P/S dalga ayrımı.
- * Yanlış alarm filtreleme (telefon düşürme, yürüme, dokunma).
+ * useShakeDetector hook — Gelismis sismik algilama.
+ * Butterworth bandpass filtreleme + Recursive STA/LTA + P/S dalga ayrimi.
+ * Yanlis alarm filtreleme (telefon dusurme, yurume, dokunma).
+ *
+ * Gorev 2: Kalibrasyon baseline entegrasyonu
+ * Gorev 6: Performans optimizasyonu (ref-based state)
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -22,6 +25,7 @@ import {
     isLikelyEarthquake,
 } from "../utils/staLta";
 import { reportTrigger } from "../services/seismicService";
+import { loadCalibration } from "../services/calibrationService";
 
 export interface ShakeState {
     isMonitoring: boolean;
@@ -53,6 +57,10 @@ export function useShakeDetector(
     const recentBuffer = useRef<number[]>([]);
     const reportSent = useRef(false);
 
+    // Gorev 2: Kalibrasyon baseline referanslari
+    const baselineNoiseRef = useRef(0.05);
+    const triggerRatioRef = useRef(TRIGGER_RATIO);
+
     const [state, setState] = useState<ShakeState>({
         isMonitoring: false,
         isTriggered: false,
@@ -62,6 +70,14 @@ export function useShakeDetector(
     });
 
     useEffect(() => {
+        // Gorev 2: Kalibrasyon verisini yukle ve trigger ratio'yu ayarla
+        loadCalibration().then((cal) => {
+            if (cal.calibratedAt) {
+                baselineNoiseRef.current = cal.baselineNoise;
+                triggerRatioRef.current = cal.adjustedTriggerRatio;
+            }
+        });
+
         Accelerometer.setUpdateInterval(Math.floor(1000 / SAMPLE_RATE_HZ));
 
         // Reset filter state on mount
@@ -82,8 +98,12 @@ export function useShakeDetector(
             // Vector magnitude of linear acceleration
             const raw = vectorMagnitude(ax, ay, az);
 
+            // Gorev 2: Baseline altindaki sinyalleri filtrele
+            // Ortam gurultusunun altindaki sinyalleri sifira cek
+            const denoised = Math.max(0, raw - baselineNoiseRef.current);
+
             // Bandpass filter: keep seismic frequencies (0.5-20 Hz)
-            const filtered = bandpass.current.process(raw);
+            const filtered = bandpass.current.process(denoised);
             const absFiltered = Math.abs(filtered);
 
             // Recursive STA/LTA (O(1) per sample)
@@ -95,7 +115,10 @@ export function useShakeDetector(
                 recentBuffer.current = recentBuffer.current.slice(-SAMPLE_RATE_HZ * 2);
             }
 
-            if (!triggered.current && ratio >= TRIGGER_RATIO) {
+            // Gorev 2: Kalibre edilmis trigger ratio kullan
+            const currentTriggerRatio = triggerRatioRef.current;
+
+            if (!triggered.current && ratio >= currentTriggerRatio) {
                 // Potential trigger — start confirmation timer
                 triggered.current = true;
                 triggerStartTime.current = Date.now();

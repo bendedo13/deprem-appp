@@ -31,13 +31,16 @@
         "depth_km": "{{depth}} km depth",
         "live": "Live",
         "disconnected": "Disconnected",
-        "sensor_active": "🟢 Sensor",
-        "sensor_triggered": "⚡ Tremor",
-        "sensor_passive": "⬛ Inactive",
-        "i_am_safe": "✅ I'm Safe",
-        "vibration_title": "⚠️ Vibration Detected",
-        "vibration_body": "Ratio: {{ratio}} | Peak: {{peak}} m/s²\nReport sent to server.",
-        "error_load": "Could not load earthquake data."
+        "sensor_active": "Sensor",
+        "sensor_triggered": "Tremor",
+        "sensor_passive": "Inactive",
+        "i_am_safe": "I'm Safe",
+        "vibration_title": "Vibration Detected",
+        "vibration_body": "Ratio: {{ratio}} | Peak: {{peak}} m/s2\nReport sent to server.",
+        "error_load": "Could not load earthquake data.",
+        "offline_mode": "Offline Mode",
+        "reconnecting": "Reconnecting...",
+        "cache_showing": "Showing cached data"
     },
     "about": {
         "title": "About Us",
@@ -55,7 +58,7 @@
         "success": "Your message has been sent successfully."
     },
     "safe": {
-        "sent_title": "✅ Notification Sent",
+        "sent_title": "Notification Sent",
         "sent_body": "{{count}} emergency contact(s) notified.",
         "error": "Could not send notification."
     },
@@ -133,6 +136,23 @@
         "vibration": "Strong Vibration",
         "vibration_desc": "High intensity vibration alert",
         "alarm": "Sound Alarm",
-        "alarm_desc": "Maximum volume alarm"
+        "alarm_desc": "Maximum volume alarm",
+        "background_service": "Background Protection",
+        "background_service_desc": "Earthquake detection stays active even when screen is off",
+        "calibration_title": "Sensor Calibration",
+        "calibration_desc": "Place your phone on a flat surface and measure ambient noise for 5 seconds",
+        "calibration_start": "Start Calibration Test"
+    },
+    "sos": {
+        "sending": "Sending...",
+        "sent_api": "Your S.O.S. signal has been sent to the server.",
+        "sent_sms": "No internet connection. Sent via SMS.",
+        "failed": "Could not send S.O.S. Please call 112.",
+        "offline_info": "If internet is down, your GPS location will be sent to emergency contacts via SMS."
+    },
+    "onboarding": {
+        "why_needed": "Why do we need this permission?",
+        "permission_summary": "Permission Summary",
+        "some_denied": "Some permissions were denied. Related features have been disabled."
     }
 }

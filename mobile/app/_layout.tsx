@@ -1,6 +1,12 @@
 /**
  * Root layout — Her zaman Stack navigator render eder.
  * Auth yönlendirmesi index.tsx tarafından yapılır (navigator mount olduktan sonra).
+ *
+ * Entegrasyonlar:
+ * - AppProvider (Görev 6: Performans Context)
+ * - Background Service (Görev 1: Foreground Service)
+ * - FCM Earthquake Handler
+ * - AdMob
  */
 
 import { useEffect } from "react";
@@ -8,7 +14,16 @@ import { Stack } from "expo-router";
 import "./firebase-init";
 import { setBackgroundEarthquakeHandler, setupFcmEarthquakeHandler } from "../src/services/fcmEarthquakeHandler";
 import "../src/i18n";
+import { AppProvider } from "../src/context/AppContext";
+import {
+    defineBackgroundSensorTask,
+    setupAppStateListener,
+    isBackgroundServiceActive,
+    startBackgroundSensorService,
+} from "../src/services/backgroundService";
 
+// Modül seviyesinde background task tanımla (app bundle yüklendiğinde)
+defineBackgroundSensorTask();
 setBackgroundEarthquakeHandler();
 
 export default function RootLayout() {
@@ -33,18 +48,31 @@ export default function RootLayout() {
         // FCM foreground handler
         const fcmUnsub = setupFcmEarthquakeHandler();
 
+        // Görev 1: Background service — önceki oturumda aktifse tekrar başlat
+        isBackgroundServiceActive().then((active) => {
+            if (active) {
+                startBackgroundSensorService();
+            }
+        });
+
+        // Görev 1: App state listener — arka plana geçişlerde sticky notification
+        const appStateCleanup = setupAppStateListener();
+
         return () => {
             adCleanup();
             fcmUnsub();
+            appStateCleanup();
         };
     }, []);
 
     return (
-        <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="more" />
-        </Stack>
+        <AppProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="more" />
+            </Stack>
+        </AppProvider>
     );
 }

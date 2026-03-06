@@ -1,9 +1,12 @@
 /**
  * Professional Dashboard - Merkezi sismik harita, anlik AI dogrulama durumu.
  * Glassmorphism kartlar, yuksek kontrastli tipografi.
+ *
+ * Gorev 4: API Retry + Cache Layer entegrasyonu
+ * Gorev 6: useCallback/useMemo ile performans optimizasyonu
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
     View,
     Text,
@@ -34,11 +37,17 @@ try {
     // AdMob not available
 }
 import { router } from "expo-router";
-import { api } from "../../src/services/api";
 import { iAmSafe } from "../../src/services/authService";
 import { useWebSocket, EarthquakeEvent } from "../../src/hooks/useWebSocket";
 import { useShakeDetector } from "../../src/hooks/useShakeDetector";
 import { Colors, Typography, Spacing, BorderRadius, Glass, Shadows } from "../../src/constants/theme";
+import {
+    fetchWithCacheAndRetry,
+    startAutoRetry,
+    CachedEarthquake,
+    FetchResult,
+} from "../../src/services/earthquakeCacheService";
+import { useNetwork } from "../../src/context/AppContext";
 
 interface Earthquake {
     id: string;
@@ -67,6 +76,14 @@ function timeAgo(isoStr: string): string {
     return `${Math.floor(diff / 86400)}d`;
 }
 
+function formatCacheAge(ms: number | null): string {
+    if (ms === null) return "";
+    const minutes = Math.floor(ms / 60000);
+    if (minutes < 1) return "az once";
+    if (minutes < 60) return `${minutes} dk once`;
+    return `${Math.floor(minutes / 60)} saat once`;
+}
+
 export default function DashboardScreen() {
     const [quakes, setQuakes] = useState<Earthquake[]>([]);
     const [loading, setLoading] = useState(true);
@@ -81,6 +98,12 @@ export default function DashboardScreen() {
     );
     const prevTriggered = useRef(false);
     const pulseAnim = useRef(new Animated.Value(1)).current;
+    const retryHandleRef = useRef<{ stop: () => void } | null>(null);
+
+    // Gorev 4: Network/cache context
+    const networkCtx = useNetwork();
+    const [fromCache, setFromCache] = useState(false);
+    const [cacheAgeMs, setCacheAgeMs] = useState<number | null>(null);
 
     // Pulse animation for live indicator
     useEffect(() => {
@@ -113,19 +136,52 @@ export default function DashboardScreen() {
         prevTriggered.current = isTriggered;
     }, [isTriggered]);
 
+    // ── Gorev 4: Deprem verilerini cache + retry ile cek ────────────────────
     const fetchQuakes = useCallback(async () => {
         try {
-            const { data } = await api.get<Earthquake[]>("/api/v1/earthquakes?limit=50");
-            setQuakes(data);
+            const result: FetchResult = await fetchWithCacheAndRetry(
+                "/api/v1/earthquakes?limit=50"
+            );
+
+            setQuakes(result.data as Earthquake[]);
+            setFromCache(result.fromCache);
+            setCacheAgeMs(result.cacheAge);
+            networkCtx.setOnline(!result.fromCache);
+
+            // API basarisiz ve cache'ten gosterdik — auto-retry baslat
+            if (result.fromCache && result.data.length > 0) {
+                networkCtx.setRetrying(true);
+                retryHandleRef.current?.stop();
+
+                retryHandleRef.current = startAutoRetry(
+                    "/api/v1/earthquakes?limit=50",
+                    (retryResult) => {
+                        setQuakes(retryResult.data as Earthquake[]);
+                        setFromCache(retryResult.fromCache);
+                        setCacheAgeMs(retryResult.cacheAge);
+
+                        if (!retryResult.fromCache) {
+                            // Basarili — retry durdu
+                            networkCtx.setOnline(true);
+                            networkCtx.setRetrying(false);
+                        }
+                    }
+                );
+            }
         } catch {
-            Alert.alert(t("home.error_load"));
+            // fetchWithCacheAndRetry kendi icinde hata yonetiyor
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
     }, [t]);
 
-    useEffect(() => { fetchQuakes(); }, [fetchQuakes]);
+    useEffect(() => {
+        fetchQuakes();
+        return () => {
+            retryHandleRef.current?.stop();
+        };
+    }, [fetchQuakes]);
 
     useEffect(() => {
         if (!lastEvent) return;
@@ -136,7 +192,7 @@ export default function DashboardScreen() {
         });
     }, [lastEvent]);
 
-    async function handleSafe() {
+    const handleSafe = useCallback(async () => {
         setSafeLoading(true);
         try {
             const res = await iAmSafe();
@@ -146,41 +202,50 @@ export default function DashboardScreen() {
         } finally {
             setSafeLoading(false);
         }
-    }
+    }, [t]);
 
-    // Stats from current data
-    const maxMag = quakes.length > 0 ? Math.max(...quakes.map(q => q.magnitude)) : 0;
-    const last24h = quakes.filter(q => {
-        const diff = Date.now() - new Date(q.occurred_at).getTime();
-        return diff < 86400000;
-    }).length;
+    // Gorev 6: Memoized stats
+    const maxMag = useMemo(
+        () => (quakes.length > 0 ? Math.max(...quakes.map((q) => q.magnitude)) : 0),
+        [quakes]
+    );
+    const last24h = useMemo(
+        () => quakes.filter((q) => Date.now() - new Date(q.occurred_at).getTime() < 86400000).length,
+        [quakes]
+    );
 
-    const renderItem = ({ item }: { item: Earthquake }) => {
-        const color = magnitudeColor(item.magnitude);
-        return (
-            <TouchableOpacity style={styles.card} activeOpacity={0.7}>
-                <View style={[styles.magBadge, { backgroundColor: color }]}>
-                    <Text style={styles.magText}>{item.magnitude.toFixed(1)}</Text>
-                    <Text style={styles.magUnit}>{item.source?.toUpperCase() === "AFAD" ? "Mw" : "Ml"}</Text>
-                </View>
-                <View style={styles.info}>
-                    <Text style={styles.locationText} numberOfLines={1}>
-                        {item.location || t("home.unknown_location")}
-                    </Text>
-                    <View style={styles.detailRow}>
-                        <MaterialCommunityIcons name="arrow-down" size={11} color={Colors.text.muted} />
-                        <Text style={styles.details}>
-                            {item.depth ? t("home.depth_km", { depth: item.depth.toFixed(1) }) : "\u2014"}
-                        </Text>
-                        <View style={styles.dotSep} />
-                        <MaterialCommunityIcons name="clock-outline" size={11} color={Colors.text.muted} />
-                        <Text style={styles.details}>{timeAgo(item.occurred_at)}</Text>
+    // Gorev 6: Memoized renderItem
+    const renderItem = useCallback(
+        ({ item }: { item: Earthquake }) => {
+            const color = magnitudeColor(item.magnitude);
+            return (
+                <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+                    <View style={[styles.magBadge, { backgroundColor: color }]}>
+                        <Text style={styles.magText}>{item.magnitude.toFixed(1)}</Text>
+                        <Text style={styles.magUnit}>{item.source?.toUpperCase() === "AFAD" ? "Mw" : "Ml"}</Text>
                     </View>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.border.dark} />
-            </TouchableOpacity>
-        );
-    };
+                    <View style={styles.info}>
+                        <Text style={styles.locationText} numberOfLines={1}>
+                            {item.location || t("home.unknown_location")}
+                        </Text>
+                        <View style={styles.detailRow}>
+                            <MaterialCommunityIcons name="arrow-down" size={11} color={Colors.text.muted} />
+                            <Text style={styles.details}>
+                                {item.depth ? t("home.depth_km", { depth: item.depth.toFixed(1) }) : "\u2014"}
+                            </Text>
+                            <View style={styles.dotSep} />
+                            <MaterialCommunityIcons name="clock-outline" size={11} color={Colors.text.muted} />
+                            <Text style={styles.details}>{timeAgo(item.occurred_at)}</Text>
+                        </View>
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.border.dark} />
+                </TouchableOpacity>
+            );
+        },
+        [t]
+    );
+
+    const keyExtractor = useCallback((item: Earthquake) => item.id, []);
 
     if (loading) {
         return (
@@ -212,16 +277,23 @@ export default function DashboardScreen() {
 
             <FlatList
                 data={quakes}
-                keyExtractor={(item) => item.id}
+                keyExtractor={keyExtractor}
                 renderItem={renderItem}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
-                        onRefresh={() => { setRefreshing(true); fetchQuakes(); }}
+                        onRefresh={() => {
+                            setRefreshing(true);
+                            retryHandleRef.current?.stop();
+                            fetchQuakes();
+                        }}
                         tintColor={Colors.primary}
                     />
                 }
                 contentContainerStyle={styles.list}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={15}
+                windowSize={10}
                 ListHeaderComponent={
                     <View>
                         {/* AI Status + Connection */}
@@ -247,6 +319,26 @@ export default function DashboardScreen() {
                                 </Text>
                             </View>
                         </View>
+
+                        {/* Gorev 4: Cache/Retry bilgi banneri */}
+                        {fromCache && (
+                            <View style={styles.cacheBanner}>
+                                <MaterialCommunityIcons name="cloud-off-outline" size={16} color={Colors.accent} />
+                                <View style={styles.cacheBannerTexts}>
+                                    <Text style={styles.cacheBannerTitle}>
+                                        Cevrimdisi Mod {networkCtx.isRetrying ? "— Yeniden baglaniyor..." : ""}
+                                    </Text>
+                                    <Text style={styles.cacheBannerSub}>
+                                        {cacheAgeMs !== null
+                                            ? `Cache verileri gosteriliyor (${formatCacheAge(cacheAgeMs)})`
+                                            : "Son basarili veriler gosteriliyor"}
+                                    </Text>
+                                </View>
+                                {networkCtx.isRetrying && (
+                                    <ActivityIndicator size="small" color={Colors.accent} />
+                                )}
+                            </View>
+                        )}
 
                         {/* Stats Cards — Glassmorphism */}
                         <View style={styles.statsRow}>
@@ -317,107 +409,51 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background.dark, paddingTop: Platform.OS === "android" ? 30 : 0 },
     center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.background.dark },
 
-    // Header
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border.glass,
-    },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border.glass },
     brandContainer: { flexDirection: "row", alignItems: "center", gap: 10 },
-    logoBox: {
-        backgroundColor: Colors.primary,
-        padding: 8,
-        borderRadius: BorderRadius.lg,
-        ...Shadows.sm,
-    },
+    logoBox: { backgroundColor: Colors.primary, padding: 8, borderRadius: BorderRadius.lg, ...Shadows.sm },
     brandTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "800", letterSpacing: -0.5 },
     brandSub: { color: Colors.text.muted, fontSize: Typography.sizes.xs, fontWeight: "600", marginTop: 1 },
     headerActions: { flexDirection: "row", gap: 8 },
     headerBtn: { padding: 8, backgroundColor: Colors.background.surface, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border.glass },
 
-    // Status
-    statusRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.sm + 2,
-    },
-    statusChip: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-    },
+    statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
+    statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
     liveDot: { width: 6, height: 6, borderRadius: 3 },
     statusChipText: { fontSize: 10, fontWeight: "800", letterSpacing: 1 },
-    sensorChip: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: BorderRadius.full,
-        borderWidth: 1,
-        borderColor: Colors.border.glass,
-        backgroundColor: Colors.background.surface,
-    },
+    sensorChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.full, borderWidth: 1, borderColor: Colors.border.glass, backgroundColor: Colors.background.surface },
     sensorChipText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
 
-    // Stats
-    statsRow: {
+    // Gorev 4: Cache banner
+    cacheBanner: {
         flexDirection: "row",
-        paddingHorizontal: Spacing.md,
-        gap: Spacing.sm,
-        marginTop: Spacing.sm,
-        marginBottom: Spacing.sm,
-    },
-    statCard: {
-        flex: 1,
-        backgroundColor: Colors.background.surface,
-        borderWidth: 1,
-        borderColor: Colors.border.glass,
-        borderRadius: BorderRadius.xl,
-        padding: Spacing.md,
         alignItems: "center",
-        gap: 4,
+        gap: 10,
+        marginHorizontal: Spacing.md,
+        marginBottom: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm + 2,
+        backgroundColor: Colors.accent + "10",
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        borderColor: Colors.accent + "25",
     },
+    cacheBannerTexts: { flex: 1 },
+    cacheBannerTitle: { fontSize: 11, fontWeight: "800", color: Colors.accent },
+    cacheBannerSub: { fontSize: 10, fontWeight: "500", color: Colors.text.muted, marginTop: 1 },
+
+    statsRow: { flexDirection: "row", paddingHorizontal: Spacing.md, gap: Spacing.sm, marginTop: Spacing.sm, marginBottom: Spacing.sm },
+    statCard: { flex: 1, backgroundColor: Colors.background.surface, borderWidth: 1, borderColor: Colors.border.glass, borderRadius: BorderRadius.xl, padding: Spacing.md, alignItems: "center", gap: 4 },
     statValue: { fontSize: Typography.sizes.xxl, fontWeight: "900", color: Colors.primary },
     statLabel: { fontSize: 9, fontWeight: "700", color: Colors.text.muted, textTransform: "uppercase", letterSpacing: 0.5 },
 
-    // List
     list: { paddingHorizontal: Spacing.md, paddingBottom: 100 },
-    listHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginTop: Spacing.md,
-        marginBottom: Spacing.sm,
-    },
+    listHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: Spacing.md, marginBottom: Spacing.sm },
     listTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "700" },
     filterText: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "600" },
 
-    // Card
-    card: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: Colors.background.surface,
-        borderRadius: BorderRadius.xl,
-        padding: Spacing.md,
-        marginBottom: Spacing.sm,
-        borderWidth: 1,
-        borderColor: Colors.border.glass,
-    },
-    magBadge: {
-        width: 52,
-        height: 52,
-        borderRadius: BorderRadius.lg,
-        justifyContent: "center",
-        alignItems: "center",
-    },
+    card: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.background.surface, borderRadius: BorderRadius.xl, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border.glass },
+    magBadge: { width: 52, height: 52, borderRadius: BorderRadius.lg, justifyContent: "center", alignItems: "center" },
     magText: { color: "#fff", fontSize: 18, fontWeight: "900" },
     magUnit: { color: "rgba(255,255,255,0.7)", fontSize: 8, fontWeight: "700", marginTop: 1 },
     info: { flex: 1, marginLeft: Spacing.md },
@@ -426,26 +462,10 @@ const styles = StyleSheet.create({
     details: { color: Colors.text.muted, fontSize: Typography.sizes.sm },
     dotSep: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: Colors.text.muted, marginHorizontal: 2 },
 
-    // Ad
     adContainer: { alignItems: "center", marginVertical: Spacing.md },
 
-    // Safe Button
-    safeBtnContainer: {
-        position: "absolute",
-        bottom: 20,
-        left: Spacing.md,
-        right: Spacing.md,
-        ...Shadows.lg,
-    },
-    safeBtn: {
-        backgroundColor: Colors.primary,
-        borderRadius: BorderRadius.xl,
-        height: 56,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 10,
-    },
+    safeBtnContainer: { position: "absolute", bottom: 20, left: Spacing.md, right: Spacing.md, ...Shadows.lg },
+    safeBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.xl, height: 56, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
     safeBtnDisabled: { opacity: 0.6 },
     safeBtnText: { color: "#fff", fontSize: Typography.sizes.md, fontWeight: "800" },
 });

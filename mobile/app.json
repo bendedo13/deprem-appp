@@ -26,7 +26,8 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Konum, deprem sinyali gondermek icin kullanilir."
+          "locationAlwaysAndWhenInUsePermission": "Konum, deprem sinyali gondermek ve S.O.S. konumunuzu paylasmak icin kullanilir.",
+          "isAndroidBackgroundLocationEnabled": true
         }
       ],
       [
@@ -35,6 +36,13 @@
           "microphonePermission": "S.O.S sesli mesaj gondermek icin mikrofon izni gereklidir."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Deprem aninda flas isigini otomatik acmak icin kamera erisimi gereklidir."
+        }
+      ],
+      "expo-task-manager",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
@@ -71,13 +79,31 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SEND_SMS",
+        "android.permission.CAMERA",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.WAKE_LOCK",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "googleServicesFile": "./google-services.json"
     },
     "ios": {
       "bundleIdentifier": "com.quakesense",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location",
+          "fetch",
+          "processing",
+          "remote-notification"
+        ],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Deprem algilama ve S.O.S. konum paylasimi icin arka plan konum erisimi gereklidir.",
+        "NSLocationWhenInUseUsageDescription": "Deprem uyarilari ve konum bazli bildirimler icin konum izni gereklidir.",
+        "NSCameraUsageDescription": "Deprem aninda flas isigini otomatik acmak icin kamera erisimi gereklidir."
+      }
     }
   }
 }
