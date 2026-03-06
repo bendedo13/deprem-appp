@@ -19,9 +19,20 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
-import { BannerAd, BannerAdSize } from "react-native-google-mobile-ads";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { getBannerId } from "../../src/services/adService";
+
+// AdMob — optional, may not be available in all builds
+let BannerAd: any = null;
+let BannerAdSize: any = {};
+let getBannerId: (() => string) | null = null;
+try {
+    const ads = require("react-native-google-mobile-ads");
+    BannerAd = ads.BannerAd;
+    BannerAdSize = ads.BannerAdSize;
+    getBannerId = require("../../src/services/adService").getBannerId;
+} catch {
+    // AdMob not available
+}
 import { api } from "../../src/services/api";
 import { iAmSafe } from "../../src/services/authService";
 import { useWebSocket, EarthquakeEvent } from "../../src/hooks/useWebSocket";
@@ -267,13 +278,15 @@ export default function DashboardScreen() {
                     </View>
                 }
                 ListFooterComponent={
-                    <View style={styles.adContainer}>
-                        <BannerAd
-                            unitId={getBannerId()}
-                            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-                            requestOptions={{ requestNonPersonalizedAdsOnly: true }}
-                        />
-                    </View>
+                    BannerAd && getBannerId ? (
+                        <View style={styles.adContainer}>
+                            <BannerAd
+                                unitId={getBannerId()}
+                                size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+                                requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+                            />
+                        </View>
+                    ) : null
                 }
             />
 

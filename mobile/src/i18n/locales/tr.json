@@ -2,6 +2,7 @@
     "tabs": {
         "earthquakes": "Depremler",
         "map": "Harita",
+        "sensor": "Sensör",
         "menu": "Menü"
     },
     "menu": {
@@ -104,5 +105,34 @@
         "time": "Zaman",
         "close": "Kapat",
         "no_data": "Henüz deprem verisi yok."
+    },
+    "sensor": {
+        "title": "Erken Uyarı",
+        "subtitle": "İvmeölçer Sensörü",
+        "active": "AKTİF",
+        "inactive": "PASİF",
+        "peak_accel": "Tepe İvme",
+        "triggered_alert": "Sismik Aktivite Algılandı!",
+        "how_it_works": "Nasıl Çalışır?",
+        "info_description": "Telefonunuzun ivmeölçer sensörü, deprem dalgalarını gerçek zamanlı olarak analiz eder. P dalgası (birincil) S dalgasından (ikincil) önce gelir ve erken uyarı fırsatı sunar.",
+        "p_wave": "P Dalgası",
+        "p_wave_desc": "Hızlı, hafif\nİlk gelen dalga",
+        "s_wave": "S Dalgası",
+        "s_wave_desc": "Yavaş, yıkıcı\nAsıl hasar kaynağı",
+        "tip_flat_surface": "En iyi sonuç için telefonunuzu sabit ve düz bir zemine yerleştirin.",
+        "enable_detection": "Deprem Algılama",
+        "enable_desc": "İvmeölçer sensörünü aktif et",
+        "schedule": "Zamanlama",
+        "schedule_desc": "Sensörün hangi saatler arasında aktif olacağını belirleyin",
+        "start_time": "Başlangıç",
+        "end_time": "Bitiş",
+        "actions": "Aksiyon Ayarları",
+        "actions_desc": "Deprem algılandığında telefonun vereceği tepkiler",
+        "flash": "Flaş Işığı",
+        "flash_desc": "Deprem anında flaş otomatik yanar",
+        "vibration": "Güçlü Titreşim",
+        "vibration_desc": "Yüksek yoğunluklu titreşim ile uyarı",
+        "alarm": "Sesli Alarm",
+        "alarm_desc": "Maksimum ses ile alarm çalar"
     }
 }

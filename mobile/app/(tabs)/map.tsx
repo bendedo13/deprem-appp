@@ -1,10 +1,9 @@
 /**
- * Deprem harita ekranı — WebGL tabanlı react-native-maps gerektirmez.
- * Expo MapView, ejected/bare workflow gerektirdiği için basit liste görünümü.
+ * Deprem harita ekranı — API'den ilk veri + WebSocket ile canlı güncelleme.
  * Koordinat grid'i ve tıklanabilir deprem noktaları gösterilir.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
     View,
     Text,
@@ -14,11 +13,14 @@ import {
     Modal,
     SafeAreaView,
     Platform,
+    RefreshControl,
+    ActivityIndicator,
 } from "react-native";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWebSocket } from "../../src/hooks/useWebSocket";
+import { api } from "../../src/services/api";
 import { useTranslation } from "react-i18next";
-import { Colors, Typography, Spacing, BorderRadius, Glass } from "../../src/constants/theme";
+import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 interface EQ {
     id: string;
@@ -42,21 +44,48 @@ function timeAgo(iso: string): string {
     const d = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
     if (d < 60) return `${d}s`;
     if (d < 3600) return `${Math.floor(d / 60)}m`;
-    return `${Math.floor(d / 3600)}h`;
+    if (d < 86400) return `${Math.floor(d / 3600)}h`;
+    return `${Math.floor(d / 86400)}d`;
 }
 
 export default function MapScreen() {
     const { isConnected, lastEvent } = useWebSocket();
     const { t, i18n } = useTranslation();
-    const [recent, setRecent] = useState<EQ[]>([]);
+    const [quakes, setQuakes] = useState<EQ[]>([]);
     const [selected, setSelected] = useState<EQ | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    // Son gelen deprem → listeye ekle (max 24)
-    if (lastEvent) {
-        const exists = recent.find((q) => q.id === lastEvent.id);
-        if (!exists) {
-            setRecent((prev) => [lastEvent as EQ, ...prev].slice(0, 24));
+    const fetchQuakes = useCallback(async () => {
+        try {
+            const { data } = await api.get<EQ[]>("/api/v1/earthquakes?limit=50");
+            setQuakes(data);
+        } catch {
+            // Silently fail — will show empty state
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
+    }, []);
+
+    useEffect(() => { fetchQuakes(); }, [fetchQuakes]);
+
+    // Merge WebSocket live events into the list
+    useEffect(() => {
+        if (!lastEvent) return;
+        setQuakes((prev) => {
+            const exists = prev.find((q) => q.id === lastEvent.id);
+            if (exists) return prev;
+            return [lastEvent as EQ, ...prev].slice(0, 50);
+        });
+    }, [lastEvent]);
+
+    if (loading) {
+        return (
+            <View style={styles.center}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+        );
     }
 
     return (
@@ -69,14 +98,23 @@ export default function MapScreen() {
                 <Text style={styles.headerStatus}>{isConnected ? t("home.live") : t("home.disconnected")}</Text>
             </View>
 
-            <ScrollView contentContainerStyle={styles.grid}>
-                {recent.length === 0 ? (
+            <ScrollView
+                contentContainerStyle={styles.grid}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={() => { setRefreshing(true); fetchQuakes(); }}
+                        tintColor={Colors.primary}
+                    />
+                }
+            >
+                {quakes.length === 0 ? (
                     <View style={styles.emptyBox}>
                         <MaterialCommunityIcons name="earth" size={80} color={Colors.background.surface} />
                         <Text style={styles.emptyText}>{t("map.no_data")}</Text>
                     </View>
                 ) : (
-                    recent.map((eq) => (
+                    quakes.map((eq) => (
                         <TouchableOpacity
                             key={eq.id}
                             style={[styles.card, { borderColor: magnitudeColor(eq.magnitude) + '30' }]}
@@ -123,7 +161,7 @@ export default function MapScreen() {
                                     <View style={styles.statBox}>
                                         <MaterialCommunityIcons name="arrow-down" size={24} color={Colors.accent} />
                                         <Text style={styles.statLabel}>{t("map.depth")}</Text>
-                                        <Text style={styles.statValue}>{selected.depth?.toFixed(1) ?? "—"} km</Text>
+                                        <Text style={styles.statValue}>{selected.depth?.toFixed(1) ?? "\u2014"} km</Text>
                                     </View>
                                     <View style={styles.statBox}>
                                         <MaterialCommunityIcons name="map-marker" size={24} color={Colors.accent} />
@@ -146,6 +184,7 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background.dark, paddingTop: Platform.OS === 'android' ? 30 : 0 },
+    center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.background.dark },
     header: {
         flexDirection: "row",
         alignItems: "center",

@@ -46,6 +46,15 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen
+                name="sensor"
+                options={{
+                    title: t("tabs.sensor"),
+                    tabBarIcon: ({ color, size }) => (
+                        <MaterialCommunityIcons name="waveform" color={color} size={size + 2} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
                 name="sos"
                 options={{
                     title: "S.O.S",

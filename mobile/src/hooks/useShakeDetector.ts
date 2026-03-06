@@ -1,7 +1,7 @@
 /**
- * useShakeDetector hook — expo-sensors Accelerometer + STA/LTA algoritması.
- * Sismik titreşimi yürüme/taşıma gürültüsünden ayırt eder.
- * rules.md: try/catch, type hints, max 50 satır/fonksiyon.
+ * useShakeDetector hook — Gelişmiş sismik algılama.
+ * Butterworth bandpass filtreleme + Recursive STA/LTA + P/S dalga ayrımı.
+ * Yanlış alarm filtreleme (telefon düşürme, yürüme, dokunma).
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -13,37 +13,45 @@ import {
     LTA_WINDOW,
     TRIGGER_RATIO,
     DETRIGGER_RATIO,
-    HIGHPASS_ALPHA,
     MIN_REPORT_ACCELERATION,
 } from "../constants/seismic";
-import { highPassFilter, vectorMagnitude, computeStaLta } from "../utils/staLta";
+import {
+    vectorMagnitude,
+    BandpassFilter,
+    RecursiveStaLta,
+    isLikelyEarthquake,
+} from "../utils/staLta";
 import { reportTrigger } from "../services/seismicService";
 
 export interface ShakeState {
-    /** Sensör aktif ve tetikleme izleniyor */
     isMonitoring: boolean;
-    /** Şu an sismik tetikleme aktif mi */
     isTriggered: boolean;
-    /** Son tetiklemedeki tepe ivme değeri (m/s²) */
     peakAcceleration: number;
-    /** Son tetikleme zamanı */
     triggerTime: Date | null;
-    /** Son STA/LTA oranı */
     staLtaRatio: number;
 }
 
-/** Cihazı tanımlamak için basit ID */
 const DEVICE_ID = `device-${Platform.OS}-${Date.now().toString(36)}`;
+
+/** Gravity removal using exponential moving average */
+const GRAVITY_ALPHA = 0.8;
+
+/** Minimum trigger confirmation duration (ms) to avoid phone drops */
+const MIN_CONFIRM_DURATION_MS = 800;
 
 export function useShakeDetector(
     latitude: number | null,
     longitude: number | null
 ): ShakeState {
-    const samples = useRef<number[]>([]);
-    const prevRaw = useRef(0);
-    const prevFiltered = useRef(0);
+    // Persistent refs for filter state across renders
+    const bandpass = useRef(new BandpassFilter(SAMPLE_RATE_HZ, 0.5, 20));
+    const staLta = useRef(new RecursiveStaLta(STA_WINDOW, LTA_WINDOW));
+    const gravityRef = useRef({ x: 0, y: 0, z: 0 });
     const triggered = useRef(false);
+    const triggerStartTime = useRef(0);
     const peakRef = useRef(0);
+    const recentBuffer = useRef<number[]>([]);
+    const reportSent = useRef(false);
 
     const [state, setState] = useState<ShakeState>({
         isMonitoring: false,
@@ -56,30 +64,92 @@ export function useShakeDetector(
     useEffect(() => {
         Accelerometer.setUpdateInterval(Math.floor(1000 / SAMPLE_RATE_HZ));
 
-        const sub = Accelerometer.addListener(({ x, y, z }) => {
-            const raw = vectorMagnitude(x, y, z);
-            const filtered = highPassFilter(raw, prevRaw.current, prevFiltered.current, HIGHPASS_ALPHA);
-            prevRaw.current = raw;
-            prevFiltered.current = filtered;
+        // Reset filter state on mount
+        bandpass.current = new BandpassFilter(SAMPLE_RATE_HZ, 0.5, 20);
+        staLta.current = new RecursiveStaLta(STA_WINDOW, LTA_WINDOW);
 
-            samples.current.push(filtered);
-            if (samples.current.length > LTA_WINDOW) {
-                samples.current.shift();
+        const sub = Accelerometer.addListener(({ x, y, z }) => {
+            // Remove gravity with exponential moving average
+            const g = gravityRef.current;
+            g.x = GRAVITY_ALPHA * g.x + (1 - GRAVITY_ALPHA) * x;
+            g.y = GRAVITY_ALPHA * g.y + (1 - GRAVITY_ALPHA) * y;
+            g.z = GRAVITY_ALPHA * g.z + (1 - GRAVITY_ALPHA) * z;
+
+            const ax = x - g.x;
+            const ay = y - g.y;
+            const az = z - g.z;
+
+            // Vector magnitude of linear acceleration
+            const raw = vectorMagnitude(ax, ay, az);
+
+            // Bandpass filter: keep seismic frequencies (0.5-20 Hz)
+            const filtered = bandpass.current.process(raw);
+            const absFiltered = Math.abs(filtered);
+
+            // Recursive STA/LTA (O(1) per sample)
+            const ratio = staLta.current.push(absFiltered);
+
+            // Maintain recent buffer for false alarm analysis
+            recentBuffer.current.push(filtered);
+            if (recentBuffer.current.length > SAMPLE_RATE_HZ * 3) {
+                recentBuffer.current = recentBuffer.current.slice(-SAMPLE_RATE_HZ * 2);
             }
 
-            const ratio = computeStaLta(samples.current, STA_WINDOW, LTA_WINDOW);
-
             if (!triggered.current && ratio >= TRIGGER_RATIO) {
+                // Potential trigger — start confirmation timer
                 triggered.current = true;
+                triggerStartTime.current = Date.now();
                 peakRef.current = raw;
-                setState((s) => ({ ...s, isTriggered: true, triggerTime: new Date(), staLtaRatio: ratio }));
-                _sendReport(raw, ratio, latitude, longitude);
+                reportSent.current = false;
+                setState((s) => ({
+                    ...s,
+                    isTriggered: true,
+                    triggerTime: new Date(),
+                    staLtaRatio: ratio,
+                    peakAcceleration: raw,
+                }));
             } else if (triggered.current && ratio < DETRIGGER_RATIO) {
+                // Detrigger
+                const durationMs = Date.now() - triggerStartTime.current;
+
+                // Only send report if confirmed as likely earthquake
+                if (!reportSent.current && durationMs >= MIN_CONFIRM_DURATION_MS) {
+                    const likely = isLikelyEarthquake(
+                        recentBuffer.current,
+                        durationMs,
+                        peakRef.current
+                    );
+                    if (likely) {
+                        _sendReport(peakRef.current, ratio, latitude, longitude);
+                        reportSent.current = true;
+                    }
+                }
+
                 triggered.current = false;
                 peakRef.current = 0;
-                setState((s) => ({ ...s, isTriggered: false, peakAcceleration: 0, staLtaRatio: ratio }));
+                setState((s) => ({
+                    ...s,
+                    isTriggered: false,
+                    peakAcceleration: 0,
+                    staLtaRatio: ratio,
+                }));
             } else if (triggered.current) {
                 peakRef.current = Math.max(peakRef.current, raw);
+                const durationMs = Date.now() - triggerStartTime.current;
+
+                // Send report if sustained long enough and not yet reported
+                if (!reportSent.current && durationMs >= MIN_CONFIRM_DURATION_MS) {
+                    const likely = isLikelyEarthquake(
+                        recentBuffer.current,
+                        durationMs,
+                        peakRef.current
+                    );
+                    if (likely) {
+                        _sendReport(peakRef.current, ratio, latitude, longitude);
+                        reportSent.current = true;
+                    }
+                }
+
                 setState((s) => ({
                     ...s,
                     peakAcceleration: peakRef.current,
@@ -98,7 +168,6 @@ export function useShakeDetector(
     return state;
 }
 
-/** Backend'e rapor gönderir — minimum ivme eşiğini kontrol eder. */
 async function _sendReport(
     peakAccel: number,
     ratio: number,
@@ -106,11 +175,15 @@ async function _sendReport(
     lng: number | null
 ): Promise<void> {
     if (peakAccel < MIN_REPORT_ACCELERATION || lat === null || lng === null) return;
-    await reportTrigger({
-        device_id: DEVICE_ID,
-        peak_acceleration: peakAccel,
-        sta_lta_ratio: ratio,
-        latitude: lat,
-        longitude: lng,
-    });
+    try {
+        await reportTrigger({
+            device_id: DEVICE_ID,
+            peak_acceleration: peakAccel,
+            sta_lta_ratio: ratio,
+            latitude: lat,
+            longitude: lng,
+        });
+    } catch {
+        // Network error — silently ignore
+    }
 }

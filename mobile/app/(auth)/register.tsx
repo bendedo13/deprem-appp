@@ -1,9 +1,9 @@
 /**
  * Kayıt ekranı — Firebase Auth ile e-posta + şifre kaydı.
- * Başarılı kayıtta ana sekmelere yönlendirir.
+ * Başarılı kayıtta onAuthStateChanged listener ile ana sekmelere yönlendirir.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
@@ -23,6 +23,7 @@ import {
     firebaseRegister,
     getFirebaseAuthErrorKey,
     getIdToken,
+    onAuthStateChanged,
 } from "../../src/services/firebaseAuthService";
 import { syncFirebaseToken } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
@@ -34,6 +35,24 @@ export default function RegisterScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const { t } = useTranslation();
+    const authInProgress = useRef(false);
+
+    // Listen for auth state changes — navigate when user becomes authenticated
+    useEffect(() => {
+        const unsub = onAuthStateChanged(async (user) => {
+            if (user && authInProgress.current) {
+                // Sync token to backend silently
+                try {
+                    const idToken = await getIdToken();
+                    if (idToken) await syncFirebaseToken(idToken);
+                } catch {
+                    // Backend sync is non-critical
+                }
+                router.replace("/(tabs)");
+            }
+        });
+        return unsub;
+    }, []);
 
     async function handleRegister() {
         if (!email.trim() || !password || !confirm) {
@@ -50,17 +69,12 @@ export default function RegisterScreen() {
         }
 
         setLoading(true);
+        authInProgress.current = true;
         try {
             await firebaseRegister(email.trim().toLowerCase(), password);
-            // Backend sync — hata olsa da devam et (Firebase auth yeterli)
-            try {
-                const idToken = await getIdToken();
-                if (idToken) await syncFirebaseToken(idToken);
-            } catch (syncErr) {
-                console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
-            }
-            router.replace("/(tabs)");
+            // Navigation is handled by onAuthStateChanged listener above
         } catch (err: unknown) {
+            authInProgress.current = false;
             const errorKey = getFirebaseAuthErrorKey(err);
             const code = (err as { code?: string })?.code ?? "unknown";
             Alert.alert(t("auth.error_register"), `${t(errorKey)}\n\n[${code}]`);

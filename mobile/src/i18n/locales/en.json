@@ -2,6 +2,7 @@
     "tabs": {
         "earthquakes": "Earthquakes",
         "map": "Map",
+        "sensor": "Sensor",
         "menu": "Menu"
     },
     "menu": {
@@ -104,5 +105,34 @@
         "time": "Time",
         "close": "Close",
         "no_data": "No earthquake data yet."
+    },
+    "sensor": {
+        "title": "Early Warning",
+        "subtitle": "Accelerometer Sensor",
+        "active": "ACTIVE",
+        "inactive": "INACTIVE",
+        "peak_accel": "Peak Accel",
+        "triggered_alert": "Seismic Activity Detected!",
+        "how_it_works": "How Does It Work?",
+        "info_description": "Your phone's accelerometer analyzes earthquake waves in real-time. P-waves (primary) arrive before S-waves (secondary), providing an early warning opportunity.",
+        "p_wave": "P-Wave",
+        "p_wave_desc": "Fast, gentle\nFirst to arrive",
+        "s_wave": "S-Wave",
+        "s_wave_desc": "Slow, destructive\nMain damage source",
+        "tip_flat_surface": "For best results, place your phone on a stable, flat surface.",
+        "enable_detection": "Earthquake Detection",
+        "enable_desc": "Activate accelerometer sensor",
+        "schedule": "Schedule",
+        "schedule_desc": "Set active hours for the sensor",
+        "start_time": "Start",
+        "end_time": "End",
+        "actions": "Action Settings",
+        "actions_desc": "Phone responses when earthquake is detected",
+        "flash": "Flashlight",
+        "flash_desc": "Flash turns on automatically during earthquake",
+        "vibration": "Strong Vibration",
+        "vibration_desc": "High intensity vibration alert",
+        "alarm": "Sound Alarm",
+        "alarm_desc": "Maximum volume alarm"
     }
 }
