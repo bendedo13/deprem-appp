@@ -21,12 +21,18 @@ import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
 import { BannerAd, BannerAdSize } from "react-native-google-mobile-ads";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
+import { router } from "expo-router";
 import { getBannerId } from "../../src/services/adService";
 import { api } from "../../src/services/api";
 import { iAmSafe } from "../../src/services/authService";
 import { useWebSocket, EarthquakeEvent } from "../../src/hooks/useWebSocket";
 import { useShakeDetector } from "../../src/hooks/useShakeDetector";
 import { Colors, Typography, Spacing, BorderRadius, Glass, Shadows } from "../../src/constants/theme";
+
+const CHECKLIST_KEY = "quakesense_safety_checklist";
+const CHECKLIST_TOTAL = 100; // total possible points map to 100%
+const CHECKLIST_ITEMS_COUNT = 10;
 
 interface Earthquake {
     id: string;
@@ -55,12 +61,20 @@ function timeAgo(isoStr: string): string {
     return `${Math.floor(diff / 86400)}d`;
 }
 
+const CHECKLIST_POINT_MAP: Record<string, number> = {
+    bag: 15, firstaid: 10, water: 10, food: 10,
+    meeting: 15, contacts: 10, flashlight: 5,
+    documents: 5, insurance: 10, drill: 10,
+};
+const TOTAL_POSSIBLE = Object.values(CHECKLIST_POINT_MAP).reduce((a, b) => a + b, 0);
+
 export default function DashboardScreen() {
     const [quakes, setQuakes] = useState<Earthquake[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [safeLoading, setSafeLoading] = useState(false);
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+    const [safetyScore, setSafetyScore] = useState(0);
     const { t } = useTranslation();
     const { isConnected, lastEvent } = useWebSocket();
     const { isMonitoring, isTriggered, peakAcceleration, staLtaRatio } = useShakeDetector(
@@ -69,6 +83,20 @@ export default function DashboardScreen() {
     );
     const prevTriggered = useRef(false);
     const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    // Load safety score
+    useEffect(() => {
+        (async () => {
+            try {
+                const stored = await SecureStore.getItemAsync(CHECKLIST_KEY);
+                if (stored) {
+                    const checked: string[] = JSON.parse(stored);
+                    const earned = checked.reduce((sum, id) => sum + (CHECKLIST_POINT_MAP[id] ?? 0), 0);
+                    setSafetyScore(Math.round((earned / TOTAL_POSSIBLE) * 100));
+                }
+            } catch { /* ignore */ }
+        })();
+    }, []);
 
     // Pulse animation for live indicator
     useEffect(() => {
@@ -246,7 +274,7 @@ export default function DashboardScreen() {
                             <View style={styles.statCard}>
                                 <MaterialCommunityIcons name="arrow-up-bold" size={20} color={Colors.accent} />
                                 <Text style={[styles.statValue, { color: Colors.accent }]}>{maxMag.toFixed(1)}</Text>
-                                <Text style={styles.statLabel}>En Buyuk</Text>
+                                <Text style={styles.statLabel}>En Büyük</Text>
                             </View>
                             <View style={styles.statCard}>
                                 <MaterialCommunityIcons name="access-point" size={20} color={Colors.status.info} />
@@ -254,6 +282,36 @@ export default function DashboardScreen() {
                                 <Text style={styles.statLabel}>Toplam</Text>
                             </View>
                         </View>
+
+                        {/* Safety Score Banner */}
+                        <TouchableOpacity
+                            style={styles.scoreBanner}
+                            onPress={() => router.push("/more/safety_score")}
+                            activeOpacity={0.8}
+                        >
+                            <View style={styles.scoreBannerLeft}>
+                                <View style={[styles.scoreRingMini, {
+                                    borderColor: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
+                                }]}>
+                                    <Text style={[styles.scoreRingText, {
+                                        color: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
+                                    }]}>{safetyScore}</Text>
+                                </View>
+                                <View>
+                                    <Text style={styles.scoreBannerTitle}>Hazırlık Skorum</Text>
+                                    <View style={styles.scoreBarTrack}>
+                                        <View style={[styles.scoreBarFill, {
+                                            width: `${safetyScore}%` as any,
+                                            backgroundColor: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
+                                        }]} />
+                                    </View>
+                                    <Text style={styles.scoreBannerSub}>
+                                        {safetyScore === 0 ? "Kontrol listesini doldur" : safetyScore >= 80 ? "Harika, hazırsın! 🎉" : "Geliştir, daha iyisi olabilir"}
+                                    </Text>
+                                </View>
+                            </View>
+                            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.border.dark} />
+                        </TouchableOpacity>
 
                         {/* Section Title */}
                         <View style={styles.listHeader}>
@@ -434,4 +492,60 @@ const styles = StyleSheet.create({
     },
     safeBtnDisabled: { opacity: 0.6 },
     safeBtnText: { color: "#fff", fontSize: Typography.sizes.md, fontWeight: "800" },
+
+    // Safety score banner
+    scoreBanner: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: Colors.background.surface,
+        borderWidth: 1,
+        borderColor: Colors.border.glass,
+        borderRadius: BorderRadius.xl,
+        paddingVertical: Spacing.sm + 2,
+        paddingHorizontal: Spacing.md,
+        marginTop: Spacing.xs,
+        marginBottom: Spacing.sm,
+    },
+    scoreBannerLeft: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.md,
+    },
+    scoreRingMini: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        borderWidth: 3,
+        justifyContent: "center",
+        alignItems: "center",
+        flexShrink: 0,
+    },
+    scoreRingText: {
+        fontSize: Typography.sizes.sm,
+        fontWeight: "900",
+    },
+    scoreBannerTitle: {
+        fontSize: Typography.sizes.sm,
+        fontWeight: "800",
+        color: Colors.text.dark,
+        marginBottom: 4,
+    },
+    scoreBarTrack: {
+        width: 120,
+        height: 4,
+        backgroundColor: Colors.background.elevated,
+        borderRadius: 2,
+        overflow: "hidden",
+        marginBottom: 3,
+    },
+    scoreBarFill: {
+        height: 4,
+        borderRadius: 2,
+    },
+    scoreBannerSub: {
+        fontSize: 10,
+        color: Colors.text.muted,
+        fontWeight: "600",
+    },
 });

@@ -1,6 +1,6 @@
 /**
- * Onboarding ekrani - Kayit sonrasi izin talepleri ve ozellik tanitimi.
- * Hassas Konum, Bildirim ve Kritik Uyari izinleri icin ikna edici, profesyonel ekranlar.
+ * Professional Onboarding - Hos Geldin + Izin Talepleri
+ * 4 slaytli karsilama ekrani + izin adimlari
  */
 
 import { useState, useRef } from "react";
@@ -13,6 +13,7 @@ import {
     FlatList,
     Alert,
     Platform,
+    Animated,
 } from "react-native";
 import { router } from "expo-router";
 import * as Location from "expo-location";
@@ -20,87 +21,141 @@ import * as Notifications from "expo-notifications";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
-interface OnboardingStep {
+interface Slide {
     id: string;
+    type: "welcome" | "permission";
     icon: string;
     iconColor: string;
     iconBg: string;
+    accentColor: string;
+    badge: string;
     title: string;
-    subtitle: string;
     description: string;
     buttonText: string;
     skipText: string;
     metric?: { value: string; label: string };
+    permissionId?: "location" | "notifications" | "sensor";
+    stats?: Array<{ value: string; label: string }>;
 }
 
-const STEPS: OnboardingStep[] = [
+const SLIDES: Slide[] = [
+    {
+        id: "welcome",
+        type: "welcome",
+        icon: "shield-check",
+        iconColor: Colors.primary,
+        iconBg: "rgba(16, 185, 129, 0.12)",
+        accentColor: Colors.primary,
+        badge: "Yapay Zeka Destekli",
+        title: "QuakeSense'e\nHoş Geldiniz",
+        description:
+            "Türkiye'nin en gelişmiş deprem erken uyarı sistemi. Hayatınızı ve sevdiklerinizi korumak için buradayız.",
+        buttonText: "Keşfet",
+        skipText: "Atla",
+        stats: [
+            { value: "0.3s", label: "Uyarı Hızı" },
+            { value: "3", label: "Resmi Kaynak" },
+            { value: "%99.7", label: "Doğruluk" },
+        ],
+    },
+    {
+        id: "earlywarning",
+        type: "welcome",
+        icon: "broadcast",
+        iconColor: Colors.accent,
+        iconBg: "rgba(249, 115, 22, 0.12)",
+        accentColor: Colors.accent,
+        badge: "Erken Uyarı Sistemi",
+        title: "Yıkıcı Dalgadan\nÖnce Uyarılın",
+        description:
+            "Telefonunuzun sensörleri ile P-dalgasını tespit ederiz. Yıkıcı S-dalgası gelmeden saniyeler önce sizi uyararak tahliye sürenizi artırırız.",
+        buttonText: "Devam Et",
+        skipText: "Atla",
+        metric: { value: "8-12s", label: "Tahliye Süresi Kazanımı" },
+    },
+    {
+        id: "datasources",
+        type: "welcome",
+        icon: "database-check",
+        iconColor: Colors.status.info,
+        iconBg: "rgba(59, 130, 246, 0.12)",
+        accentColor: Colors.status.info,
+        badge: "Resmi Veri Kaynakları",
+        title: "Güvenilir\nResmi Veriler",
+        description:
+            "AFAD, Kandilli Rasathanesi ve USGS'den anlık veri alıyoruz. Hiçbir şey doğrulanmadan size ulaşmıyor.",
+        buttonText: "Harika!",
+        skipText: "Atla",
+        stats: [
+            { value: "AFAD", label: "T.C. Resmi" },
+            { value: "KRİBO", label: "Kandilli" },
+            { value: "USGS", label: "Uluslararası" },
+        ],
+    },
     {
         id: "location",
+        type: "permission",
+        permissionId: "location",
         icon: "crosshairs-gps",
         iconColor: Colors.primary,
-        iconBg: "rgba(16, 185, 129, 0.1)",
-        title: "Hassas Konum Erisimi",
-        subtitle: "Hayat kurtaran bilgi",
+        iconBg: "rgba(16, 185, 129, 0.12)",
+        accentColor: Colors.primary,
+        badge: "Gerekli İzin",
+        title: "Hassas Konum\nErişimi",
         description:
-            "Konumunuzu bilmemiz, size en yakin depremleri aninda bildirmemizi ve acil durumlarda kurtarma ekiplerine dogru koordinat iletmemizi saglar.",
-        buttonText: "Konumu Etkinlestir",
-        skipText: "Sonra",
-        metric: { value: "<2km", label: "Konum hassasiyeti" },
-    },
-    {
-        id: "notifications",
-        icon: "bell-ring-outline",
-        iconColor: Colors.accent,
-        iconBg: "rgba(249, 115, 22, 0.1)",
-        title: "Deprem Bildirimleri",
-        subtitle: "Kritik uyarilar",
-        description:
-            "Anlik deprem bildirimleri, buyukluge ve konumunuza gore filtrelenir. Sessiz saatlerde sadece kritik alarmlar gonderilir.",
-        buttonText: "Bildirimleri Ac",
-        skipText: "Sonra",
-        metric: { value: "0.3s", label: "Bildirim gecikmesi" },
-    },
-    {
-        id: "sensor",
-        icon: "vibrate",
-        iconColor: Colors.danger,
-        iconBg: "rgba(220, 38, 38, 0.1)",
-        title: "Sensor Erisimi",
-        subtitle: "Erken uyari teknolojisi",
-        description:
-            "Telefonunuzun ivmeolceri ile yer titresimini algilariz. STA/LTA algoritmasi P-dalgasini tespit eder ve yikici S-dalgasi gelmeden sizi uyarir.",
-        buttonText: "Sensoru Etkinlestir",
-        skipText: "Tamamla",
-        metric: { value: "%99.7", label: "Dogruluk orani" },
+            "Konumunuza en yakın depremleri filtreleyerek gereksiz bildirimleri engelliyoruz. Aile güvenlik ağınız için de konum şart.",
+        buttonText: "Konumu Etkinleştir",
+        skipText: "Şimdi Değil",
+        metric: { value: "<2km", label: "Konum Hassasiyeti" },
     },
 ];
 
 export default function OnboardingScreen() {
     const [currentStep, setCurrentStep] = useState(0);
     const flatListRef = useRef<FlatList>(null);
+    const fadeAnim = useRef(new Animated.Value(1)).current;
 
-    async function handlePermission() {
-        const step = STEPS[currentStep];
+    async function handleAction() {
+        const slide = SLIDES[currentStep];
 
-        if (step.id === "location") {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== "granted") {
-                Alert.alert("Konum Izni", "Konum izni deprem uyarilari icin onemlidir. Ayarlardan acabilirsiniz.");
-            }
-        } else if (step.id === "notifications") {
-            const { status } = await Notifications.requestPermissionsAsync();
-            if (status !== "granted") {
-                Alert.alert("Bildirim Izni", "Bildirim izni kritik deprem uyarilari icin gereklidir.");
+        if (slide.type === "permission") {
+            if (slide.permissionId === "location") {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== "granted") {
+                    Alert.alert(
+                        "Konum İzni",
+                        "Konum izni olmadan yakın deprem uyarıları alınamaz. Ayarlardan açabilirsiniz.",
+                        [
+                            { text: "Tamam", onPress: () => finishAndRequestNotifications() },
+                        ]
+                    );
+                    return;
+                }
+                finishAndRequestNotifications();
+                return;
             }
         }
 
         goNext();
     }
 
+    async function finishAndRequestNotifications() {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert("Bildirim İzni", "Deprem bildirimlerini almak için izin gereklidir.");
+        }
+        router.replace("/(tabs)");
+    }
+
     function goNext() {
-        if (currentStep < STEPS.length - 1) {
+        if (currentStep < SLIDES.length - 1) {
+            Animated.sequence([
+                Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+            ]).start();
+
             const next = currentStep + 1;
             setCurrentStep(next);
             flatListRef.current?.scrollToIndex({ index: next, animated: true });
@@ -109,38 +164,47 @@ export default function OnboardingScreen() {
         }
     }
 
-    function renderStep({ item }: { item: OnboardingStep }) {
+    function renderSlide({ item }: { item: Slide }) {
         return (
             <View style={[styles.slide, { width }]}>
                 <View style={styles.slideContent}>
-                    {/* Icon */}
-                    <View style={[styles.iconContainer, { backgroundColor: item.iconBg }]}>
-                        <View style={[styles.iconRing, { borderColor: item.iconColor + "30" }]}>
-                            <MaterialCommunityIcons
-                                name={item.icon as any}
-                                size={48}
-                                color={item.iconColor}
-                            />
+                    {/* Icon Container */}
+                    <View style={[styles.iconOuter, { backgroundColor: item.iconBg }]}>
+                        <View style={[styles.iconInner, { borderColor: item.iconColor + "30", backgroundColor: item.iconBg }]}>
+                            <MaterialCommunityIcons name={item.icon as any} size={52} color={item.iconColor} />
                         </View>
+                        {/* Pulse ring */}
+                        <View style={[styles.iconPulse, { borderColor: item.iconColor + "15" }]} />
                     </View>
 
                     {/* Badge */}
-                    <View style={[styles.badge, { borderColor: item.iconColor + "30" }]}>
-                        <View style={[styles.badgeDot, { backgroundColor: item.iconColor }]} />
-                        <Text style={[styles.badgeText, { color: item.iconColor }]}>
-                            {item.subtitle}
-                        </Text>
+                    <View style={[styles.badge, { borderColor: item.accentColor + "40", backgroundColor: item.accentColor + "10" }]}>
+                        <View style={[styles.badgeDot, { backgroundColor: item.accentColor }]} />
+                        <Text style={[styles.badgeText, { color: item.accentColor }]}>{item.badge}</Text>
                     </View>
 
                     {/* Title */}
                     <Text style={styles.title}>{item.title}</Text>
+
+                    {/* Description */}
                     <Text style={styles.description}>{item.description}</Text>
 
-                    {/* Metric */}
+                    {/* Metric or Stats */}
                     {item.metric && (
-                        <View style={styles.metricBox}>
-                            <Text style={styles.metricValue}>{item.metric.value}</Text>
+                        <View style={[styles.metricCard, { borderColor: item.accentColor + "30" }]}>
+                            <Text style={[styles.metricValue, { color: item.accentColor }]}>{item.metric.value}</Text>
                             <Text style={styles.metricLabel}>{item.metric.label}</Text>
+                        </View>
+                    )}
+
+                    {item.stats && (
+                        <View style={styles.statsRow}>
+                            {item.stats.map((stat, i) => (
+                                <View key={i} style={[styles.statItem, { borderColor: item.accentColor + "25" }]}>
+                                    <Text style={[styles.statValue, { color: item.accentColor }]}>{stat.value}</Text>
+                                    <Text style={styles.statLabel}>{stat.label}</Text>
+                                </View>
+                            ))}
                         </View>
                     )}
                 </View>
@@ -148,51 +212,77 @@ export default function OnboardingScreen() {
         );
     }
 
+    const currentSlide = SLIDES[currentStep];
+
     return (
         <View style={styles.container}>
-            {/* Progress */}
-            <View style={styles.progressBar}>
-                {STEPS.map((_, i) => (
-                    <View
-                        key={i}
-                        style={[
-                            styles.progressDot,
-                            i <= currentStep && styles.progressDotActive,
-                        ]}
-                    />
-                ))}
+            {/* Header: Progress + Skip */}
+            <View style={styles.topBar}>
+                <View style={styles.progressBar}>
+                    {SLIDES.map((_, i) => (
+                        <View
+                            key={i}
+                            style={[
+                                styles.progressSegment,
+                                {
+                                    backgroundColor: i <= currentStep ? currentSlide.accentColor : Colors.background.elevated,
+                                    flex: 1,
+                                },
+                            ]}
+                        />
+                    ))}
+                </View>
+                <TouchableOpacity onPress={() => router.replace("/(tabs)")} style={styles.skipTopBtn}>
+                    <Text style={styles.skipTopText}>Geç</Text>
+                </TouchableOpacity>
             </View>
 
-            <FlatList
-                ref={flatListRef}
-                data={STEPS}
-                renderItem={renderStep}
-                keyExtractor={(item) => item.id}
-                horizontal
-                pagingEnabled
-                scrollEnabled={false}
-                showsHorizontalScrollIndicator={false}
-            />
+            {/* Slides */}
+            <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+                <FlatList
+                    ref={flatListRef}
+                    data={SLIDES}
+                    renderItem={renderSlide}
+                    keyExtractor={(item) => item.id}
+                    horizontal
+                    pagingEnabled
+                    scrollEnabled={false}
+                    showsHorizontalScrollIndicator={false}
+                    getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
+                />
+            </Animated.View>
 
-            {/* Buttons */}
+            {/* Footer */}
             <View style={styles.footer}>
+                {/* Dot indicators */}
+                <View style={styles.dots}>
+                    {SLIDES.map((_, i) => (
+                        <View
+                            key={i}
+                            style={[
+                                styles.dot,
+                                i === currentStep
+                                    ? [styles.dotActive, { backgroundColor: currentSlide.accentColor, width: 24 }]
+                                    : { backgroundColor: Colors.background.elevated },
+                            ]}
+                        />
+                    ))}
+                </View>
+
+                {/* Primary Button */}
                 <TouchableOpacity
-                    style={styles.primaryBtn}
-                    onPress={handlePermission}
-                    activeOpacity={0.9}
+                    style={[styles.primaryBtn, { backgroundColor: currentSlide.accentColor }]}
+                    onPress={handleAction}
+                    activeOpacity={0.88}
                 >
-                    <MaterialCommunityIcons
-                        name={STEPS[currentStep].icon as any}
-                        size={20}
-                        color="#fff"
-                    />
-                    <Text style={styles.primaryBtnText}>
-                        {STEPS[currentStep].buttonText}
-                    </Text>
+                    <MaterialCommunityIcons name={currentSlide.icon as any} size={20} color="#fff" />
+                    <Text style={styles.primaryBtnText}>{currentSlide.buttonText}</Text>
+                    <MaterialCommunityIcons name="arrow-right" size={18} color="rgba(255,255,255,0.7)" />
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={goNext} style={styles.skipBtn}>
-                    <Text style={styles.skipText}>{STEPS[currentStep].skipText}</Text>
+                {/* Secondary / Skip */}
+                <TouchableOpacity onPress={goNext} style={styles.skipBtn} activeOpacity={0.7}>
+                    <Text style={styles.skipBtnText}>{currentSlide.skipText}</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -203,24 +293,42 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: Colors.background.dark,
-        paddingTop: Platform.OS === "android" ? 48 : 60,
+        paddingTop: Platform.OS === "android" ? 44 : 54,
+    },
+
+    // Top bar
+    topBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: Spacing.md,
+        paddingBottom: Spacing.lg,
+        gap: Spacing.md,
     },
     progressBar: {
-        flexDirection: "row",
-        justifyContent: "center",
-        gap: 8,
-        paddingHorizontal: Spacing.xl,
-        marginBottom: Spacing.lg,
-    },
-    progressDot: {
         flex: 1,
+        flexDirection: "row",
+        gap: 6,
+        height: 3,
+    },
+    progressSegment: {
         height: 3,
         borderRadius: 2,
-        backgroundColor: Colors.background.elevated,
     },
-    progressDotActive: {
-        backgroundColor: Colors.primary,
+    skipTopBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: BorderRadius.full,
+        backgroundColor: Colors.background.surface,
+        borderWidth: 1,
+        borderColor: Colors.border.glass,
     },
+    skipTopText: {
+        color: Colors.text.muted,
+        fontSize: Typography.sizes.sm,
+        fontWeight: "700",
+    },
+
+    // Slide
     slide: {
         flex: 1,
         justifyContent: "center",
@@ -228,91 +336,151 @@ const styles = StyleSheet.create({
     slideContent: {
         paddingHorizontal: Spacing.xl,
         alignItems: "center",
+        paddingBottom: Spacing.lg,
     },
-    iconContainer: {
-        width: 140,
-        height: 140,
-        borderRadius: 70,
+
+    // Icon
+    iconOuter: {
+        width: 160,
+        height: 160,
+        borderRadius: 80,
         justifyContent: "center",
         alignItems: "center",
         marginBottom: Spacing.xl,
+        position: "relative",
     },
-    iconRing: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+    iconInner: {
+        width: 110,
+        height: 110,
+        borderRadius: 55,
         borderWidth: 2,
         justifyContent: "center",
         alignItems: "center",
     },
+    iconPulse: {
+        position: "absolute",
+        width: 160,
+        height: 160,
+        borderRadius: 80,
+        borderWidth: 1,
+    },
+
+    // Badge
     badge: {
         flexDirection: "row",
         alignItems: "center",
         gap: 6,
         paddingHorizontal: 16,
-        paddingVertical: 6,
+        paddingVertical: 7,
         borderRadius: BorderRadius.full,
         borderWidth: 1,
         marginBottom: Spacing.lg,
     },
-    badgeDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-    },
+    badgeDot: { width: 6, height: 6, borderRadius: 3 },
     badgeText: {
         fontSize: Typography.sizes.xs,
-        fontWeight: "700",
+        fontWeight: "800",
         textTransform: "uppercase",
-        letterSpacing: 1,
+        letterSpacing: 1.2,
     },
+
+    // Text
     title: {
-        fontSize: Typography.sizes.xxl,
+        fontSize: 28,
         fontWeight: "900",
         color: Colors.text.dark,
         textAlign: "center",
         letterSpacing: -0.5,
+        lineHeight: 36,
         marginBottom: Spacing.md,
     },
     description: {
         fontSize: Typography.sizes.md,
         color: Colors.text.muted,
         textAlign: "center",
-        lineHeight: 24,
+        lineHeight: 25,
         maxWidth: 340,
         marginBottom: Spacing.xl,
     },
-    metricBox: {
+
+    // Metric
+    metricCard: {
         backgroundColor: Colors.background.surface,
         borderWidth: 1,
-        borderColor: Colors.border.glass,
-        borderRadius: BorderRadius.xl,
+        borderRadius: BorderRadius.xxl,
         paddingVertical: Spacing.md,
         paddingHorizontal: Spacing.xxl,
         alignItems: "center",
+        marginBottom: Spacing.sm,
     },
     metricValue: {
         fontSize: Typography.sizes.xxxl,
         fontWeight: "900",
-        color: Colors.primary,
+        letterSpacing: -1,
     },
     metricLabel: {
         fontSize: Typography.sizes.xs,
         color: Colors.text.muted,
-        fontWeight: "600",
+        fontWeight: "700",
         textTransform: "uppercase",
         letterSpacing: 1,
         marginTop: 4,
     },
+
+    // Stats
+    statsRow: {
+        flexDirection: "row",
+        gap: Spacing.sm,
+        marginBottom: Spacing.sm,
+    },
+    statItem: {
+        flex: 1,
+        backgroundColor: Colors.background.surface,
+        borderWidth: 1,
+        borderRadius: BorderRadius.xl,
+        padding: Spacing.md,
+        alignItems: "center",
+    },
+    statValue: {
+        fontSize: Typography.sizes.lg,
+        fontWeight: "900",
+        letterSpacing: -0.5,
+    },
+    statLabel: {
+        fontSize: 9,
+        color: Colors.text.muted,
+        fontWeight: "700",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+        marginTop: 2,
+    },
+
+    // Footer
     footer: {
         paddingHorizontal: Spacing.xl,
-        paddingBottom: Spacing.xxl,
+        paddingBottom: Platform.OS === "android" ? Spacing.xxl : Spacing.xxxl,
         gap: Spacing.md,
+        alignItems: "center",
+    },
+    dots: {
+        flexDirection: "row",
+        gap: 6,
+        alignItems: "center",
+        marginBottom: Spacing.sm,
+    },
+    dot: {
+        height: 6,
+        width: 6,
+        borderRadius: 3,
+    },
+    dotActive: {
+        height: 6,
+        borderRadius: 3,
     },
     primaryBtn: {
-        backgroundColor: Colors.primary,
+        width: "100%",
         borderRadius: BorderRadius.xl,
-        height: 56,
+        height: 58,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -323,12 +491,14 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: Typography.sizes.md,
         fontWeight: "800",
+        flex: 1,
+        textAlign: "center",
+        marginLeft: -28,
     },
     skipBtn: {
-        alignItems: "center",
-        paddingVertical: Spacing.sm,
+        paddingVertical: Spacing.xs,
     },
-    skipText: {
+    skipBtnText: {
         color: Colors.text.muted,
         fontSize: Typography.sizes.sm,
         fontWeight: "600",
