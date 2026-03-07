@@ -1,8 +1,4 @@
 {
-  "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-1173265458993328~5191916494",
-    "ios_app_id": "ca-app-pub-1173265458993328~5191916494"
-  },
   "expo": {
     "name": "QuakeSense: Life-Saving Tracker",
     "slug": "quakesense",

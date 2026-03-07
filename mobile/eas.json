@@ -28,6 +28,12 @@
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
                 "EXPO_PUBLIC_API_URL": "http://46.4.123.77:8001",
                 "EXPO_PUBLIC_WS_URL": "ws://46.4.123.77:8001/ws/earthquakes"
+            },
+            "cache": {
+                "key": "preview-v2",
+                "paths": [
+                    ".expo"
+                ]
             }
         },
         "production": {
@@ -42,7 +48,7 @@
                 "EXPO_PUBLIC_WS_URL": "wss://deprem-api.quakesense.com/ws/earthquakes"
             },
             "cache": {
-                "key": "production-v5",
+                "key": "production-v6",
                 "paths": [
                     ".expo"
                 ]
