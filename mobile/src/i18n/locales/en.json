@@ -55,7 +55,10 @@
         "name": "Full Name",
         "message": "Your Message",
         "send": "Send",
-        "success": "Your message has been sent successfully."
+        "ok": "OK",
+        "success": "Your message has been sent successfully.",
+        "send_error": "Message could not be sent. Please try again.",
+        "error_fill_all": "Please fill in all fields."
     },
     "safe": {
         "sent_title": "✅ Notification Sent",

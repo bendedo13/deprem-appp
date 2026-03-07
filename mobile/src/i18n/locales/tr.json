@@ -55,7 +55,10 @@
         "name": "Ad Soyad",
         "message": "Mesajınız",
         "send": "Gönder",
-        "success": "Mesajınız başarıyla iletildi."
+        "ok": "Tamam",
+        "success": "Mesajınız başarıyla iletildi.",
+        "send_error": "Mesaj gönderilemedi. Lütfen tekrar deneyin.",
+        "error_fill_all": "Lütfen tüm alanları doldurun."
     },
     "safe": {
         "sent_title": "✅ Bildirim Gönderildi",

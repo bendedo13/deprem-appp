@@ -10,6 +10,7 @@ import {
     Alert,
 } from "react-native";
 import { router } from "expo-router";
+import { Stack } from "expo-router";
 import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -113,6 +114,8 @@ export default function RiskAnalysisScreen() {
     };
 
     return (
+        <>
+        <Stack.Screen options={{ title: "Risk Analizi" }} />
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             {/* Header */}
             <View style={styles.header}>
@@ -277,6 +280,7 @@ export default function RiskAnalysisScreen() {
                 </Text>
             </View>
         </ScrollView>
+        </>
     );
 }
 

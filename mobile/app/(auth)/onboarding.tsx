@@ -13,6 +13,7 @@ import {
     Alert,
     Platform,
     Animated,
+    Linking,
     useWindowDimensions,
 } from "react-native";
 import { router } from "expo-router";
@@ -111,10 +112,30 @@ const SLIDES: Slide[] = [
         skipText: "Şimdi Değil",
         metric: { value: "<2km", label: "Konum Hassasiyeti" },
     },
+    {
+        id: "battery",
+        type: "permission",
+        permissionId: "sensor",
+        icon: "battery-charging",
+        iconColor: "#f59e0b",
+        iconBg: "rgba(245, 158, 11, 0.12)",
+        accentColor: "#f59e0b",
+        badge: "Arka Plan Çalışması",
+        title: "Pil Optimizasyonunu\nDevre Dışı Bırak",
+        description:
+            "Deprem anında hızlı uyarı alabilmek için uygulamanın arka planda kesintisiz çalışması gerekir. Pil optimizasyonunu kapatın.",
+        buttonText: "Ayarları Aç",
+        skipText: "Atla",
+        metric: { value: "7/24", label: "Kesintisiz Koruma" },
+    },
 ];
 
 export default function OnboardingScreen() {
-    const { width, height } = useWindowDimensions(); // Responsive: ekran boyutu değişince yeniden render
+    const { width, height } = useWindowDimensions();
+    const isSmallScreen = height < 700;
+    const iconOuterSize = isSmallScreen ? 120 : 152;
+    const iconInnerSize = isSmallScreen ? 82 : 104;
+    const iconIconSize = isSmallScreen ? 38 : 48;
     const [currentStep, setCurrentStep] = useState(0);
     const flatListRef = useRef<FlatList>(null);
     const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -129,13 +150,24 @@ export default function OnboardingScreen() {
                     Alert.alert(
                         "Konum İzni",
                         "Konum izni olmadan yakın deprem uyarıları alınamaz. Ayarlardan açabilirsiniz.",
-                        [
-                            { text: "Tamam", onPress: () => finishAndRequestNotifications() },
-                        ]
+                        [{ text: "Tamam", onPress: () => requestNotificationsThenNext() }]
                     );
                     return;
                 }
-                finishAndRequestNotifications();
+                requestNotificationsThenNext();
+                return;
+            }
+
+            if (slide.permissionId === "sensor") {
+                // Battery optimization — Android ayarlarına yönlendir
+                if (Platform.OS === "android") {
+                    try {
+                        await Linking.openURL("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS");
+                    } catch {
+                        await Linking.openSettings();
+                    }
+                }
+                finishOnboarding();
                 return;
             }
         }
@@ -143,11 +175,20 @@ export default function OnboardingScreen() {
         goNext();
     }
 
-    async function finishAndRequestNotifications() {
+    async function requestNotificationsThenNext() {
         const { status } = await Notifications.requestPermissionsAsync();
         if (status !== "granted") {
             Alert.alert("Bildirim İzni", "Deprem bildirimlerini almak için izin gereklidir.");
         }
+        // iOS'ta pil optimizasyonu yok — doğrudan bitir
+        if (Platform.OS === "ios") {
+            finishOnboarding();
+            return;
+        }
+        goNext(); // Android: pil optimizasyonu slide'ına geç
+    }
+
+    async function finishOnboarding() {
         await SecureStore.setItemAsync(ONBOARDING_KEY, "true");
         router.replace("/(auth)/login");
     }
@@ -163,8 +204,7 @@ export default function OnboardingScreen() {
             setCurrentStep(next);
             flatListRef.current?.scrollToIndex({ index: next, animated: true });
         } else {
-            await SecureStore.setItemAsync(ONBOARDING_KEY, "true");
-            router.replace("/(auth)/login");
+            finishOnboarding();
         }
     }
 
@@ -173,12 +213,12 @@ export default function OnboardingScreen() {
             <View style={[styles.slide, { width }]}>
                 <View style={styles.slideContent}>
                     {/* Icon Container */}
-                    <View style={[styles.iconOuter, { backgroundColor: item.iconBg }]}>
-                        <View style={[styles.iconInner, { borderColor: item.iconColor + "30", backgroundColor: item.iconBg }]}>
-                            <MaterialCommunityIcons name={item.icon as any} size={52} color={item.iconColor} />
+                    <View style={[styles.iconOuter, { backgroundColor: item.iconBg, width: iconOuterSize, height: iconOuterSize, borderRadius: iconOuterSize / 2 }]}>
+                        <View style={[styles.iconInner, { borderColor: item.iconColor + "30", backgroundColor: item.iconBg, width: iconInnerSize, height: iconInnerSize, borderRadius: iconInnerSize / 2 }]}>
+                            <MaterialCommunityIcons name={item.icon as any} size={iconIconSize} color={item.iconColor} />
                         </View>
                         {/* Pulse ring */}
-                        <View style={[styles.iconPulse, { borderColor: item.iconColor + "15" }]} />
+                        <View style={[styles.iconPulse, { borderColor: item.iconColor + "15", width: iconOuterSize, height: iconOuterSize, borderRadius: iconOuterSize / 2 }]} />
                     </View>
 
                     {/* Badge */}
@@ -236,7 +276,7 @@ export default function OnboardingScreen() {
                         />
                     ))}
                 </View>
-                <TouchableOpacity onPress={async () => { await SecureStore.setItemAsync(ONBOARDING_KEY, "true"); router.replace("/(auth)/login"); }} style={styles.skipTopBtn}>
+                <TouchableOpacity onPress={finishOnboarding} style={styles.skipTopBtn}>
                     <Text style={styles.skipTopText}>Geç</Text>
                 </TouchableOpacity>
             </View>

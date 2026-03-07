@@ -15,6 +15,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Image,
 } from "react-native";
 import { router, Link } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -78,10 +79,15 @@ export default function RegisterScreen() {
                     {/* Header */}
                     <View style={styles.header}>
                         <View style={styles.logoBox}>
-                            <MaterialCommunityIcons name="shield-account-variant" size={40} color="#fff" />
+                            <Image
+                                source={require("../../assets/icon.png")}
+                                style={styles.logoImage}
+                                resizeMode="cover"
+                            />
                         </View>
-                        <Text style={styles.title}>QuakeSense</Text>
-                        <Text style={styles.subtitle}>{t("auth.register_subtitle")}</Text>
+                        <Text style={styles.appName}>QuakeSense</Text>
+                        <Text style={styles.title}>{t("auth.register_subtitle")}</Text>
+                        <Text style={styles.subtitle}>Türkiye'nin deprem erken uyarı sistemi</Text>
                     </View>
 
                     {/* Form */}
@@ -187,29 +193,37 @@ const styles = StyleSheet.create({
     container: { flex: 1, padding: Spacing.xl, justifyContent: "center" },
     header: { alignItems: "center", marginBottom: Spacing.xl },
     logoBox: {
-        width: 80,
-        height: 80,
-        borderRadius: BorderRadius.xl,
-        backgroundColor: Colors.primary,
-        justifyContent: "center",
-        alignItems: "center",
+        width: 88,
+        height: 88,
+        borderRadius: 22,
+        overflow: "hidden",
         marginBottom: Spacing.md,
         shadowColor: Colors.primary,
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        elevation: 10,
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+        elevation: 12,
+    },
+    logoImage: {
+        width: 88,
+        height: 88,
+    },
+    appName: {
+        fontSize: 30,
+        fontWeight: "900",
+        color: Colors.text.dark,
+        letterSpacing: -0.8,
     },
     title: {
-        fontSize: Typography.sizes.xxxl,
-        fontWeight: "800",
-        color: Colors.text.dark,
-        letterSpacing: -0.5,
+        fontSize: Typography.sizes.md,
+        fontWeight: "700",
+        color: Colors.text.muted,
+        marginTop: 4,
     },
     subtitle: {
-        fontSize: Typography.sizes.md,
-        color: Colors.text.muted,
-        marginTop: Spacing.xs,
+        fontSize: Typography.sizes.sm,
+        color: Colors.text.muted + "80",
+        marginTop: 2,
         fontWeight: "500",
         textAlign: "center",
     },
