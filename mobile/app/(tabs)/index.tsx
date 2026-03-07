@@ -4,7 +4,7 @@
  * Glassmorphism kartlar, skeleton loader, kaynak rozeti, canlı WS durumu.
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, memo } from "react";
 import {
     View,
     Text,
@@ -17,6 +17,7 @@ import {
     SafeAreaView,
     Platform,
     Animated,
+    InteractionManager,
 } from "react-native";
 import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
@@ -31,6 +32,9 @@ import { useLiveEarthquakes } from "../../src/hooks/useLiveEarthquakes";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 import type { UnifiedEarthquake, EarthquakeSource } from "../../src/types/earthquake";
 import { SOURCE_META } from "../../src/types/earthquake";
+
+// Türkiye koordinat sınırları (yaklaşık)
+const TURKEY_BOUNDS = { minLat: 35.5, maxLat: 42.5, minLon: 25.5, maxLon: 44.8 };
 
 const CHECKLIST_KEY = "quakesense_safety_checklist";
 const CHECKLIST_POINT_MAP: Record<string, number> = {
@@ -58,14 +62,14 @@ function timeAgo(date: Date): string {
 
 // ─── Source Badge ─────────────────────────────────────────────────────────────
 
-function SourceBadge({ source }: { source: EarthquakeSource }) {
+const SourceBadge = memo(function SourceBadge({ source }: { source: EarthquakeSource }) {
     const meta = SOURCE_META[source];
     return (
         <View style={[styles.sourceBadge, { backgroundColor: meta.bg, borderColor: meta.color + "60" }]}>
             <Text style={[styles.sourceBadgeText, { color: meta.color }]}>{meta.label}</Text>
         </View>
     );
-}
+});
 
 // ─── Skeleton Card ────────────────────────────────────────────────────────────
 
@@ -95,15 +99,18 @@ function SkeletonCard() {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+type RegionFilter = "turkey" | "world";
+
 export default function DashboardScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [safeLoading, setSafeLoading] = useState(false);
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [safetyScore, setSafetyScore] = useState(0);
+    const [regionFilter, setRegionFilter] = useState<RegionFilter>("turkey");
     const { t } = useTranslation();
 
     const {
-        earthquakes,
+        earthquakes: allEarthquakes,
         loading,
         isConnected,
         isStale,
@@ -112,6 +119,18 @@ export default function DashboardScreen() {
         lastUpdated,
         refresh,
     } = useLiveEarthquakes();
+
+    // Bölge filtresine göre depremleri filtrele
+    const earthquakes = regionFilter === "turkey"
+        ? allEarthquakes
+            .filter(q =>
+                q.coordinates.latitude >= TURKEY_BOUNDS.minLat &&
+                q.coordinates.latitude <= TURKEY_BOUNDS.maxLat &&
+                q.coordinates.longitude >= TURKEY_BOUNDS.minLon &&
+                q.coordinates.longitude <= TURKEY_BOUNDS.maxLon
+            )
+            .slice(0, 20)
+        : allEarthquakes;
 
     const { isMonitoring, isTriggered, peakAcceleration, staLtaRatio } = useShakeDetector(
         location?.lat ?? null,
@@ -191,7 +210,7 @@ export default function DashboardScreen() {
 
     // ── Earthquake card ──────────────────────────────────────────────────────
 
-    const renderItem = ({ item }: { item: UnifiedEarthquake }) => {
+    const renderItem = useCallback(({ item }: { item: UnifiedEarthquake }) => {
         const color = magnitudeColor(item.magnitude);
         return (
             <TouchableOpacity style={styles.card} activeOpacity={0.75}>
@@ -219,7 +238,7 @@ export default function DashboardScreen() {
                 <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.border.dark} />
             </TouchableOpacity>
         );
-    };
+    }, [t]);
 
     // ── Empty / loading states ────────────────────────────────────────────────
 
@@ -347,6 +366,28 @@ export default function DashboardScreen() {
                 <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.border.dark} />
             </TouchableOpacity>
 
+            {/* Bölge Filtresi */}
+            <View style={styles.filterRow}>
+                <TouchableOpacity
+                    style={[styles.filterChip, regionFilter === "turkey" && styles.filterChipActive]}
+                    onPress={() => setRegionFilter("turkey")}
+                    activeOpacity={0.8}
+                >
+                    <Text style={[styles.filterChipText, regionFilter === "turkey" && styles.filterChipTextActive]}>
+                        🇹🇷 Türkiye (Son 20)
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.filterChip, regionFilter === "world" && styles.filterChipActive]}
+                    onPress={() => setRegionFilter("world")}
+                    activeOpacity={0.8}
+                >
+                    <Text style={[styles.filterChipText, regionFilter === "world" && styles.filterChipTextActive]}>
+                        🌍 Dünya
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
             {/* Section header */}
             <View style={styles.listHeader}>
                 <Text style={styles.listTitle}>{t("home.recent_earthquakes")}</Text>
@@ -402,6 +443,17 @@ export default function DashboardScreen() {
                         />
                     </View>
                 }
+                // ── Performans optimizasyonları ──────────────────────────────
+                initialNumToRender={8}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                removeClippedSubviews={true}
+                updateCellsBatchingPeriod={50}
+                getItemLayout={(_data, index) => ({
+                    length: 76, // card height + marginBottom
+                    offset: 76 * index,
+                    index,
+                })}
             />
 
             {/* Safe Button */}
@@ -617,6 +669,34 @@ const styles = StyleSheet.create({
         borderColor: Colors.primary + "50",
     },
     retryBtnText: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "700" },
+
+    // Filter chips
+    filterRow: {
+        flexDirection: "row",
+        paddingHorizontal: Spacing.md,
+        gap: Spacing.sm,
+        marginBottom: Spacing.sm,
+    },
+    filterChip: {
+        paddingHorizontal: 14,
+        paddingVertical: 7,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        borderColor: Colors.border.glass,
+        backgroundColor: Colors.background.surface,
+    },
+    filterChipActive: {
+        backgroundColor: Colors.primary + "20",
+        borderColor: Colors.primary + "70",
+    },
+    filterChipText: {
+        fontSize: 12,
+        fontWeight: "700",
+        color: Colors.text.muted,
+    },
+    filterChipTextActive: {
+        color: Colors.primary,
+    },
 
     // Ad
     adContainer: { alignItems: "center", marginVertical: Spacing.md },

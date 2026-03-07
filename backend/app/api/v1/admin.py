@@ -17,6 +17,7 @@ from app.models.user import User
 from app.models.earthquake import Earthquake
 from app.models.seismic_report import SeismicReport
 from app.models.notification_pref import NotificationPref
+from app.models.app_settings import AppSettings, DEFAULT_SETTINGS
 from app.api.v1.users import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -286,6 +287,92 @@ async def broadcast_notification(
     sent = await send_raw_multicast(tokens=tokens, title=body.title, body=body.body)
     logger.info("Broadcast gönderildi: admin hedeflenen=%d gönderilen=%d", len(tokens), sent)
     return {"sent": sent, "total_targets": len(tokens)}
+
+
+# ─── App Settings ────────────────────────────────────────────────────────────
+
+class AppSettingOut(BaseModel):
+    key: str
+    value: str
+    description: Optional[str] = None
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class AppSettingUpdateIn(BaseModel):
+    value: str
+
+
+@router.get("/settings", response_model=List[AppSettingOut], summary="Tüm uygulama ayarlarını listele")
+async def list_settings(
+    _: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[AppSettingOut]:
+    """Admin panelinden yönetilebilir uygulama ayarlarını döner."""
+    result = await db.execute(select(AppSettings).order_by(AppSettings.key))
+    settings = result.scalars().all()
+
+    # Varsayılan ayarlar yoksa oluştur
+    if not settings:
+        for s in DEFAULT_SETTINGS:
+            db.add(AppSettings(**s))
+        await db.commit()
+        result = await db.execute(select(AppSettings).order_by(AppSettings.key))
+        settings = result.scalars().all()
+
+    return [AppSettingOut.model_validate(s) for s in settings]
+
+
+@router.get("/settings/{key}", response_model=AppSettingOut, summary="Tek bir ayarı getir")
+async def get_setting(
+    key: str,
+    _: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> AppSettingOut:
+    setting = await db.get(AppSettings, key)
+    if not setting:
+        raise HTTPException(status_code=404, detail=f"Ayar bulunamadı: {key}")
+    return AppSettingOut.model_validate(setting)
+
+
+@router.put("/settings/{key}", response_model=AppSettingOut, summary="Ayar güncelle")
+async def update_setting(
+    key: str,
+    body: AppSettingUpdateIn,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> AppSettingOut:
+    """
+    Ayar değerini günceller. Geçerli anahtarlar:
+    - earthquake_limit: Sayı (örn: "20", "50")
+    - active_sources: JSON dizi (örn: '["afad","kandilli"]')
+    - simulation_enabled: "true" veya "false"
+    - early_warning_enabled: "true" veya "false"
+    """
+    setting = await db.get(AppSettings, key)
+    if not setting:
+        raise HTTPException(status_code=404, detail=f"Ayar bulunamadı: {key}")
+    setting.value = body.value
+    await db.commit()
+    await db.refresh(setting)
+    logger.info("Admin ayar güncelledi: admin=%d key=%s value=%s", admin.id, key, body.value)
+    return AppSettingOut.model_validate(setting)
+
+
+@router.post("/settings/init", status_code=200, summary="Varsayılan ayarları oluştur")
+async def init_settings(
+    _: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Eksik varsayılan ayarları veritabanına ekler. Mevcutları değiştirmez."""
+    created = []
+    for s in DEFAULT_SETTINGS:
+        existing = await db.get(AppSettings, s["key"])
+        if not existing:
+            db.add(AppSettings(**s))
+            created.append(s["key"])
+    await db.commit()
+    return {"created": created, "message": f"{len(created)} ayar oluşturuldu."}
 
 
 # ─── System ──────────────────────────────────────────────────────────────────

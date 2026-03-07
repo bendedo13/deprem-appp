@@ -9,6 +9,8 @@ export default function TabsLayout() {
     return (
         <Tabs
             screenOptions={{
+                // Sekme geçişlerinde arka sekmeleri dondur → JS Thread korunur
+                freezeOnBlur: true,
                 tabBarStyle: {
                     backgroundColor: Colors.background.surface,
                     borderTopWidth: 1,

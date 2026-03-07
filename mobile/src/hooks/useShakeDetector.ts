@@ -36,6 +36,9 @@ export interface ShakeState {
 /** Cihazı tanımlamak için basit ID */
 const DEVICE_ID = `device-${Platform.OS}-${Date.now().toString(36)}`;
 
+/** UI state güncellemesi için throttle aralığı (ms) — JS Thread korunur */
+const UI_THROTTLE_MS = 200;
+
 export function useShakeDetector(
     latitude: number | null,
     longitude: number | null
@@ -47,6 +50,8 @@ export function useShakeDetector(
     const triggerStartRef = useRef<number | null>(null);
     const peakRef = useRef(0);
     const cooldownUntilRef = useRef<number>(0);
+    /** Son UI güncelleme zamanı — throttle için */
+    const lastUiUpdateRef = useRef<number>(0);
 
     const [state, setState] = useState<ShakeState>({
         isMonitoring: false,
@@ -73,39 +78,47 @@ export function useShakeDetector(
             const inCooldown = now < cooldownUntilRef.current;
 
             if (!triggeredRef.current && !inCooldown && ratio >= TRIGGER_RATIO) {
-                // Olası tetikleme başladı — süreyi kaydet, henüz onaylanmadı
+                // Olası tetikleme başladı — kritik değişim, hemen güncelle
                 triggeredRef.current = true;
                 triggerStartRef.current = now;
                 peakRef.current = raw;
+                lastUiUpdateRef.current = now;
                 setState((s) => ({ ...s, staLtaRatio: ratio }));
 
             } else if (triggeredRef.current && ratio < DETRIGGER_RATIO) {
-                // Tetikleme bitti — süreyi kontrol et
+                // Tetikleme bitti — kritik değişim, hemen güncelle
                 const duration = now - (triggerStartRef.current ?? now);
                 if (duration >= MIN_TRIGGER_DURATION_MS) {
-                    // GERÇEK deprem sinyali — rapor gönder + cooldown başlat
                     cooldownUntilRef.current = now + COOLDOWN_AFTER_TRIGGER_MS;
                     _sendReport(peakRef.current, ratio, latitude, longitude);
                 }
                 triggeredRef.current = false;
                 triggerStartRef.current = null;
                 peakRef.current = 0;
+                lastUiUpdateRef.current = now;
                 setState((s) => ({ ...s, isTriggered: false, peakAcceleration: 0, staLtaRatio: ratio }));
 
             } else if (triggeredRef.current) {
-                // Tetikleme devam ediyor
+                // Tetikleme devam ediyor — throttle: 200ms'de bir güncelle
                 peakRef.current = Math.max(peakRef.current, raw);
                 const elapsed = now - (triggerStartRef.current ?? now);
                 const confirmed = elapsed >= MIN_TRIGGER_DURATION_MS;
-                setState((s) => ({
-                    ...s,
-                    isTriggered: confirmed,
-                    triggerTime: confirmed ? (s.triggerTime ?? new Date()) : null,
-                    peakAcceleration: peakRef.current,
-                    staLtaRatio: ratio,
-                }));
+                if (now - lastUiUpdateRef.current >= UI_THROTTLE_MS) {
+                    lastUiUpdateRef.current = now;
+                    setState((s) => ({
+                        ...s,
+                        isTriggered: confirmed,
+                        triggerTime: confirmed ? (s.triggerTime ?? new Date()) : null,
+                        peakAcceleration: peakRef.current,
+                        staLtaRatio: ratio,
+                    }));
+                }
             } else {
-                setState((s) => ({ ...s, staLtaRatio: ratio, isTriggered: false }));
+                // Normal izleme — throttle: 200ms'de bir güncelle
+                if (now - lastUiUpdateRef.current >= UI_THROTTLE_MS) {
+                    lastUiUpdateRef.current = now;
+                    setState((s) => ({ ...s, staLtaRatio: ratio, isTriggered: false }));
+                }
             }
         });
 
