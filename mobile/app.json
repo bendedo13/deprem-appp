@@ -17,6 +17,7 @@
       "googleWebClientId": "775124568904-flr9bo452no12v9giofdlb743m8gvqk4.apps.googleusercontent.com"
     },
     "plugins": [
+      "./plugins/withNotifeeAndroidFix",
       "expo-sensors",
       "expo-notifications",
       "expo-task-manager",
