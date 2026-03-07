@@ -23,10 +23,13 @@
     "plugins": [
       "expo-sensors",
       "expo-notifications",
+      "expo-task-manager",
+      "expo-background-fetch",
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Konum, deprem sinyali gondermek icin kullanilir."
+          "locationAlwaysAndWhenInUsePermission": "Konum, deprem sinyali gondermek icin kullanilir.",
+          "locationAlwaysPermission": "Arka planda deprem uyarilari icin konum izni gereklidir."
         }
       ],
       [
@@ -60,7 +63,7 @@
     ],
     "android": {
       "package": "com.quakesense",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0e17"
@@ -71,13 +74,22 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
       ],
       "googleServicesFile": "./google-services.json"
     },
     "ios": {
       "bundleIdentifier": "com.quakesense",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch", "remote-notification"],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Deprem aninda konumunuz acil kisilerinize iletilir.",
+        "NSLocationAlwaysUsageDescription": "Arka planda deprem uyarilari icin konum izni gereklidir."
+      }
     }
   }
 }

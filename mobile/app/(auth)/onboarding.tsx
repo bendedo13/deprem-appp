@@ -9,11 +9,11 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    Dimensions,
     FlatList,
     Alert,
     Platform,
     Animated,
+    useWindowDimensions,
 } from "react-native";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -23,8 +23,6 @@ import * as Notifications from "expo-notifications";
 const ONBOARDING_KEY = "onboarding_complete";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
-
-const { width, height } = Dimensions.get("window");
 
 interface Slide {
     id: string;
@@ -116,6 +114,7 @@ const SLIDES: Slide[] = [
 ];
 
 export default function OnboardingScreen() {
+    const { width, height } = useWindowDimensions(); // Responsive: ekran boyutu değişince yeniden render
     const [currentStep, setCurrentStep] = useState(0);
     const flatListRef = useRef<FlatList>(null);
     const fadeAnim = useRef(new Animated.Value(1)).current;

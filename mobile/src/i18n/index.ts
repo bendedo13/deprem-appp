@@ -64,4 +64,21 @@ i18n.use(initReactI18next).init({
     react: { useSuspense: false },
 });
 
+/**
+ * Uygulama başlangıcında SecureStore'dan kaydedilmiş dili yükler.
+ * app/_layout.tsx useEffect'inden çağrılır.
+ * i18next.changeLanguage() güvenli async çağrısı — React lifecycle'a uyumlu.
+ */
+export async function restorePersistedLanguage(): Promise<void> {
+    try {
+        const SecureStore = await import("expo-secure-store");
+        const saved = await SecureStore.getItemAsync("quakesense_lang");
+        if (saved && (SUPPORTED as string[]).includes(saved) && saved !== i18n.language) {
+            await i18n.changeLanguage(saved);
+        }
+    } catch {
+        // SecureStore erişim hatası — sessizce geç, cihaz dili kullanılır
+    }
+}
+
 export default i18n;

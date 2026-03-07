@@ -21,11 +21,13 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
+import { sendSOSAlert } from "../../src/services/sosAlertService";
 
 export default function SOSTabScreen() {
     const [isHolding, setIsHolding] = useState(false);
     const [holdProgress, setHoldProgress] = useState(0);
     const [isActivated, setIsActivated] = useState(false);
+    const [isSending, setIsSending] = useState(false);
     const holdTimer = useRef<ReturnType<typeof setInterval> | null>(null);
     const progressAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -76,7 +78,26 @@ export default function SOSTabScreen() {
             ])
         ).start();
 
-        // Navigate to SOS voice recorder
+        // Acil kişilere SMS + WhatsApp gönder (Twilio backend üzerinden)
+        setIsSending(true);
+        sendSOSAlert("manual").then((result) => {
+            setIsSending(false);
+            if (result.success && result.notifiedContacts > 0) {
+                Alert.alert(
+                    "✅ SOS Gönderildi",
+                    `${result.notifiedContacts} acil kişinize SMS ve WhatsApp mesajı iletildi.`,
+                    [{ text: "Tamam" }]
+                );
+            } else if (!result.success) {
+                Alert.alert(
+                    "⚠ Uyarı",
+                    "Mesaj gönderilemedi. İnternet bağlantınızı veya acil kişi listenizi kontrol edin.",
+                    [{ text: "Tamam" }]
+                );
+            }
+        }).catch(() => setIsSending(false));
+
+        // Ses kayıt ekranına git
         router.push("/more/sos");
     }, []);
 

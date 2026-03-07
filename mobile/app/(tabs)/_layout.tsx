@@ -20,9 +20,9 @@ export default function TabsLayout() {
                 tabBarActiveTintColor: Colors.primary,
                 tabBarInactiveTintColor: Colors.text.muted,
                 tabBarLabelStyle: {
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: "700",
-                    letterSpacing: 0.3,
+                    letterSpacing: 0.2,
                 },
                 headerShown: false,
             }}
@@ -32,7 +32,7 @@ export default function TabsLayout() {
                 options={{
                     title: t("tabs.earthquakes"),
                     tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="pulse" color={color} size={size + 2} />
+                        <MaterialCommunityIcons name="pulse" color={color} size={size} />
                     ),
                 }}
             />
@@ -41,8 +41,29 @@ export default function TabsLayout() {
                 options={{
                     title: t("tabs.map"),
                     tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="map-marker-radius" color={color} size={size + 2} />
+                        <MaterialCommunityIcons name="map-marker-radius" color={color} size={size} />
                     ),
+                }}
+            />
+            {/* Erken Uyarı — Sensör İzleme */}
+            <Tabs.Screen
+                name="sensor"
+                options={{
+                    title: "Erken Uyarı",
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.sensorTabIcon, focused && styles.sensorTabIconActive]}>
+                            <MaterialCommunityIcons
+                                name="waveform"
+                                color={focused ? "#fff" : Colors.primary}
+                                size={20}
+                            />
+                        </View>
+                    ),
+                    tabBarLabelStyle: {
+                        fontSize: 9,
+                        fontWeight: "800",
+                        color: Colors.primary,
+                    },
                 }}
             />
             <Tabs.Screen
@@ -54,12 +75,12 @@ export default function TabsLayout() {
                             <MaterialCommunityIcons
                                 name="alert-circle"
                                 color={focused ? "#fff" : Colors.danger}
-                                size={22}
+                                size={20}
                             />
                         </View>
                     ),
                     tabBarLabelStyle: {
-                        fontSize: 10,
+                        fontSize: 9,
                         fontWeight: "800",
                         color: Colors.danger,
                     },
@@ -70,7 +91,7 @@ export default function TabsLayout() {
                 options={{
                     title: t("tabs.menu"),
                     tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="cog-outline" color={color} size={size + 2} />
+                        <MaterialCommunityIcons name="cog-outline" color={color} size={size} />
                     ),
                 }}
             />
@@ -79,14 +100,27 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+    sensorTabIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: Colors.primary + "15",
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop: -2,
+    },
+    sensorTabIconActive: {
+        backgroundColor: Colors.primary,
+        ...Shadows.sm,
+    },
     sosTabIcon: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         backgroundColor: Colors.danger + "15",
         justifyContent: "center",
         alignItems: "center",
-        marginTop: -4,
+        marginTop: -2,
     },
     sosTabIconActive: {
         backgroundColor: Colors.danger,

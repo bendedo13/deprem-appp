@@ -5,8 +5,17 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import Constants from "expo-constants";
 
-const WS_URL = process.env.EXPO_PUBLIC_WS_URL ?? "ws://10.0.2.2:8000/ws/earthquakes";
+// API URL'den WebSocket URL'i türet: http://host:port → ws://host:port
+function resolveWsUrl(): string {
+    if (process.env.EXPO_PUBLIC_WS_URL) return process.env.EXPO_PUBLIC_WS_URL;
+    const apiUrl: string = (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? "http://10.0.2.2:8001";
+    // http → ws, https → wss
+    return apiUrl.replace(/^http/, "ws") + "/ws/earthquakes";
+}
+
+const WS_URL = resolveWsUrl();
 const MAX_RETRY_DELAY_MS = 30_000;
 const INITIAL_RETRY_DELAY_MS = 1_000;
 
