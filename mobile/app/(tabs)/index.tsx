@@ -1,6 +1,7 @@
 /**
- * Professional Dashboard - Merkezi sismik harita, anlik AI dogrulama durumu.
- * Glassmorphism kartlar, yuksek kontrastli tipografi.
+ * Dashboard — Son depremler listesi.
+ * Veri: AFAD + USGS + EMSC + Sunucu (çoklu kaynak, önbellekli, 60s polling)
+ * Glassmorphism kartlar, skeleton loader, kaynak rozeti, canlı WS durumu.
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -24,26 +25,20 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 import { getBannerId } from "../../src/services/adService";
-import { api } from "../../src/services/api";
 import { iAmSafe } from "../../src/services/authService";
-import { useWebSocket, EarthquakeEvent } from "../../src/hooks/useWebSocket";
 import { useShakeDetector } from "../../src/hooks/useShakeDetector";
-import { Colors, Typography, Spacing, BorderRadius, Glass, Shadows } from "../../src/constants/theme";
+import { useLiveEarthquakes } from "../../src/hooks/useLiveEarthquakes";
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
+import type { UnifiedEarthquake, EarthquakeSource } from "../../src/types/earthquake";
+import { SOURCE_META } from "../../src/types/earthquake";
 
 const CHECKLIST_KEY = "quakesense_safety_checklist";
-const CHECKLIST_TOTAL = 100; // total possible points map to 100%
-const CHECKLIST_ITEMS_COUNT = 10;
-
-interface Earthquake {
-    id: string;
-    source: string;
-    magnitude: number;
-    depth: number;
-    latitude: number;
-    longitude: number;
-    location: string;
-    occurred_at: string;
-}
+const CHECKLIST_POINT_MAP: Record<string, number> = {
+    bag: 15, firstaid: 10, water: 10, food: 10,
+    meeting: 15, contacts: 10, flashlight: 5,
+    documents: 5, insurance: 10, drill: 10,
+};
+const TOTAL_POSSIBLE = Object.values(CHECKLIST_POINT_MAP).reduce((a, b) => a + b, 0);
 
 function magnitudeColor(mag: number): string {
     if (mag >= 6) return Colors.danger;
@@ -53,38 +48,80 @@ function magnitudeColor(mag: number): string {
     return Colors.text.muted;
 }
 
-function timeAgo(isoStr: string): string {
-    const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
+function timeAgo(date: Date): string {
+    const diff = Math.floor((Date.now() - date.getTime()) / 1000);
     if (diff < 60) return `${diff}s`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-    return `${Math.floor(diff / 86400)}d`;
+    return `${Math.floor(diff / 86400)}g`;
 }
 
-const CHECKLIST_POINT_MAP: Record<string, number> = {
-    bag: 15, firstaid: 10, water: 10, food: 10,
-    meeting: 15, contacts: 10, flashlight: 5,
-    documents: 5, insurance: 10, drill: 10,
-};
-const TOTAL_POSSIBLE = Object.values(CHECKLIST_POINT_MAP).reduce((a, b) => a + b, 0);
+// ─── Source Badge ─────────────────────────────────────────────────────────────
+
+function SourceBadge({ source }: { source: EarthquakeSource }) {
+    const meta = SOURCE_META[source];
+    return (
+        <View style={[styles.sourceBadge, { backgroundColor: meta.bg, borderColor: meta.color + "60" }]}>
+            <Text style={[styles.sourceBadgeText, { color: meta.color }]}>{meta.label}</Text>
+        </View>
+    );
+}
+
+// ─── Skeleton Card ────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+    const anim = useRef(new Animated.Value(0.35)).current;
+    useEffect(() => {
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(anim, { toValue: 0.7, duration: 850, useNativeDriver: true }),
+                Animated.timing(anim, { toValue: 0.35, duration: 850, useNativeDriver: true }),
+            ])
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [anim]);
+
+    return (
+        <Animated.View style={[styles.card, { opacity: anim }]}>
+            <View style={[styles.magBadge, { backgroundColor: Colors.background.elevated }]} />
+            <View style={styles.info}>
+                <View style={styles.skeletonLine1} />
+                <View style={styles.skeletonLine2} />
+            </View>
+        </Animated.View>
+    );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
-    const [quakes, setQuakes] = useState<Earthquake[]>([]);
-    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [safeLoading, setSafeLoading] = useState(false);
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [safetyScore, setSafetyScore] = useState(0);
     const { t } = useTranslation();
-    const { isConnected, lastEvent } = useWebSocket();
+
+    const {
+        earthquakes,
+        loading,
+        isConnected,
+        isStale,
+        activeSources,
+        error,
+        lastUpdated,
+        refresh,
+    } = useLiveEarthquakes();
+
     const { isMonitoring, isTriggered, peakAcceleration, staLtaRatio } = useShakeDetector(
         location?.lat ?? null,
         location?.lng ?? null
     );
+
     const prevTriggered = useRef(false);
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
-    // Load safety score
+    // Safety score
     useEffect(() => {
         (async () => {
             try {
@@ -98,18 +135,19 @@ export default function DashboardScreen() {
         })();
     }, []);
 
-    // Pulse animation for live indicator
+    // Pulse animation for live dot
     useEffect(() => {
         const anim = Animated.loop(
             Animated.sequence([
-                Animated.timing(pulseAnim, { toValue: 1.3, duration: 1000, useNativeDriver: true }),
+                Animated.timing(pulseAnim, { toValue: 1.4, duration: 1000, useNativeDriver: true }),
                 Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
             ])
         );
         anim.start();
         return () => anim.stop();
-    }, []);
+    }, [pulseAnim]);
 
+    // Location
     useEffect(() => {
         (async () => {
             const { status } = await Location.requestForegroundPermissionsAsync();
@@ -119,6 +157,7 @@ export default function DashboardScreen() {
         })();
     }, []);
 
+    // Shake alert
     useEffect(() => {
         if (isTriggered && !prevTriggered.current) {
             Alert.alert(
@@ -129,36 +168,11 @@ export default function DashboardScreen() {
         prevTriggered.current = isTriggered;
     }, [isTriggered]);
 
-    const fetchQuakes = useCallback(async () => {
-        try {
-            // API { items: [], total: N, page: 1, page_size: 50 } döndürür
-            const { data } = await api.get<{ items?: Earthquake[]; total?: number } | Earthquake[]>(
-                "/api/v1/earthquakes?page_size=50&hours=24"
-            );
-            // Hem düz array hem de {items: []} formatını destekle
-            const list: Earthquake[] = Array.isArray(data)
-                ? data
-                : (data as { items?: Earthquake[] }).items ?? [];
-            setQuakes(list);
-        } catch (err: unknown) {
-            // Hata detayını logla — sessizce devam et, Alert gösterme (ilk yüklemede rahatsız etmesin)
-            console.warn("[Earthquakes] Fetch hatası:", err);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, []);
-
-    useEffect(() => { fetchQuakes(); }, [fetchQuakes]);
-
-    useEffect(() => {
-        if (!lastEvent) return;
-        setQuakes((prev) => {
-            const exists = prev.find((q) => q.id === lastEvent.id);
-            if (exists) return prev;
-            return [lastEvent as Earthquake, ...prev].slice(0, 100);
-        });
-    }, [lastEvent]);
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await refresh();
+        setRefreshing(false);
+    }, [refresh]);
 
     async function handleSafe() {
         setSafeLoading(true);
@@ -172,33 +186,34 @@ export default function DashboardScreen() {
         }
     }
 
-    // Stats from current data
-    const maxMag = quakes.length > 0 ? Math.max(...quakes.map(q => q.magnitude)) : 0;
-    const last24h = quakes.filter(q => {
-        const diff = Date.now() - new Date(q.occurred_at).getTime();
-        return diff < 86400000;
-    }).length;
+    const maxMag = earthquakes.length > 0 ? Math.max(...earthquakes.map((q) => q.magnitude)) : 0;
+    const last24h = earthquakes.filter((q) => Date.now() - q.date.getTime() < 86400000).length;
 
-    const renderItem = ({ item }: { item: Earthquake }) => {
+    // ── Earthquake card ──────────────────────────────────────────────────────
+
+    const renderItem = ({ item }: { item: UnifiedEarthquake }) => {
         const color = magnitudeColor(item.magnitude);
         return (
-            <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.card} activeOpacity={0.75}>
                 <View style={[styles.magBadge, { backgroundColor: color }]}>
                     <Text style={styles.magText}>{item.magnitude.toFixed(1)}</Text>
-                    <Text style={styles.magUnit}>{item.source?.toUpperCase() === "AFAD" ? "Mw" : "Ml"}</Text>
+                    <Text style={styles.magUnit}>{item.magType}</Text>
                 </View>
                 <View style={styles.info}>
-                    <Text style={styles.locationText} numberOfLines={1}>
-                        {item.location || t("home.unknown_location")}
-                    </Text>
+                    <View style={styles.titleRow}>
+                        <Text style={styles.locationText} numberOfLines={1}>
+                            {item.title || t("home.unknown_location")}
+                        </Text>
+                        <SourceBadge source={item.source} />
+                    </View>
                     <View style={styles.detailRow}>
                         <MaterialCommunityIcons name="arrow-down" size={11} color={Colors.text.muted} />
                         <Text style={styles.details}>
-                            {item.depth ? t("home.depth_km", { depth: item.depth.toFixed(1) }) : "\u2014"}
+                            {item.depth ? t("home.depth_km", { depth: item.depth.toFixed(1) }) : "—"}
                         </Text>
                         <View style={styles.dotSep} />
                         <MaterialCommunityIcons name="clock-outline" size={11} color={Colors.text.muted} />
-                        <Text style={styles.details}>{timeAgo(item.occurred_at)}</Text>
+                        <Text style={styles.details}>{timeAgo(item.date)}</Text>
                     </View>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.border.dark} />
@@ -206,17 +221,147 @@ export default function DashboardScreen() {
         );
     };
 
-    if (loading) {
+    // ── Empty / loading states ────────────────────────────────────────────────
+
+    const ListEmpty = () => {
+        if (loading) {
+            return (
+                <View>
+                    {[1, 2, 3, 4, 5].map((k) => <SkeletonCard key={k} />)}
+                </View>
+            );
+        }
         return (
-            <View style={styles.center}>
-                <ActivityIndicator size="large" color={Colors.primary} />
+            <View style={styles.emptyBox}>
+                <MaterialCommunityIcons name="earth-off" size={56} color={Colors.background.elevated} />
+                <Text style={styles.emptyTitle}>Veri Bulunamadı</Text>
+                <Text style={styles.emptySubtitle}>
+                    {error ?? "Çekmek için aşağı kaydır"}
+                </Text>
+                <TouchableOpacity style={styles.retryBtn} onPress={refresh}>
+                    <Text style={styles.retryBtnText}>Tekrar Dene</Text>
+                </TouchableOpacity>
             </View>
         );
-    }
+    };
+
+    // ── Header component ──────────────────────────────────────────────────────
+
+    const ListHeader = (
+        <View>
+            {/* Status row */}
+            <View style={styles.statusRow}>
+                <View style={styles.statusChip}>
+                    <Animated.View style={[
+                        styles.liveDot,
+                        { backgroundColor: isConnected ? Colors.primary : Colors.text.muted },
+                        isConnected && { transform: [{ scale: pulseAnim }] },
+                    ]} />
+                    <Text style={[styles.statusChipText, { color: isConnected ? Colors.primary : Colors.text.muted }]}>
+                        {isConnected ? "CANLI" : "BAĞLANTI KESİLDİ"}
+                    </Text>
+                    {isStale && (
+                        <Text style={styles.staleTag}> · ÖNBELLEKTEN</Text>
+                    )}
+                </View>
+                <View style={[
+                    styles.sensorChip,
+                    isTriggered && { backgroundColor: Colors.danger + "20", borderColor: Colors.danger + "40" },
+                    isMonitoring && !isTriggered && { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "30" },
+                ]}>
+                    <MaterialCommunityIcons
+                        name={isTriggered ? "alert-circle" : isMonitoring ? "shield-check" : "shield-off-outline"}
+                        size={12}
+                        color={isTriggered ? Colors.danger : isMonitoring ? Colors.primary : Colors.text.muted}
+                    />
+                    <Text style={[styles.sensorChipText, {
+                        color: isTriggered ? Colors.danger : isMonitoring ? Colors.primary : Colors.text.muted,
+                    }]}>
+                        {isTriggered ? t("home.sensor_triggered") : isMonitoring ? "AI AKTİF" : t("home.sensor_passive")}
+                    </Text>
+                </View>
+            </View>
+
+            {/* Active sources chips */}
+            {activeSources.length > 0 && (
+                <View style={styles.sourceRow}>
+                    <Text style={styles.sourceRowLabel}>Kaynaklar:</Text>
+                    {activeSources.map((s) => (
+                        <View key={s} style={[styles.sourceChip, { backgroundColor: SOURCE_META[s].bg, borderColor: SOURCE_META[s].color + "50" }]}>
+                            <View style={[styles.sourceChipDot, { backgroundColor: SOURCE_META[s].color }]} />
+                            <Text style={[styles.sourceChipText, { color: SOURCE_META[s].color }]}>{SOURCE_META[s].label}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+
+            {/* Stats cards */}
+            <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                    <MaterialCommunityIcons name="chart-timeline-variant" size={20} color={Colors.primary} />
+                    <Text style={styles.statValue}>{last24h}</Text>
+                    <Text style={styles.statLabel}>Son 24 Saat</Text>
+                </View>
+                <View style={styles.statCard}>
+                    <MaterialCommunityIcons name="arrow-up-bold" size={20} color={Colors.accent} />
+                    <Text style={[styles.statValue, { color: Colors.accent }]}>{maxMag.toFixed(1)}</Text>
+                    <Text style={styles.statLabel}>En Büyük</Text>
+                </View>
+                <View style={styles.statCard}>
+                    <MaterialCommunityIcons name="access-point" size={20} color={Colors.status.info} />
+                    <Text style={[styles.statValue, { color: Colors.status.info }]}>{earthquakes.length}</Text>
+                    <Text style={styles.statLabel}>Toplam</Text>
+                </View>
+            </View>
+
+            {/* Safety score banner */}
+            <TouchableOpacity
+                style={styles.scoreBanner}
+                onPress={() => router.push("/more/safety_score")}
+                activeOpacity={0.8}
+            >
+                <View style={styles.scoreBannerLeft}>
+                    <View style={[styles.scoreRingMini, {
+                        borderColor: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
+                    }]}>
+                        <Text style={[styles.scoreRingText, {
+                            color: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
+                        }]}>{safetyScore}</Text>
+                    </View>
+                    <View>
+                        <Text style={styles.scoreBannerTitle}>Hazırlık Skorum</Text>
+                        <View style={styles.scoreBarTrack}>
+                            <View style={[styles.scoreBarFill, {
+                                width: `${safetyScore}%` as unknown as number,
+                                backgroundColor: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
+                            }]} />
+                        </View>
+                        <Text style={styles.scoreBannerSub}>
+                            {safetyScore === 0
+                                ? "Kontrol listesini doldur"
+                                : safetyScore >= 80 ? "Harika, hazırsın!"
+                                : "Geliştir, daha iyisi olabilir"}
+                        </Text>
+                    </View>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.border.dark} />
+            </TouchableOpacity>
+
+            {/* Section header */}
+            <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>{t("home.recent_earthquakes")}</Text>
+                {lastUpdated && (
+                    <Text style={styles.updatedText}>
+                        {timeAgo(lastUpdated)} önce güncellendi
+                    </Text>
+                )}
+            </View>
+        </View>
+    );
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
+            {/* App Header */}
             <View style={styles.header}>
                 <View style={styles.brandContainer}>
                     <View style={styles.logoBox}>
@@ -224,7 +369,7 @@ export default function DashboardScreen() {
                     </View>
                     <View>
                         <Text style={styles.brandTitle}>QuakeSense</Text>
-                        <Text style={styles.brandSub}>Erken Uyari Sistemi</Text>
+                        <Text style={styles.brandSub}>Erken Uyarı Sistemi</Text>
                     </View>
                 </View>
                 <View style={styles.headerActions}>
@@ -235,103 +380,19 @@ export default function DashboardScreen() {
             </View>
 
             <FlatList
-                data={quakes}
+                data={loading ? [] : earthquakes}
                 keyExtractor={(item) => item.id}
                 renderItem={renderItem}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
-                        onRefresh={() => { setRefreshing(true); fetchQuakes(); }}
+                        onRefresh={handleRefresh}
                         tintColor={Colors.primary}
                     />
                 }
                 contentContainerStyle={styles.list}
-                ListHeaderComponent={
-                    <View>
-                        {/* AI Status + Connection */}
-                        <View style={styles.statusRow}>
-                            <View style={styles.statusChip}>
-                                <Animated.View style={[styles.liveDot, { backgroundColor: isConnected ? Colors.primary : Colors.text.muted, transform: [{ scale: isConnected ? pulseAnim : 1 }] }]} />
-                                <Text style={[styles.statusChipText, { color: isConnected ? Colors.primary : Colors.text.muted }]}>
-                                    {isConnected ? "CANLI" : "BAGLANTI KESILDI"}
-                                </Text>
-                            </View>
-                            <View style={[
-                                styles.sensorChip,
-                                isTriggered && { backgroundColor: Colors.danger + "20", borderColor: Colors.danger + "40" },
-                                isMonitoring && !isTriggered && { backgroundColor: Colors.primary + "10", borderColor: Colors.primary + "30" },
-                            ]}>
-                                <MaterialCommunityIcons
-                                    name={isTriggered ? "alert-circle" : isMonitoring ? "shield-check" : "shield-off-outline"}
-                                    size={12}
-                                    color={isTriggered ? Colors.danger : isMonitoring ? Colors.primary : Colors.text.muted}
-                                />
-                                <Text style={[styles.sensorChipText, { color: isTriggered ? Colors.danger : isMonitoring ? Colors.primary : Colors.text.muted }]}>
-                                    {isTriggered ? t("home.sensor_triggered") : isMonitoring ? "AI AKTIF" : t("home.sensor_passive")}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Stats Cards — Glassmorphism */}
-                        <View style={styles.statsRow}>
-                            <View style={styles.statCard}>
-                                <MaterialCommunityIcons name="chart-timeline-variant" size={20} color={Colors.primary} />
-                                <Text style={styles.statValue}>{last24h}</Text>
-                                <Text style={styles.statLabel}>Son 24 Saat</Text>
-                            </View>
-                            <View style={styles.statCard}>
-                                <MaterialCommunityIcons name="arrow-up-bold" size={20} color={Colors.accent} />
-                                <Text style={[styles.statValue, { color: Colors.accent }]}>{maxMag.toFixed(1)}</Text>
-                                <Text style={styles.statLabel}>En Büyük</Text>
-                            </View>
-                            <View style={styles.statCard}>
-                                <MaterialCommunityIcons name="access-point" size={20} color={Colors.status.info} />
-                                <Text style={[styles.statValue, { color: Colors.status.info }]}>{quakes.length}</Text>
-                                <Text style={styles.statLabel}>Toplam</Text>
-                            </View>
-                        </View>
-
-                        {/* Safety Score Banner */}
-                        <TouchableOpacity
-                            style={styles.scoreBanner}
-                            onPress={() => router.push("/more/safety_score")}
-                            activeOpacity={0.8}
-                        >
-                            <View style={styles.scoreBannerLeft}>
-                                <View style={[styles.scoreRingMini, {
-                                    borderColor: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
-                                }]}>
-                                    <Text style={[styles.scoreRingText, {
-                                        color: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
-                                    }]}>{safetyScore}</Text>
-                                </View>
-                                <View>
-                                    <Text style={styles.scoreBannerTitle}>Hazırlık Skorum</Text>
-                                    <View style={styles.scoreBarTrack}>
-                                        <View style={[styles.scoreBarFill, {
-                                            width: `${safetyScore}%` as any,
-                                            backgroundColor: safetyScore >= 70 ? Colors.primary : safetyScore >= 40 ? Colors.accent : Colors.danger,
-                                        }]} />
-                                    </View>
-                                    <Text style={styles.scoreBannerSub}>
-                                        {safetyScore === 0 ? "Kontrol listesini doldur" : safetyScore >= 80 ? "Harika, hazırsın! 🎉" : "Geliştir, daha iyisi olabilir"}
-                                    </Text>
-                                </View>
-                            </View>
-                            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.border.dark} />
-                        </TouchableOpacity>
-
-                        {/* Section Title */}
-                        <View style={styles.listHeader}>
-                            <Text style={styles.listTitle}>{t("home.recent_earthquakes")}</Text>
-                            <TouchableOpacity>
-                                <Text style={styles.filterText}>
-                                    {t("home.filter")} <MaterialCommunityIcons name="filter-variant" size={12} />
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                }
+                ListHeaderComponent={ListHeader}
+                ListEmptyComponent={<ListEmpty />}
                 ListFooterComponent={
                     <View style={styles.adContainer}>
                         <BannerAd
@@ -365,9 +426,10 @@ export default function DashboardScreen() {
     );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background.dark, paddingTop: Platform.OS === "android" ? 30 : 0 },
-    center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.background.dark },
 
     // Header
     header: {
@@ -389,9 +451,15 @@ const styles = StyleSheet.create({
     brandTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "800", letterSpacing: -0.5 },
     brandSub: { color: Colors.text.muted, fontSize: Typography.sizes.xs, fontWeight: "600", marginTop: 1 },
     headerActions: { flexDirection: "row", gap: 8 },
-    headerBtn: { padding: 8, backgroundColor: Colors.background.surface, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border.glass },
+    headerBtn: {
+        padding: 8,
+        backgroundColor: Colors.background.surface,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        borderColor: Colors.border.glass,
+    },
 
-    // Status
+    // Status row
     statusRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -399,13 +467,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.md,
         paddingVertical: Spacing.sm + 2,
     },
-    statusChip: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-    },
+    statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
     liveDot: { width: 6, height: 6, borderRadius: 3 },
     statusChipText: { fontSize: 10, fontWeight: "800", letterSpacing: 1 },
+    staleTag: { fontSize: 9, fontWeight: "700", color: Colors.accent, letterSpacing: 0.5 },
     sensorChip: {
         flexDirection: "row",
         alignItems: "center",
@@ -419,12 +484,33 @@ const styles = StyleSheet.create({
     },
     sensorChipText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
 
+    // Active sources row
+    sourceRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: Spacing.md,
+        marginBottom: Spacing.sm,
+        gap: 6,
+        flexWrap: "wrap",
+    },
+    sourceRowLabel: { fontSize: 10, fontWeight: "700", color: Colors.text.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+    sourceChip: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+    },
+    sourceChipDot: { width: 5, height: 5, borderRadius: 2.5 },
+    sourceChipText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.3 },
+
     // Stats
     statsRow: {
         flexDirection: "row",
         paddingHorizontal: Spacing.md,
         gap: Spacing.sm,
-        marginTop: Spacing.sm,
         marginBottom: Spacing.sm,
     },
     statCard: {
@@ -440,17 +526,44 @@ const styles = StyleSheet.create({
     statValue: { fontSize: Typography.sizes.xxl, fontWeight: "900", color: Colors.primary },
     statLabel: { fontSize: 9, fontWeight: "700", color: Colors.text.muted, textTransform: "uppercase", letterSpacing: 0.5 },
 
+    // Score banner
+    scoreBanner: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: Colors.background.surface,
+        borderWidth: 1,
+        borderColor: Colors.border.glass,
+        borderRadius: BorderRadius.xl,
+        paddingVertical: Spacing.sm + 2,
+        paddingHorizontal: Spacing.md,
+        marginBottom: Spacing.sm,
+    },
+    scoreBannerLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.md },
+    scoreRingMini: {
+        width: 48, height: 48, borderRadius: 24,
+        borderWidth: 3, justifyContent: "center", alignItems: "center", flexShrink: 0,
+    },
+    scoreRingText: { fontSize: Typography.sizes.sm, fontWeight: "900" },
+    scoreBannerTitle: { fontSize: Typography.sizes.sm, fontWeight: "800", color: Colors.text.dark, marginBottom: 4 },
+    scoreBarTrack: {
+        width: 120, height: 4,
+        backgroundColor: Colors.background.elevated,
+        borderRadius: 2, overflow: "hidden", marginBottom: 3,
+    },
+    scoreBarFill: { height: 4, borderRadius: 2 },
+    scoreBannerSub: { fontSize: 10, color: Colors.text.muted, fontWeight: "600" },
+
     // List
     list: { paddingHorizontal: Spacing.md, paddingBottom: 100 },
     listHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginTop: Spacing.md,
+        marginTop: Spacing.sm,
         marginBottom: Spacing.sm,
     },
     listTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "700" },
-    filterText: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "600" },
+    updatedText: { color: Colors.text.muted, fontSize: 10, fontWeight: "500" },
 
     // Card
     card: {
@@ -464,8 +577,7 @@ const styles = StyleSheet.create({
         borderColor: Colors.border.glass,
     },
     magBadge: {
-        width: 52,
-        height: 52,
+        width: 52, height: 52,
         borderRadius: BorderRadius.lg,
         justifyContent: "center",
         alignItems: "center",
@@ -473,20 +585,46 @@ const styles = StyleSheet.create({
     magText: { color: "#fff", fontSize: 18, fontWeight: "900" },
     magUnit: { color: "rgba(255,255,255,0.7)", fontSize: 8, fontWeight: "700", marginTop: 1 },
     info: { flex: 1, marginLeft: Spacing.md },
-    locationText: { color: Colors.text.dark, fontSize: Typography.sizes.md, fontWeight: "700" },
-    detailRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+    titleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+    locationText: { flex: 1, color: Colors.text.dark, fontSize: Typography.sizes.md, fontWeight: "700" },
+    detailRow: { flexDirection: "row", alignItems: "center", gap: 4 },
     details: { color: Colors.text.muted, fontSize: Typography.sizes.sm },
     dotSep: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: Colors.text.muted, marginHorizontal: 2 },
+
+    // Source badge
+    sourceBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: BorderRadius.sm,
+        borderWidth: 1,
+    },
+    sourceBadgeText: { fontSize: 8, fontWeight: "800", letterSpacing: 0.5 },
+
+    // Skeleton
+    skeletonLine1: { height: 14, width: "70%", backgroundColor: Colors.background.elevated, borderRadius: 4, marginBottom: 6 },
+    skeletonLine2: { height: 11, width: "45%", backgroundColor: Colors.background.elevated, borderRadius: 4 },
+
+    // Empty state
+    emptyBox: { alignItems: "center", paddingTop: 60, paddingBottom: 30 },
+    emptyTitle: { color: Colors.text.secondary, fontSize: Typography.sizes.lg, fontWeight: "700", marginTop: 16 },
+    emptySubtitle: { color: Colors.text.muted, fontSize: Typography.sizes.sm, marginTop: 6, textAlign: "center" },
+    retryBtn: {
+        marginTop: 16,
+        paddingHorizontal: 24, paddingVertical: 10,
+        backgroundColor: Colors.primary + "20",
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        borderColor: Colors.primary + "50",
+    },
+    retryBtnText: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "700" },
 
     // Ad
     adContainer: { alignItems: "center", marginVertical: Spacing.md },
 
-    // Safe Button
+    // Safe button
     safeBtnContainer: {
         position: "absolute",
-        bottom: 20,
-        left: Spacing.md,
-        right: Spacing.md,
+        bottom: 20, left: Spacing.md, right: Spacing.md,
         ...Shadows.lg,
     },
     safeBtn: {
@@ -500,60 +638,4 @@ const styles = StyleSheet.create({
     },
     safeBtnDisabled: { opacity: 0.6 },
     safeBtnText: { color: "#fff", fontSize: Typography.sizes.md, fontWeight: "800" },
-
-    // Safety score banner
-    scoreBanner: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: Colors.background.surface,
-        borderWidth: 1,
-        borderColor: Colors.border.glass,
-        borderRadius: BorderRadius.xl,
-        paddingVertical: Spacing.sm + 2,
-        paddingHorizontal: Spacing.md,
-        marginTop: Spacing.xs,
-        marginBottom: Spacing.sm,
-    },
-    scoreBannerLeft: {
-        flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Spacing.md,
-    },
-    scoreRingMini: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        borderWidth: 3,
-        justifyContent: "center",
-        alignItems: "center",
-        flexShrink: 0,
-    },
-    scoreRingText: {
-        fontSize: Typography.sizes.sm,
-        fontWeight: "900",
-    },
-    scoreBannerTitle: {
-        fontSize: Typography.sizes.sm,
-        fontWeight: "800",
-        color: Colors.text.dark,
-        marginBottom: 4,
-    },
-    scoreBarTrack: {
-        width: 120,
-        height: 4,
-        backgroundColor: Colors.background.elevated,
-        borderRadius: 2,
-        overflow: "hidden",
-        marginBottom: 3,
-    },
-    scoreBarFill: {
-        height: 4,
-        borderRadius: 2,
-    },
-    scoreBannerSub: {
-        fontSize: 10,
-        color: Colors.text.muted,
-        fontWeight: "600",
-    },
 });
