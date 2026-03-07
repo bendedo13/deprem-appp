@@ -3,7 +3,7 @@
  * Başarılı girişte ana sekmelere yönlendirir.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
@@ -24,6 +24,7 @@ import {
     googleSignIn,
     getFirebaseAuthErrorKey,
     getIdToken,
+    onAuthStateChanged,
 } from "../../src/services/firebaseAuthService";
 import { syncFirebaseToken } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
@@ -35,6 +36,24 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const { t } = useTranslation();
+    const authInProgress = useRef(false);
+
+    // Listen for auth state changes — navigate when user becomes authenticated
+    useEffect(() => {
+        const unsub = onAuthStateChanged(async (user) => {
+            if (user && authInProgress.current) {
+                // Sync token to backend silently
+                try {
+                    const idToken = await getIdToken();
+                    if (idToken) await syncFirebaseToken(idToken);
+                } catch {
+                    // Backend sync is non-critical
+                }
+                router.replace("/(tabs)");
+            }
+        });
+        return unsub;
+    }, []);
 
     async function handleLogin() {
         if (!email.trim() || !password) {
@@ -42,18 +61,15 @@ export default function LoginScreen() {
             return;
         }
         setLoading(true);
+        authInProgress.current = true;
         try {
             await firebaseLogin(email.trim().toLowerCase(), password);
-            try {
-                const idToken = await getIdToken();
-                if (idToken) await syncFirebaseToken(idToken);
-            } catch (syncErr) {
-                console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
-            }
-            router.replace("/(tabs)");
+            // Navigation is handled by onAuthStateChanged listener above
         } catch (err: unknown) {
+            authInProgress.current = false;
             const errorKey = getFirebaseAuthErrorKey(err);
-            Alert.alert(t("auth.error_login"), t(errorKey));
+            const code = (err as { code?: string })?.code ?? "unknown";
+            Alert.alert(t("auth.error_login"), `${t(errorKey)}\n\n[${code}]`);
         } finally {
             setLoading(false);
         }
@@ -61,19 +77,16 @@ export default function LoginScreen() {
 
     async function handleGoogleSignIn() {
         setGoogleLoading(true);
+        authInProgress.current = true;
         try {
             await googleSignIn();
-            try {
-                const idToken = await getIdToken();
-                if (idToken) await syncFirebaseToken(idToken);
-            } catch (syncErr) {
-                console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
-            }
-            router.replace("/(tabs)");
+            // Navigation is handled by onAuthStateChanged listener above
         } catch (err: unknown) {
+            authInProgress.current = false;
             const code = (err as { code?: string })?.code;
             if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
-            Alert.alert(t("auth.error_login"), t("auth.error_google_signin"));
+            const msg = (err as { message?: string })?.message ?? "";
+            Alert.alert(t("auth.error_login"), `${t("auth.error_google_signin")}\n\n[${code || msg}]`);
         } finally {
             setGoogleLoading(false);
         }

@@ -13,9 +13,10 @@ export default function TabsLayout() {
                     backgroundColor: Colors.background.surface,
                     borderTopWidth: 1,
                     borderTopColor: Colors.border.glass,
-                    height: 64,
-                    paddingBottom: 8,
-                    paddingTop: 4,
+                    height: 74,
+                    paddingBottom: 12,
+                    paddingTop: 8,
+                    ...Shadows.lg,
                 },
                 tabBarActiveTintColor: Colors.primary,
                 tabBarInactiveTintColor: Colors.text.muted,
@@ -31,8 +32,10 @@ export default function TabsLayout() {
                 name="index"
                 options={{
                     title: t("tabs.earthquakes"),
-                    tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="pulse" color={color} size={size + 2} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={focused ? styles.activeIconWrap : undefined}>
+                            <MaterialCommunityIcons name="pulse" color={color} size={focused ? 26 : 24} />
+                        </View>
                     ),
                 }}
             />
@@ -40,8 +43,21 @@ export default function TabsLayout() {
                 name="map"
                 options={{
                     title: t("tabs.map"),
-                    tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="map-marker-radius" color={color} size={size + 2} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={focused ? styles.activeIconWrap : undefined}>
+                            <MaterialCommunityIcons name="map-marker-radius" color={color} size={focused ? 26 : 24} />
+                        </View>
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="sensor"
+                options={{
+                    title: t("tabs.sensor"),
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={focused ? styles.activeIconWrap : undefined}>
+                            <MaterialCommunityIcons name="shield-alert-outline" color={color} size={focused ? 26 : 24} />
+                        </View>
                     ),
                 }}
             />
@@ -69,8 +85,10 @@ export default function TabsLayout() {
                 name="menu"
                 options={{
                     title: t("tabs.menu"),
-                    tabBarIcon: ({ color, size }) => (
-                        <MaterialCommunityIcons name="cog-outline" color={color} size={size + 2} />
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={focused ? styles.activeIconWrap : undefined}>
+                            <MaterialCommunityIcons name="cog-outline" color={color} size={focused ? 26 : 24} />
+                        </View>
                     ),
                 }}
             />
@@ -79,10 +97,15 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+    activeIconWrap: {
+        backgroundColor: Colors.primary + "12",
+        borderRadius: 12,
+        padding: 4,
+    },
     sosTabIcon: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: Colors.danger + "15",
         justifyContent: "center",
         alignItems: "center",
@@ -91,5 +114,6 @@ const styles = StyleSheet.create({
     sosTabIconActive: {
         backgroundColor: Colors.danger,
         ...Shadows.sm,
+        shadowColor: Colors.danger,
     },
 });

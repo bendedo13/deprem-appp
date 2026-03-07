@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Lin
 import { Link, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 import { logout } from "../../src/services/authService";
 
 export default function MenuScreen() {
@@ -84,17 +84,21 @@ export default function MenuScreen() {
 
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.settings")}</Text>
+                <MenuItem icon="account-circle-outline" title="Kullanıcı Paneli" href="/more/dashboard" color={Colors.primary} />
+                <MenuItem icon="bell-badge-outline" title="Bildirim Tercihleri" href="/more/notification-preferences" color={Colors.accent} />
                 <MenuItem icon="bell-outline" title={t("menu.notifications") || "Bildirim Ayarları"} href="/more/notifications" color={Colors.primary} />
                 <MenuItem icon="earth" title={t("menu.language") || "Dil Seçimi"} href="/more/language" />
             </View>
 
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🆘 {t("menu.emergency") || "Acil Durum"}</Text>
+                <Text style={styles.sectionTitle}>Acil Durum</Text>
                 <MenuItem icon="microphone" title="S.O.S Sesli Mesaj" href="/more/sos" color="#DC2626" />
+                <MenuItem icon="shield-account" title="Güvenlik Ağı" href="/more/family-network" color="#8b5cf6" />
             </View>
 
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.preparation") || "Hazırlık"}</Text>
+                <MenuItem icon="chart-arc" title="Hazırlık Skoru" href="/more/preparedness-score" color={Colors.primary} />
                 <MenuItem icon="shield-search" title={t("menu.risk_analysis") || "Risk Analizi"} href="/more/risk_analysis" color={Colors.primary} />
                 <MenuItem icon="account-multiple-outline" title={t("menu.emergency_contacts") || "Acil Kişiler"} href="/more/contacts" color={Colors.primary} />
                 <MenuItem icon="briefcase-outline" title={t("menu.survival_kit") || "Deprem Çantası"} href="/more/survival_kit" color="#f59e0b" />
@@ -102,6 +106,7 @@ export default function MenuScreen() {
 
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.about")}</Text>
+                <MenuItem icon="help-circle-outline" title="Nasıl Çalışır?" href="/more/how-it-works" color={Colors.status.info} />
                 <MenuItem icon="information-outline" title={t("about.title")} href="/more/about" />
                 <MenuItem icon="shield-check-outline" title={t("privacy.title")} href="/more/privacy" />
                 <MenuItem icon="security" title={t("menu.security")} href="/more/security" />
@@ -116,10 +121,14 @@ export default function MenuScreen() {
             </View>
 
             <View style={styles.footer}>
-                <View style={styles.branding}>
-                    <MaterialCommunityIcons name="code-tags" size={16} color={Colors.text.muted} />
-                    <Text style={styles.brandingText}>{t("menu.developed_by")}</Text>
+                <View style={styles.trustBanner}>
+                    <MaterialCommunityIcons name="shield-check" size={16} color={Colors.primary} />
+                    <Text style={styles.trustText}>
+                        Deprem verileri resmi devlet kurumu API'lerinden anlık olarak sağlanmaktadır.
+                    </Text>
                 </View>
+                <View style={styles.copyrightLine} />
+                <Text style={styles.copyrightText}>developed by Alan 2017-2026 ©</Text>
             </View>
         </ScrollView>
     );
@@ -146,32 +155,50 @@ const styles = StyleSheet.create({
         alignItems: "center",
         backgroundColor: Colors.background.surface,
         padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
+        borderRadius: BorderRadius.xl,
         marginBottom: Spacing.sm,
         borderWidth: 1,
-        borderColor: Colors.border.dark,
+        borderColor: Colors.border.glass,
+        ...Shadows.sm,
     },
     iconBox: {
-        width: 40,
-        height: 40,
-        borderRadius: 10,
+        width: 42,
+        height: 42,
+        borderRadius: 13,
         justifyContent: "center",
         alignItems: "center",
         marginRight: Spacing.md,
     },
     menuText: { flex: 1, fontSize: Typography.sizes.md, fontWeight: "700" },
-    footer: { marginTop: Spacing.xl, alignItems: "center" },
-    branding: {
+    footer: { marginTop: Spacing.xl, alignItems: "center", gap: Spacing.md },
+    trustBanner: {
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
+        backgroundColor: Colors.primary + "08",
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.md,
+        borderWidth: 1,
+        borderColor: Colors.primary + "15",
+    },
+    trustText: {
+        flex: 1,
+        fontSize: 11,
+        fontWeight: "600",
+        color: Colors.primary,
+        lineHeight: 16,
+    },
+    copyrightLine: {
+        width: 40,
+        height: 1,
+        backgroundColor: Colors.border.glass,
+        marginTop: 4,
+    },
+    copyrightText: {
+        fontSize: 11,
+        fontWeight: "600",
+        color: Colors.text.muted,
+        letterSpacing: 0.3,
         opacity: 0.6,
     },
-    brandingText: {
-        fontSize: 13,
-        fontWeight: "800",
-        color: Colors.text.muted,
-        letterSpacing: 0.8,
-        textTransform: "uppercase",
-    }
 });

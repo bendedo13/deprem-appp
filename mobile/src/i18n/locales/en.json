@@ -2,6 +2,7 @@
     "tabs": {
         "earthquakes": "Earthquakes",
         "map": "Map",
+        "sensor": "Early Warning",
         "menu": "Menu"
     },
     "menu": {
@@ -30,13 +31,16 @@
         "depth_km": "{{depth}} km depth",
         "live": "Live",
         "disconnected": "Disconnected",
-        "sensor_active": "🟢 Sensor",
-        "sensor_triggered": "⚡ Tremor",
-        "sensor_passive": "⬛ Inactive",
-        "i_am_safe": "✅ I'm Safe",
-        "vibration_title": "⚠️ Vibration Detected",
-        "vibration_body": "Ratio: {{ratio}} | Peak: {{peak}} m/s²\nReport sent to server.",
-        "error_load": "Could not load earthquake data."
+        "sensor_active": "Sensor",
+        "sensor_triggered": "Tremor",
+        "sensor_passive": "Inactive",
+        "i_am_safe": "I'm Safe",
+        "vibration_title": "Vibration Detected",
+        "vibration_body": "Ratio: {{ratio}} | Peak: {{peak}} m/s2\nReport sent to server.",
+        "error_load": "Could not load earthquake data.",
+        "offline_mode": "Offline Mode",
+        "reconnecting": "Reconnecting...",
+        "cache_showing": "Showing cached data"
     },
     "about": {
         "title": "About Us",
@@ -54,7 +58,7 @@
         "success": "Your message has been sent successfully."
     },
     "safe": {
-        "sent_title": "✅ Notification Sent",
+        "sent_title": "Notification Sent",
         "sent_body": "{{count}} emergency contact(s) notified.",
         "error": "Could not send notification."
     },
@@ -91,6 +95,7 @@
         "error_weak_password": "Password is too weak. Use at least 8 characters.",
         "error_too_many_requests": "Too many attempts. Please wait a moment.",
         "error_network": "No internet connection. Check your connection.",
+        "error_operation_not_allowed": "This sign-in method is not enabled. Enable it in Firebase Console.",
         "error_google_signin": "Google sign-in failed.",
         "login_success": "Login successful!",
         "register_success": "Account created!"
@@ -103,5 +108,51 @@
         "time": "Time",
         "close": "Close",
         "no_data": "No earthquake data yet."
+    },
+    "sensor": {
+        "title": "Early Warning",
+        "subtitle": "Accelerometer Sensor",
+        "active": "ACTIVE",
+        "inactive": "INACTIVE",
+        "peak_accel": "Peak Accel",
+        "triggered_alert": "Seismic Activity Detected!",
+        "how_it_works": "How Does It Work?",
+        "info_description": "Your phone's accelerometer analyzes earthquake waves in real-time. P-waves (primary) arrive before S-waves (secondary), providing an early warning opportunity.",
+        "p_wave": "P-Wave",
+        "p_wave_desc": "Fast, gentle\nFirst to arrive",
+        "s_wave": "S-Wave",
+        "s_wave_desc": "Slow, destructive\nMain damage source",
+        "tip_flat_surface": "For best results, place your phone on a stable, flat surface.",
+        "enable_detection": "Earthquake Detection",
+        "enable_desc": "Activate accelerometer sensor",
+        "schedule": "Schedule",
+        "schedule_desc": "Set active hours for the sensor",
+        "start_time": "Start",
+        "end_time": "End",
+        "actions": "Action Settings",
+        "actions_desc": "Phone responses when earthquake is detected",
+        "flash": "Flashlight",
+        "flash_desc": "Flash turns on automatically during earthquake",
+        "vibration": "Strong Vibration",
+        "vibration_desc": "High intensity vibration alert",
+        "alarm": "Sound Alarm",
+        "alarm_desc": "Maximum volume alarm",
+        "background_service": "Background Protection",
+        "background_service_desc": "Earthquake detection stays active even when screen is off",
+        "calibration_title": "Sensor Calibration",
+        "calibration_desc": "Place your phone on a flat surface and measure ambient noise for 5 seconds",
+        "calibration_start": "Start Calibration Test"
+    },
+    "sos": {
+        "sending": "Sending...",
+        "sent_api": "Your S.O.S. signal has been sent to the server.",
+        "sent_sms": "No internet connection. Sent via SMS.",
+        "failed": "Could not send S.O.S. Please call 112.",
+        "offline_info": "If internet is down, your GPS location will be sent to emergency contacts via SMS."
+    },
+    "onboarding": {
+        "why_needed": "Why do we need this permission?",
+        "permission_summary": "Permission Summary",
+        "some_denied": "Some permissions were denied. Related features have been disabled."
     }
 }
