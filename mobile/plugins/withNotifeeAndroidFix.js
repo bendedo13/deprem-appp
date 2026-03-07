@@ -1,5 +1,5 @@
 /**
- * Expo Config Plugin — JitPack Notifee Timeout Fix (v2)
+ * Expo Config Plugin — JitPack Notifee Timeout Fix (v3)
  *
  * Root cause:
  *   @notifee/react-native bundles its native `app.notifee:core` AAR inside
@@ -8,13 +8,13 @@
  *   querying ALL configured Maven repositories — including JitPack (added by
  *   react-native-google-mobile-ads).  When JitPack times out the build fails.
  *
- * Fix strategy (belt-and-suspenders):
- *   1. settings.gradle — Add `exclusiveContent` filter so the local Notifee
- *      Maven repo is the ONLY source for `app.notifee` group, and add
- *      `excludeGroup` on JitPack so it never looks there for Notifee.
- *   2. build.gradle   — Force `app.notifee:core` to the exact bundled version
- *      (`202108261754`) via `resolutionStrategy`, eliminating the dynamic `+`
- *      resolution entirely.
+ * Fix strategy (Gradle 8.8 compatible — NO afterEvaluate):
+ *   1. settings.gradle — `gradle.beforeProject` excludes `app.notifee` from
+ *      JitPack in EVERY project's repositories.  This runs before evaluation
+ *      so it's safe on Gradle 8.8+.
+ *   2. build.gradle   — `subprojects.configurations.configureEach` with
+ *      `resolutionStrategy.force` pins `app.notifee:core` to the exact
+ *      bundled version.  No afterEvaluate needed.
  *   3. gradle.properties — Increase HTTP timeouts as extra safety net.
  */
 
@@ -24,27 +24,28 @@ const {
   withGradleProperties,
 } = require("expo/config-plugins");
 
-const SETTINGS_MARKER = "// [withNotifeeAndroidFix-settings]";
-const BUILD_MARKER = "// [withNotifeeAndroidFix-build]";
+const SETTINGS_MARKER = "// [withNotifeeAndroidFix-settings-v3]";
+const BUILD_MARKER = "// [withNotifeeAndroidFix-build-v3]";
 
 // Exact version of app.notifee:core bundled in node_modules/@notifee/react-native/android/libs
 const NOTIFEE_CORE_VERSION = "202108261754";
 
 /**
  * 1. Patch settings.gradle:
- *    - Exclude app.notifee from JitPack in dependencyResolutionManagement
- *    - Also handle any allprojects block
+ *    - `gradle.beforeProject` runs BEFORE each project is evaluated
+ *    - Excludes app.notifee from JitPack in every project's repositories
+ *    - Fully safe on Gradle 8.8 (no afterEvaluate)
  */
 function patchSettingsGradle(config) {
   return withSettingsGradle(config, (settingsConfig) => {
     let contents = settingsConfig.modResults.contents;
     if (contents.includes(SETTINGS_MARKER)) return settingsConfig;
 
-    // Inject a `gradle.beforeProject` callback that filters JitPack for every project
     const snippet = `
 ${SETTINGS_MARKER}
 // Prevent JitPack from being queried for app.notifee artifacts.
 // The local Maven repo inside @notifee/react-native already provides them.
+// Uses gradle.beforeProject (runs before evaluation) — safe on Gradle 8.8+.
 gradle.beforeProject { proj ->
     proj.repositories.configureEach { repo ->
         if (repo instanceof MavenArtifactRepository) {
@@ -67,7 +68,8 @@ gradle.beforeProject { proj ->
 /**
  * 2. Patch root build.gradle:
  *    - Force app.notifee:core to exact bundled version via resolutionStrategy
- *    - This eliminates the `+` dynamic version lookup entirely
+ *    - Uses only configureEach (lazy, Gradle 8.8 compatible)
+ *    - NO afterEvaluate anywhere
  */
 function patchBuildGradle(config) {
   return withProjectBuildGradle(config, (gradleConfig) => {
@@ -77,23 +79,12 @@ function patchBuildGradle(config) {
 
     const snippet = `
 ${BUILD_MARKER}
-// Force app.notifee:core to exact bundled version — no dynamic '+' resolution needed.
-// Also exclude JitPack from resolving app.notifee in every subproject.
+// Force app.notifee:core to exact bundled version — no dynamic '+' resolution.
+// configureEach is lazy and Gradle 8.8 safe (no afterEvaluate).
 subprojects { sub ->
     sub.configurations.configureEach { configuration ->
         configuration.resolutionStrategy {
             force 'app.notifee:core:${NOTIFEE_CORE_VERSION}'
-        }
-    }
-    sub.afterEvaluate {
-        sub.repositories.configureEach { repo ->
-            if (repo instanceof MavenArtifactRepository) {
-                if (repo.url.toString().contains("jitpack.io")) {
-                    repo.content {
-                        excludeGroup("app.notifee")
-                    }
-                }
-            }
         }
     }
 }

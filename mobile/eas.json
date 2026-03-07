@@ -30,7 +30,7 @@
                 "EXPO_PUBLIC_WS_URL": "ws://46.4.123.77:8001/ws/earthquakes"
             },
             "cache": {
-                "key": "preview-v4-notifee-fix2",
+                "key": "preview-v5-notifee-v3",
                 "paths": [
                     ".expo"
                 ]
@@ -48,7 +48,7 @@
                 "EXPO_PUBLIC_WS_URL": "wss://deprem-api.quakesense.com/ws/earthquakes"
             },
             "cache": {
-                "key": "production-v8-notifee-fix2",
+                "key": "production-v9-notifee-v3",
                 "paths": [
                     ".expo"
                 ]
