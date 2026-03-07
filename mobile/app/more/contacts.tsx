@@ -17,32 +17,43 @@ import { useTranslation } from "react-i18next";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 import { api } from "../../src/services/api";
 
+// Backend EmergencyContactOut şeması ile eşleşir
 interface Contact {
     id: number;
     name: string;
     phone: string;
     email?: string;
-    channel: "sms" | "push" | "both";
+    relation: string;
+    methods: string[];
 }
+
+const RELATION_OPTIONS = [
+    "Aile", "Eş", "Arkadaş", "Komşu", "İş Arkadaşı", "Diğer"
+];
+
+// Backend kabul ettiği method değerleri: "whatsapp" | "sms" | "email"
+type NotifyMethod = "sms" | "whatsapp" | "email";
 
 export default function ContactsScreen() {
     const { t } = useTranslation();
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     // Form state
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
-    const [channel, setChannel] = useState<"sms" | "push" | "both">("sms");
+    const [relation, setRelation] = useState("Aile");
+    const [methods, setMethods] = useState<NotifyMethod[]>(["sms"]);
 
     const fetchContacts = async () => {
         try {
-            const { data } = await api.get("/api/v1/users/me/contacts");
-            setContacts(data);
+            const { data } = await api.get<Contact[]>("/api/v1/users/me/contacts");
+            setContacts(Array.isArray(data) ? data : []);
         } catch (error) {
-            console.error("Failed to fetch contacts", error);
+            console.warn("[Contacts] Fetch hatası:", error);
         } finally {
             setLoading(false);
         }
@@ -52,31 +63,52 @@ export default function ContactsScreen() {
         fetchContacts();
     }, []);
 
+    const toggleMethod = (m: NotifyMethod) => {
+        setMethods((prev) =>
+            prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
+        );
+    };
+
     const handleAdd = async () => {
-        if (!name || !phone) {
-            Alert.alert("Hata", "İsim ve telefon numarası zorunludur.");
+        if (!name.trim()) {
+            Alert.alert("Hata", "İsim soyisim zorunludur.");
+            return;
+        }
+        if (!phone.trim()) {
+            Alert.alert("Hata", "Telefon numarası zorunludur.");
+            return;
+        }
+        if (methods.length === 0) {
+            Alert.alert("Hata", "En az bir bildirim kanalı seçin.");
             return;
         }
 
+        setSaving(true);
         try {
-            setLoading(true);
             await api.post("/api/v1/users/me/contacts", {
-                name,
-                phone,
-                email: email || undefined,
-                channel
+                name: name.trim(),
+                phone: phone.trim(),
+                email: email.trim() || undefined,
+                relation,
+                methods,   // ["sms"], ["whatsapp"], ["sms", "whatsapp"] vb.
+                priority: 1,
             });
-            Alert.alert("Başarılı", "Acil durum kişisi eklendi.");
+            Alert.alert("Başarılı", `${name} acil kişiler listesine eklendi.`);
             setName("");
             setPhone("");
             setEmail("");
+            setRelation("Aile");
+            setMethods(["sms"]);
             setAdding(false);
             fetchContacts();
-        } catch (error: any) {
-            const msg = error.response?.data?.detail || "Kişi eklenemedi.";
+        } catch (error: unknown) {
+            const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+            const msg = Array.isArray(detail)
+                ? detail.map((d: { msg?: string }) => d.msg).join(", ")
+                : (detail as string) ?? "Kişi eklenemedi. Bilgileri kontrol edin.";
             Alert.alert("Hata", msg);
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     };
 
@@ -93,7 +125,7 @@ export default function ContactsScreen() {
                         try {
                             await api.delete(`/api/v1/users/me/contacts/${id}`);
                             fetchContacts();
-                        } catch (error) {
+                        } catch {
                             Alert.alert("Hata", "Silme işlemi başarısız.");
                         }
                     }
@@ -113,7 +145,7 @@ export default function ContactsScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.text.dark} />
                     </TouchableOpacity>
-                    <View>
+                    <View style={{ flex: 1 }}>
                         <Text style={styles.title}>Acil Kişiler</Text>
                         <Text style={styles.subtitle}>Deprem sonrası "Güvendeyim" mesajı gidecek kişiler.</Text>
                     </View>
@@ -128,13 +160,16 @@ export default function ContactsScreen() {
                                 <View style={styles.contactInfo}>
                                     <Text style={styles.contactName}>{contact.name}</Text>
                                     <Text style={styles.contactPhone}>{contact.phone}</Text>
-                                    <View style={styles.channelBadge}>
-                                        <MaterialCommunityIcons
-                                            name={contact.channel === "push" ? "bell-outline" : "message-text-outline"}
-                                            size={12}
-                                            color={Colors.primary}
-                                        />
-                                        <Text style={styles.channelText}>{contact.channel.toUpperCase()}</Text>
+                                    <View style={styles.badgeRow}>
+                                        <View style={styles.channelBadge}>
+                                            <MaterialCommunityIcons name="account-heart-outline" size={11} color={Colors.primary} />
+                                            <Text style={styles.channelText}>{contact.relation}</Text>
+                                        </View>
+                                        {(contact.methods ?? []).map((m) => (
+                                            <View key={m} style={styles.channelBadge}>
+                                                <Text style={styles.channelText}>{m.toUpperCase()}</Text>
+                                            </View>
+                                        ))}
                                     </View>
                                 </View>
                                 <TouchableOpacity onPress={() => handleDelete(contact.id)} style={styles.deleteBtn}>
@@ -171,8 +206,9 @@ export default function ContactsScreen() {
                             </TouchableOpacity>
                         </View>
 
+                        {/* İsim */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>İsim Soyisim</Text>
+                            <Text style={styles.label}>İsim Soyisim *</Text>
                             <TextInput
                                 style={styles.input}
                                 value={name}
@@ -182,42 +218,66 @@ export default function ContactsScreen() {
                             />
                         </View>
 
+                        {/* Telefon */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Telefon Numarası</Text>
+                            <Text style={styles.label}>Telefon Numarası *</Text>
                             <TextInput
                                 style={styles.input}
                                 value={phone}
                                 onChangeText={setPhone}
-                                placeholder="Örn: 05xx xxx xx xx"
+                                placeholder="+905xxxxxxxxx veya 05xx xxx xx xx"
                                 placeholderTextColor={Colors.text.muted}
                                 keyboardType="phone-pad"
                             />
                         </View>
 
+                        {/* E-Posta */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>E-Posta (Opsiyonel)</Text>
                             <TextInput
                                 style={styles.input}
                                 value={email}
                                 onChangeText={setEmail}
-                                placeholder="E-posta hesabı varsa bildirim gider"
+                                placeholder="E-posta ile de bildirim alabilir"
                                 placeholderTextColor={Colors.text.muted}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                             />
                         </View>
 
+                        {/* Yakınlık Derecesi — ZORUNLU */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Bilgilendirme Kanalı</Text>
-                            <View style={styles.channelRow}>
-                                {(["sms", "push", "both"] as const).map((ch) => (
+                            <Text style={styles.label}>Yakınlık Derecesi *</Text>
+                            <View style={styles.chipRow}>
+                                {RELATION_OPTIONS.map((r) => (
                                     <TouchableOpacity
-                                        key={ch}
-                                        style={[styles.channelChip, channel === ch && styles.channelChipActive]}
-                                        onPress={() => setChannel(ch)}
+                                        key={r}
+                                        style={[styles.chip, relation === r && styles.chipActive]}
+                                        onPress={() => setRelation(r)}
                                     >
-                                        <Text style={[styles.channelChipText, channel === ch && styles.channelChipTextActive]}>
-                                            {ch.toUpperCase()}
+                                        <Text style={[styles.chipText, relation === r && styles.chipTextActive]}>{r}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Bildirim Kanalı — çoklu seçim */}
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Bildirim Kanalı * (çoklu seçim)</Text>
+                            <View style={styles.channelRow}>
+                                {(["sms", "whatsapp", "email"] as NotifyMethod[]).map((m) => (
+                                    <TouchableOpacity
+                                        key={m}
+                                        style={[styles.channelChip, methods.includes(m) && styles.channelChipActive]}
+                                        onPress={() => toggleMethod(m)}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name={m === "whatsapp" ? "whatsapp" : m === "email" ? "email-outline" : "message-text-outline"}
+                                            size={14}
+                                            color={methods.includes(m) ? Colors.primary : Colors.text.muted}
+                                        />
+                                        <Text style={[styles.channelChipText, methods.includes(m) && styles.channelChipTextActive]}>
+                                            {m.toUpperCase()}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -225,11 +285,15 @@ export default function ContactsScreen() {
                         </View>
 
                         <TouchableOpacity
-                            style={styles.saveBtn}
+                            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
                             onPress={handleAdd}
-                            disabled={loading}
+                            disabled={saving}
                         >
-                            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>KAYDET</Text>}
+                            {saving ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.saveBtnText}>KAYDET</Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 )}
@@ -237,7 +301,7 @@ export default function ContactsScreen() {
                 <View style={styles.infoBox}>
                     <MaterialCommunityIcons name="information-outline" size={20} color={Colors.primary} />
                     <Text style={styles.infoText}>
-                        "Ben İyiyim" butonuna bastığınızda, bu listedeki kişilere konumunuzla birlikte bildirim gönderilir. Toplamda en fazla 5 kişi ekleyebilirsiniz.
+                        "Ben İyiyim" butonuna bastığınızda, bu listedeki kişilere SMS/WhatsApp ile konumunuz iletilir. En fazla 5 kişi ekleyebilirsiniz.
                     </Text>
                 </View>
             </ScrollView>
@@ -266,7 +330,7 @@ const styles = StyleSheet.create({
         borderColor: Colors.border.dark,
     },
     title: { fontSize: Typography.sizes.xxl, fontWeight: "800", color: Colors.text.dark },
-    subtitle: { fontSize: Typography.sizes.xs, color: Colors.text.muted, fontWeight: "500", marginTop: 2, flex: 1 },
+    subtitle: { fontSize: Typography.sizes.xs, color: Colors.text.muted, fontWeight: "500", marginTop: 2 },
     list: { gap: Spacing.md },
     contactCard: {
         flexDirection: "row",
@@ -280,16 +344,15 @@ const styles = StyleSheet.create({
     contactInfo: { flex: 1 },
     contactName: { fontSize: Typography.sizes.md, fontWeight: "800", color: Colors.text.dark },
     contactPhone: { fontSize: Typography.sizes.sm, color: Colors.text.muted, marginTop: 2 },
+    badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6 },
     channelBadge: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 4,
-        marginTop: 6,
+        gap: 3,
         paddingHorizontal: 6,
         paddingVertical: 2,
         backgroundColor: Colors.primary + "10",
         borderRadius: 4,
-        alignSelf: "flex-start"
     },
     channelText: { fontSize: 9, fontWeight: "900", color: Colors.primary },
     deleteBtn: { padding: 8 },
@@ -314,10 +377,21 @@ const styles = StyleSheet.create({
         borderColor: Colors.primary + "40",
         marginTop: Spacing.lg,
     },
-    formHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg },
+    formHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: Spacing.lg,
+    },
     formTitle: { fontSize: Typography.sizes.md, fontWeight: "800", color: Colors.text.dark },
     inputGroup: { marginBottom: Spacing.md },
-    label: { fontSize: 11, fontWeight: "800", color: Colors.text.muted, marginBottom: 6, textTransform: "uppercase" },
+    label: {
+        fontSize: 11,
+        fontWeight: "800",
+        color: Colors.text.muted,
+        marginBottom: 6,
+        textTransform: "uppercase",
+    },
     input: {
         backgroundColor: Colors.background.dark,
         borderRadius: BorderRadius.md,
@@ -325,19 +399,34 @@ const styles = StyleSheet.create({
         color: Colors.text.dark,
         fontWeight: "700",
         borderWidth: 1,
-        borderColor: Colors.border.dark
+        borderColor: Colors.border.dark,
     },
-    channelRow: { flexDirection: "row", gap: 8 },
-    channelChip: {
-        flex: 1,
-        paddingVertical: 10,
-        alignItems: "center",
+    chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    chip: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
         borderRadius: BorderRadius.md,
         backgroundColor: Colors.background.dark,
         borderWidth: 1,
-        borderColor: Colors.border.dark
+        borderColor: Colors.border.dark,
     },
-    channelChipActive: { backgroundColor: Colors.primary + "20", borderColor: Colors.primary },
+    chipActive: { backgroundColor: Colors.primary + "15", borderColor: Colors.primary },
+    chipText: { fontSize: Typography.sizes.xs, fontWeight: "700", color: Colors.text.muted },
+    chipTextActive: { color: Colors.primary },
+    channelRow: { flexDirection: "row", gap: 8 },
+    channelChip: {
+        flex: 1,
+        flexDirection: "row",
+        gap: 4,
+        paddingVertical: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: BorderRadius.md,
+        backgroundColor: Colors.background.dark,
+        borderWidth: 1,
+        borderColor: Colors.border.dark,
+    },
+    channelChipActive: { backgroundColor: Colors.primary + "15", borderColor: Colors.primary },
     channelChipText: { fontSize: 11, fontWeight: "800", color: Colors.text.muted },
     channelChipTextActive: { color: Colors.primary },
     saveBtn: {
@@ -345,7 +434,7 @@ const styles = StyleSheet.create({
         padding: Spacing.lg,
         borderRadius: BorderRadius.lg,
         alignItems: "center",
-        marginTop: Spacing.md
+        marginTop: Spacing.md,
     },
     saveBtnText: { color: "#fff", fontWeight: "900", letterSpacing: 1 },
     infoBox: {
@@ -356,7 +445,7 @@ const styles = StyleSheet.create({
         marginTop: Spacing.xxl,
         gap: Spacing.md,
         borderWidth: 1,
-        borderColor: Colors.primary + "15"
+        borderColor: Colors.primary + "15",
     },
     infoText: { flex: 1, fontSize: 11, color: Colors.text.muted, lineHeight: 16, fontWeight: "600" },
 });

@@ -34,23 +34,65 @@ const YEAR_RANGES = [
 export default function RiskAnalysisScreen() {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
+    const [geocoding, setGeocoding] = useState(false);
     const [result, setResult] = useState<RiskResult | null>(null);
     const [buildingYear, setBuildingYear] = useState(2020);
     const [soilClass, setSoilClass] = useState("UNKNOWN");
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+    const [locationLabel, setLocationLabel] = useState<string>("GPS konumunuz");
 
+    // Adres girişi için state
+    const [address, setAddress] = useState("");
+
+    // GPS ile otomatik konum al
     useEffect(() => {
         (async () => {
-            let { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') return;
-            let pos = await Location.getCurrentPositionAsync({});
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== "granted") return;
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+
+            // Reverse geocode — adres etiketi için
+            try {
+                const [place] = await Location.reverseGeocodeAsync({
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                });
+                if (place) {
+                    const parts = [place.district, place.city, place.country].filter(Boolean);
+                    setLocationLabel(parts.join(", ") || "GPS konumunuz");
+                }
+            } catch {
+                // Reverse geocode başarısız — koordinatları göster
+                setLocationLabel(`${pos.coords.latitude.toFixed(4)}°N, ${pos.coords.longitude.toFixed(4)}°E`);
+            }
         })();
     }, []);
 
+    /** Girilen adresi koordinata çevirir (geocoding) */
+    const handleGeocode = async () => {
+        if (!address.trim()) return;
+        setGeocoding(true);
+        try {
+            const results = await Location.geocodeAsync(address.trim());
+            if (results.length === 0) {
+                Alert.alert("Bulunamadı", "Bu adres için konum bulunamadı. Daha detaylı bir adres girin.");
+                return;
+            }
+            const { latitude, longitude } = results[0];
+            setLocation({ lat: latitude, lng: longitude });
+            setLocationLabel(address.trim());
+            setResult(null); // Konum değişti, önceki sonucu temizle
+        } catch {
+            Alert.alert("Hata", "Adres bulunamadı. İnternet bağlantınızı kontrol edin.");
+        } finally {
+            setGeocoding(false);
+        }
+    };
+
     const handleCalculate = async () => {
         if (!location) {
-            Alert.alert("Hata", "Konum bilgisi alınamadı. Lütfen izin verin.");
+            Alert.alert("Hata", "Konum bilgisi alınamadı. GPS iznini verin veya adres girin.");
             return;
         }
 
@@ -63,7 +105,7 @@ export default function RiskAnalysisScreen() {
                 soil_class: soilClass,
             });
             setResult(data);
-        } catch (error) {
+        } catch {
             Alert.alert("Hata", "Risk analizi yapılamadı. Lütfen tekrar deneyin.");
         } finally {
             setLoading(false);
@@ -77,13 +119,57 @@ export default function RiskAnalysisScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                     <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.text.dark} />
                 </TouchableOpacity>
-                <View>
+                <View style={{ flex: 1 }}>
                     <Text style={styles.title}>Risk Analizi</Text>
                     <Text style={styles.subtitle}>Konum ve bina verilerine göre sismik risk ölçümü.</Text>
                 </View>
             </View>
 
-            {/* Input Card */}
+            {/* Konum Kartı */}
+            <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Konum Bilgisi</Text>
+
+                {/* Aktif konum göstergesi */}
+                <View style={styles.locationRow}>
+                    <MaterialCommunityIcons
+                        name={location ? "map-marker-check" : "map-marker-off"}
+                        size={20}
+                        color={location ? Colors.primary : Colors.text.muted}
+                    />
+                    <Text style={[styles.locationText, { color: location ? Colors.primary : Colors.text.muted }]}>
+                        {location ? locationLabel : "Konum bekleniyor..."}
+                    </Text>
+                </View>
+
+                {/* Adres girişi */}
+                <View style={styles.addressInputRow}>
+                    <TextInput
+                        style={styles.addressInput}
+                        value={address}
+                        onChangeText={setAddress}
+                        placeholder="Farklı adres girin (örn: Kadıköy, İstanbul)"
+                        placeholderTextColor={Colors.text.muted + "80"}
+                        returnKeyType="search"
+                        onSubmitEditing={handleGeocode}
+                    />
+                    <TouchableOpacity
+                        style={[styles.geoBtn, geocoding && { opacity: 0.6 }]}
+                        onPress={handleGeocode}
+                        disabled={geocoding || !address.trim()}
+                    >
+                        {geocoding ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <MaterialCommunityIcons name="magnify" size={20} color="#fff" />
+                        )}
+                    </TouchableOpacity>
+                </View>
+                <Text style={styles.addressHint}>
+                    Adres girmezseniz mevcut GPS konumunuz kullanılır.
+                </Text>
+            </View>
+
+            {/* Bina Bilgileri Kartı */}
             <View style={styles.card}>
                 <Text style={styles.sectionTitle}>Bina Bilgileri</Text>
 
@@ -96,7 +182,9 @@ export default function RiskAnalysisScreen() {
                                 style={[styles.option, buildingYear === y.value && styles.optionSelected]}
                                 onPress={() => setBuildingYear(y.value)}
                             >
-                                <Text style={[styles.optionText, buildingYear === y.value && styles.optionTextSelected]}>{y.label}</Text>
+                                <Text style={[styles.optionText, buildingYear === y.value && styles.optionTextSelected]}>
+                                    {y.label}
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -111,16 +199,18 @@ export default function RiskAnalysisScreen() {
                                 style={[styles.soilOption, soilClass === s.value && styles.soilOptionSelected]}
                                 onPress={() => setSoilClass(s.value)}
                             >
-                                <Text style={[styles.soilOptionText, soilClass === s.value && styles.soilOptionTextSelected]}>{s.label}</Text>
+                                <Text style={[styles.soilOptionText, soilClass === s.value && styles.soilOptionTextSelected]}>
+                                    {s.label}
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
                 </View>
 
                 <TouchableOpacity
-                    style={styles.calculateBtn}
+                    style={[styles.calculateBtn, (!location || loading) && { opacity: 0.6 }]}
                     onPress={handleCalculate}
-                    disabled={loading}
+                    disabled={loading || !location}
                 >
                     {loading ? (
                         <ActivityIndicator color="#fff" />
@@ -133,15 +223,23 @@ export default function RiskAnalysisScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* Result Area */}
+            {/* Sonuç Kartı */}
             {result && (
                 <View style={styles.resultCard}>
                     <View style={styles.scoreHeader}>
                         <View>
                             <Text style={styles.scoreLabel}>RİSK SKORU</Text>
-                            <Text style={[styles.scoreLevel, { color: result.level === 'Çok Yüksek' ? '#ef4444' : result.level === 'Yüksek' ? '#f97316' : '#10b981' }]}>
+                            <Text style={[
+                                styles.scoreLevel,
+                                {
+                                    color: result.level === "Çok Yüksek" ? "#ef4444"
+                                        : result.level === "Yüksek" ? "#f97316"
+                                        : "#10b981"
+                                }
+                            ]}>
                                 {result.level}
                             </Text>
+                            <Text style={styles.scoredLocation}>📍 {locationLabel}</Text>
                         </View>
                         <View style={styles.scoreCircle}>
                             <Text style={styles.scoreMain}>{result.score.toFixed(1)}</Text>
@@ -155,7 +253,9 @@ export default function RiskAnalysisScreen() {
                         <MaterialCommunityIcons name="map-marker-distance" size={24} color={Colors.primary} />
                         <View style={{ flex: 1 }}>
                             <Text style={styles.faultTitle}>En Yakın Fay Hattı</Text>
-                            <Text style={styles.faultName}>{result.nearest_fault} ({result.fault_distance_km.toFixed(1)} km)</Text>
+                            <Text style={styles.faultName}>
+                                {result.nearest_fault} ({result.fault_distance_km.toFixed(1)} km)
+                            </Text>
                         </View>
                     </View>
 
@@ -187,7 +287,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         gap: Spacing.md,
-        marginBottom: Spacing.xxl,
+        marginBottom: Spacing.xl,
         marginTop: Spacing.lg,
     },
     backBtn: {
@@ -208,7 +308,7 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.xl,
         borderWidth: 1,
         borderColor: Colors.border.dark,
-        marginBottom: Spacing.xl,
+        marginBottom: Spacing.lg,
     },
     sectionTitle: {
         fontSize: Typography.sizes.xs,
@@ -217,6 +317,54 @@ const styles = StyleSheet.create({
         textTransform: "uppercase",
         letterSpacing: 1.5,
         marginBottom: Spacing.lg,
+    },
+    // Konum göstergesi
+    locationRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: Colors.background.dark,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        marginBottom: Spacing.md,
+        borderWidth: 1,
+        borderColor: Colors.border.dark,
+    },
+    locationText: {
+        flex: 1,
+        fontSize: Typography.sizes.sm,
+        fontWeight: "700",
+    },
+    // Adres input
+    addressInputRow: {
+        flexDirection: "row",
+        gap: 8,
+        marginBottom: 6,
+    },
+    addressInput: {
+        flex: 1,
+        backgroundColor: Colors.background.dark,
+        borderRadius: BorderRadius.md,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 12,
+        color: Colors.text.dark,
+        fontWeight: "600",
+        fontSize: Typography.sizes.sm,
+        borderWidth: 1,
+        borderColor: Colors.border.dark,
+    },
+    geoBtn: {
+        width: 44,
+        backgroundColor: Colors.primary,
+        borderRadius: BorderRadius.md,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    addressHint: {
+        fontSize: 10,
+        color: Colors.text.muted,
+        fontWeight: "500",
+        marginBottom: Spacing.sm,
     },
     inputGroup: { marginBottom: Spacing.xl },
     label: { fontSize: Typography.sizes.sm, fontWeight: "700", color: Colors.text.dark, marginBottom: 12 },
@@ -271,9 +419,10 @@ const styles = StyleSheet.create({
         shadowRadius: 20,
         elevation: 10,
     },
-    scoreHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    scoreHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
     scoreLabel: { fontSize: 10, fontWeight: "900", color: Colors.text.muted, letterSpacing: 2 },
     scoreLevel: { fontSize: Typography.sizes.xxl, fontWeight: "900" },
+    scoredLocation: { fontSize: 11, color: Colors.text.muted, fontWeight: "600", marginTop: 4, maxWidth: 200 },
     scoreCircle: { alignItems: "flex-end" },
     scoreMain: { fontSize: 48, fontWeight: "900", color: Colors.primary, includeFontPadding: false },
     scoreSub: { fontSize: 12, color: Colors.text.muted, fontWeight: "900", marginTop: -10 },
@@ -282,7 +431,13 @@ const styles = StyleSheet.create({
     faultTitle: { fontSize: 10, fontWeight: "900", color: Colors.text.muted, textTransform: "uppercase" },
     faultName: { fontSize: Typography.sizes.md, fontWeight: "800", color: Colors.text.dark },
     recommendations: { gap: 10 },
-    recItem: { flexDirection: "row", gap: 10, backgroundColor: Colors.background.dark, padding: 12, borderRadius: BorderRadius.md },
+    recItem: {
+        flexDirection: "row",
+        gap: 10,
+        backgroundColor: Colors.background.dark,
+        padding: 12,
+        borderRadius: BorderRadius.md,
+    },
     recText: { flex: 1, fontSize: 12, color: Colors.text.muted, lineHeight: 18, fontWeight: "500" },
     disclaimer: { marginTop: Spacing.xl, paddingHorizontal: Spacing.md },
     disclaimerText: { fontSize: 10, color: Colors.text.muted, textAlign: "center", fontStyle: "italic", lineHeight: 16 },

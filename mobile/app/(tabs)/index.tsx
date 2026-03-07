@@ -131,15 +131,23 @@ export default function DashboardScreen() {
 
     const fetchQuakes = useCallback(async () => {
         try {
-            const { data } = await api.get<Earthquake[]>("/api/v1/earthquakes?limit=50");
-            setQuakes(data);
-        } catch {
-            Alert.alert(t("home.error_load"));
+            // API { items: [], total: N, page: 1, page_size: 50 } döndürür
+            const { data } = await api.get<{ items?: Earthquake[]; total?: number } | Earthquake[]>(
+                "/api/v1/earthquakes?page_size=50&hours=24"
+            );
+            // Hem düz array hem de {items: []} formatını destekle
+            const list: Earthquake[] = Array.isArray(data)
+                ? data
+                : (data as { items?: Earthquake[] }).items ?? [];
+            setQuakes(list);
+        } catch (err: unknown) {
+            // Hata detayını logla — sessizce devam et, Alert gösterme (ilk yüklemede rahatsız etmesin)
+            console.warn("[Earthquakes] Fetch hatası:", err);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [t]);
+    }, []);
 
     useEffect(() => { fetchQuakes(); }, [fetchQuakes]);
 
