@@ -1,45 +1,55 @@
 /**
- * Expo Config Plugin — JitPack Notifee Timeout Fix
+ * Expo Config Plugin — JitPack Notifee Timeout Fix (v2)
  *
- * Problem:
- *   @notifee/react-native ships a local Maven repo (android/libs) for its
- *   native `app.notifee:core` artifact.  However Gradle also searches ALL
- *   configured remote Maven repositories (including JitPack, which is added by
- *   other dependencies such as react-native-google-mobile-ads or Firebase).
- *   Because the version specifier is `+` (=latest), Gradle fetches
- *   maven-metadata.xml from every repo — and when JitPack times out the whole
- *   build crashes.
+ * Root cause:
+ *   @notifee/react-native bundles its native `app.notifee:core` AAR inside
+ *   the npm package at `android/libs/` as a local Maven repo.  The dependency
+ *   is declared with `version: '+'` (dynamic).  Gradle resolves `+` by
+ *   querying ALL configured Maven repositories — including JitPack (added by
+ *   react-native-google-mobile-ads).  When JitPack times out the build fails.
  *
- * Fix:
- *   1.  Exclude `app.notifee` group from JitPack so Gradle never queries it
- *       for Notifee artifacts.  The local Maven repo inside the npm package
- *       already provides everything needed.
- *   2.  Increase Gradle HTTP timeouts from the default 30 s → 180 s as a
- *       safety-net for any other JitPack-hosted dependency.
+ * Fix strategy (belt-and-suspenders):
+ *   1. settings.gradle — Add `exclusiveContent` filter so the local Notifee
+ *      Maven repo is the ONLY source for `app.notifee` group, and add
+ *      `excludeGroup` on JitPack so it never looks there for Notifee.
+ *   2. build.gradle   — Force `app.notifee:core` to the exact bundled version
+ *      (`202108261754`) via `resolutionStrategy`, eliminating the dynamic `+`
+ *      resolution entirely.
+ *   3. gradle.properties — Increase HTTP timeouts as extra safety net.
  */
 
 const {
   withProjectBuildGradle,
+  withSettingsGradle,
   withGradleProperties,
 } = require("expo/config-plugins");
 
-const MARKER = "// [withNotifeeAndroidFix]";
+const SETTINGS_MARKER = "// [withNotifeeAndroidFix-settings]";
+const BUILD_MARKER = "// [withNotifeeAndroidFix-build]";
 
-/** Exclude app.notifee group from JitPack in root build.gradle */
-function addJitpackExclusion(config) {
-  return withProjectBuildGradle(config, (gradleConfig) => {
-    if (gradleConfig.modResults.language !== "groovy") return gradleConfig;
-    if (gradleConfig.modResults.contents.includes(MARKER)) return gradleConfig;
+// Exact version of app.notifee:core bundled in node_modules/@notifee/react-native/android/libs
+const NOTIFEE_CORE_VERSION = "202108261754";
 
+/**
+ * 1. Patch settings.gradle:
+ *    - Exclude app.notifee from JitPack in dependencyResolutionManagement
+ *    - Also handle any allprojects block
+ */
+function patchSettingsGradle(config) {
+  return withSettingsGradle(config, (settingsConfig) => {
+    let contents = settingsConfig.modResults.contents;
+    if (contents.includes(SETTINGS_MARKER)) return settingsConfig;
+
+    // Inject a `gradle.beforeProject` callback that filters JitPack for every project
     const snippet = `
-${MARKER}
-// Exclude app.notifee from JitPack — it ships via a local Maven repo inside
-// the @notifee/react-native npm package.  Querying JitPack for the dynamic "+"
-// version causes "Read timed out" errors on EAS build servers.
-allprojects {
-    repositories.configureEach { repo ->
+${SETTINGS_MARKER}
+// Prevent JitPack from being queried for app.notifee artifacts.
+// The local Maven repo inside @notifee/react-native already provides them.
+gradle.beforeProject { proj ->
+    proj.repositories.configureEach { repo ->
         if (repo instanceof MavenArtifactRepository) {
-            if (repo.url.toString().contains("jitpack.io")) {
+            def repoUrl = repo.url.toString()
+            if (repoUrl.contains("jitpack.io")) {
                 repo.content {
                     excludeGroup("app.notifee")
                 }
@@ -48,15 +58,57 @@ allprojects {
     }
 }
 `;
-    gradleConfig.modResults.contents += snippet;
+    contents += snippet;
+    settingsConfig.modResults.contents = contents;
+    return settingsConfig;
+  });
+}
+
+/**
+ * 2. Patch root build.gradle:
+ *    - Force app.notifee:core to exact bundled version via resolutionStrategy
+ *    - This eliminates the `+` dynamic version lookup entirely
+ */
+function patchBuildGradle(config) {
+  return withProjectBuildGradle(config, (gradleConfig) => {
+    if (gradleConfig.modResults.language !== "groovy") return gradleConfig;
+    let contents = gradleConfig.modResults.contents;
+    if (contents.includes(BUILD_MARKER)) return gradleConfig;
+
+    const snippet = `
+${BUILD_MARKER}
+// Force app.notifee:core to exact bundled version — no dynamic '+' resolution needed.
+// Also exclude JitPack from resolving app.notifee in every subproject.
+subprojects { sub ->
+    sub.configurations.configureEach { configuration ->
+        configuration.resolutionStrategy {
+            force 'app.notifee:core:${NOTIFEE_CORE_VERSION}'
+        }
+    }
+    sub.afterEvaluate {
+        sub.repositories.configureEach { repo ->
+            if (repo instanceof MavenArtifactRepository) {
+                if (repo.url.toString().contains("jitpack.io")) {
+                    repo.content {
+                        excludeGroup("app.notifee")
+                    }
+                }
+            }
+        }
+    }
+}
+`;
+    contents += snippet;
+    gradleConfig.modResults.contents = contents;
     return gradleConfig;
   });
 }
 
-/** Increase Gradle HTTP connection + socket timeout (millis) */
+/**
+ * 3. Increase Gradle HTTP timeouts in gradle.properties (safety net)
+ */
 function increaseHttpTimeout(config) {
   return withGradleProperties(config, (gradleConfig) => {
-    // Remove any existing timeout entries first
     gradleConfig.modResults = gradleConfig.modResults.filter(
       (p) =>
         !(
@@ -86,7 +138,8 @@ function increaseHttpTimeout(config) {
 
 /** Main plugin entry */
 const withNotifeeAndroidFix = (config) => {
-  config = addJitpackExclusion(config);
+  config = patchSettingsGradle(config);
+  config = patchBuildGradle(config);
   config = increaseHttpTimeout(config);
   return config;
 };
