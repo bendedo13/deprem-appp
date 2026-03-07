@@ -11,7 +11,7 @@ from sqlalchemy.sql import func
 
 # revision identifiers
 revision = "007_add_app_settings"
-down_revision = "006_add_emergency_contact_fields"
+down_revision = "006"
 branch_labels = None
 depends_on = None
 
