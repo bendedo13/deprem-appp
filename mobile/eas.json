@@ -12,7 +12,8 @@
             },
             "env": {
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
-                "EXPO_PUBLIC_API_URL": "http://46.4.123.77:8001"
+                "EXPO_PUBLIC_API_URL": "http://46.4.123.77:8001",
+                "EXPO_PUBLIC_WS_URL": "ws://46.4.123.77:8001/ws/earthquakes"
             }
         },
         "preview": {
@@ -25,7 +26,8 @@
             },
             "env": {
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
-                "EXPO_PUBLIC_API_URL": "http://46.4.123.77:8001"
+                "EXPO_PUBLIC_API_URL": "http://46.4.123.77:8001",
+                "EXPO_PUBLIC_WS_URL": "ws://46.4.123.77:8001/ws/earthquakes"
             }
         },
         "production": {
@@ -36,7 +38,8 @@
             "node": "18.19.1",
             "env": {
                 "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
-                "EXPO_PUBLIC_API_URL": "https://deprem-api.quakesense.com"
+                "EXPO_PUBLIC_API_URL": "https://deprem-api.quakesense.com",
+                "EXPO_PUBLIC_WS_URL": "wss://deprem-api.quakesense.com/ws/earthquakes"
             },
             "cache": {
                 "key": "production-v5",

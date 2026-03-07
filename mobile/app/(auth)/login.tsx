@@ -72,7 +72,17 @@ export default function LoginScreen() {
             router.replace("/(tabs)");
         } catch (err: unknown) {
             const code = (err as { code?: string })?.code;
+            const message = (err as { message?: string })?.message ?? "";
+            // Kullanıcı iptal ettiyse sessizce geç
             if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
+            // SHA-1 / yapılandırma hatası
+            if (message.includes("DEVELOPER_ERROR") || code === "10") {
+                Alert.alert(
+                    "Google ile Giriş Yapılamadı",
+                    "Firebase yapılandırması eksik. Lütfen e-posta ve şifre ile giriş yapın."
+                );
+                return;
+            }
             Alert.alert(t("auth.error_login"), t("auth.error_google_signin"));
         } finally {
             setGoogleLoading(false);

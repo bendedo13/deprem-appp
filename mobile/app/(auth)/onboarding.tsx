@@ -16,8 +16,11 @@ import {
     Animated,
 } from "react-native";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
+
+const ONBOARDING_KEY = "onboarding_complete";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 
@@ -146,10 +149,11 @@ export default function OnboardingScreen() {
         if (status !== "granted") {
             Alert.alert("Bildirim İzni", "Deprem bildirimlerini almak için izin gereklidir.");
         }
-        router.replace("/(tabs)");
+        await SecureStore.setItemAsync(ONBOARDING_KEY, "true");
+        router.replace("/(auth)/login");
     }
 
-    function goNext() {
+    async function goNext() {
         if (currentStep < SLIDES.length - 1) {
             Animated.sequence([
                 Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
@@ -160,7 +164,8 @@ export default function OnboardingScreen() {
             setCurrentStep(next);
             flatListRef.current?.scrollToIndex({ index: next, animated: true });
         } else {
-            router.replace("/(tabs)");
+            await SecureStore.setItemAsync(ONBOARDING_KEY, "true");
+            router.replace("/(auth)/login");
         }
     }
 
@@ -232,7 +237,7 @@ export default function OnboardingScreen() {
                         />
                     ))}
                 </View>
-                <TouchableOpacity onPress={() => router.replace("/(tabs)")} style={styles.skipTopBtn}>
+                <TouchableOpacity onPress={async () => { await SecureStore.setItemAsync(ONBOARDING_KEY, "true"); router.replace("/(auth)/login"); }} style={styles.skipTopBtn}>
                     <Text style={styles.skipTopText}>Geç</Text>
                 </TouchableOpacity>
             </View>

@@ -6,7 +6,7 @@
   "expo": {
     "name": "QuakeSense: Life-Saving Tracker",
     "slug": "quakesense",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "QuakeSense is the ultimate life-saving technology designed to track global seismic activities with unprecedented speed and reliability.",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -60,7 +60,7 @@
     ],
     "android": {
       "package": "com.quakesense",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0e17"
