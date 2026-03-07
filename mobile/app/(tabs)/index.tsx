@@ -48,6 +48,8 @@ import {
     FetchResult,
 } from "../../src/services/earthquakeCacheService";
 import { useNetwork } from "../../src/context/AppContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import ProgressRing from "../../src/components/ProgressRing";
 
 interface Earthquake {
     id: string;
@@ -105,6 +107,9 @@ export default function DashboardScreen() {
     const [fromCache, setFromCache] = useState(false);
     const [cacheAgeMs, setCacheAgeMs] = useState<number | null>(null);
 
+    // Part 4: Preparedness score
+    const [prepScore, setPrepScore] = useState(0);
+
     // Pulse animation for live indicator
     useEffect(() => {
         const anim = Animated.loop(
@@ -124,6 +129,25 @@ export default function DashboardScreen() {
             const pos = await Location.getCurrentPositionAsync({});
             setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         })();
+    }, []);
+
+    // Load preparedness score
+    useEffect(() => {
+        AsyncStorage.getItem("quakesense_preparedness").then((raw) => {
+            if (!raw) return;
+            try {
+                const checked: string[] = JSON.parse(raw);
+                // Max points = 100 (sum of all checklist items)
+                const maxPoints = 100;
+                const pointsMap: Record<string, number> = {
+                    bag: 15, water: 10, firstaid: 10, flashlight: 5,
+                    meeting_point: 15, emergency_contacts: 10, family_network: 10, evacuation: 10,
+                    training: 5, gas_valve: 5, notifications_on: 5,
+                };
+                const total = checked.reduce((sum, id) => sum + (pointsMap[id] || 0), 0);
+                setPrepScore(Math.round((total / maxPoints) * 100));
+            } catch {}
+        });
     }, []);
 
     useEffect(() => {
@@ -257,20 +281,40 @@ export default function DashboardScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
+            {/* Header — Premium */}
             <View style={styles.header}>
                 <View style={styles.brandContainer}>
                     <View style={styles.logoBox}>
-                        <MaterialCommunityIcons name="shield-check" size={18} color="#fff" />
+                        <View style={styles.logoInner}>
+                            <MaterialCommunityIcons name="shield-check" size={20} color="#fff" />
+                        </View>
                     </View>
                     <View>
-                        <Text style={styles.brandTitle}>QuakeSense</Text>
+                        <View style={styles.brandRow}>
+                            <Text style={styles.brandTitle}>Quake</Text>
+                            <Text style={styles.brandTitleAccent}>Sense</Text>
+                        </View>
                         <Text style={styles.brandSub}>Erken Uyari Sistemi</Text>
                     </View>
                 </View>
                 <View style={styles.headerActions}>
+                    <TouchableOpacity
+                        style={styles.scoreRingBtn}
+                        onPress={() => router.push("/more/preparedness-score")}
+                        activeOpacity={0.8}
+                    >
+                        <ProgressRing
+                            progress={prepScore}
+                            size={42}
+                            strokeWidth={4}
+                            color={prepScore >= 70 ? Colors.primary : prepScore >= 40 ? Colors.accent : Colors.danger}
+                            showLabel={false}
+                        />
+                        <Text style={styles.scoreRingText}>%{prepScore}</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.headerBtn} onPress={() => router.push("/more/notification-list")}>
-                        <MaterialCommunityIcons name="bell-outline" size={22} color={Colors.text.dark} />
+                        <MaterialCommunityIcons name="bell-outline" size={20} color={Colors.text.dark} />
+                        <View style={styles.notifDot} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -409,13 +453,19 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background.dark, paddingTop: Platform.OS === "android" ? 30 : 0 },
     center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.background.dark },
 
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border.glass },
-    brandContainer: { flexDirection: "row", alignItems: "center", gap: 10 },
-    logoBox: { backgroundColor: Colors.primary, padding: 8, borderRadius: BorderRadius.lg, ...Shadows.sm },
-    brandTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "800", letterSpacing: -0.5 },
-    brandSub: { color: Colors.text.muted, fontSize: Typography.sizes.xs, fontWeight: "600", marginTop: 1 },
-    headerActions: { flexDirection: "row", gap: 8 },
-    headerBtn: { padding: 8, backgroundColor: Colors.background.surface, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border.glass },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.md, paddingVertical: Spacing.md + 4, borderBottomWidth: 1, borderBottomColor: Colors.border.glass },
+    brandContainer: { flexDirection: "row", alignItems: "center", gap: 12 },
+    logoBox: { width: 42, height: 42, borderRadius: 14, backgroundColor: Colors.primary, justifyContent: "center", alignItems: "center", ...Shadows.md },
+    logoInner: { width: 36, height: 36, borderRadius: 11, backgroundColor: Colors.primaryDark, justifyContent: "center", alignItems: "center" },
+    brandRow: { flexDirection: "row", alignItems: "baseline" },
+    brandTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "900", letterSpacing: -0.5 },
+    brandTitleAccent: { color: Colors.primary, fontSize: Typography.sizes.lg, fontWeight: "900", letterSpacing: -0.5 },
+    brandSub: { color: Colors.text.muted, fontSize: 9, fontWeight: "700", marginTop: 2, letterSpacing: 1.5, textTransform: "uppercase" },
+    headerActions: { flexDirection: "row", gap: 8, alignItems: "center" },
+    scoreRingBtn: { position: "relative" as const, justifyContent: "center", alignItems: "center" },
+    scoreRingText: { position: "absolute" as const, fontSize: 9, fontWeight: "900" as const, color: Colors.text.dark },
+    headerBtn: { position: "relative" as const, padding: 10, backgroundColor: Colors.background.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border.glass },
+    notifDot: { position: "absolute" as const, top: 8, right: 8, width: 7, height: 7, borderRadius: 4, backgroundColor: Colors.danger, borderWidth: 1.5, borderColor: Colors.background.dark },
 
     statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
     statusChip: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -443,7 +493,7 @@ const styles = StyleSheet.create({
     cacheBannerSub: { fontSize: 10, fontWeight: "500", color: Colors.text.muted, marginTop: 1 },
 
     statsRow: { flexDirection: "row", paddingHorizontal: Spacing.md, gap: Spacing.sm, marginTop: Spacing.sm, marginBottom: Spacing.sm },
-    statCard: { flex: 1, backgroundColor: Colors.background.surface, borderWidth: 1, borderColor: Colors.border.glass, borderRadius: BorderRadius.xl, padding: Spacing.md, alignItems: "center", gap: 4 },
+    statCard: { flex: 1, backgroundColor: Colors.background.surface, borderWidth: 1, borderColor: Colors.border.glass, borderRadius: BorderRadius.xxl, padding: Spacing.md, alignItems: "center", gap: 6, ...Shadows.sm },
     statValue: { fontSize: Typography.sizes.xxl, fontWeight: "900", color: Colors.primary },
     statLabel: { fontSize: 9, fontWeight: "700", color: Colors.text.muted, textTransform: "uppercase", letterSpacing: 0.5 },
 
@@ -452,8 +502,8 @@ const styles = StyleSheet.create({
     listTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "700" },
     filterText: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "600" },
 
-    card: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.background.surface, borderRadius: BorderRadius.xl, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border.glass },
-    magBadge: { width: 52, height: 52, borderRadius: BorderRadius.lg, justifyContent: "center", alignItems: "center" },
+    card: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.background.surface, borderRadius: BorderRadius.xxl, padding: Spacing.md, marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border.glass, ...Shadows.sm },
+    magBadge: { width: 52, height: 52, borderRadius: 16, justifyContent: "center", alignItems: "center", ...Shadows.sm },
     magText: { color: "#fff", fontSize: 18, fontWeight: "900" },
     magUnit: { color: "rgba(255,255,255,0.7)", fontSize: 8, fontWeight: "700", marginTop: 1 },
     info: { flex: 1, marginLeft: Spacing.md },
@@ -464,8 +514,8 @@ const styles = StyleSheet.create({
 
     adContainer: { alignItems: "center", marginVertical: Spacing.md },
 
-    safeBtnContainer: { position: "absolute", bottom: 20, left: Spacing.md, right: Spacing.md, ...Shadows.lg },
-    safeBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.xl, height: 56, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+    safeBtnContainer: { position: "absolute", bottom: 24, left: Spacing.lg, right: Spacing.lg, ...Shadows.lg },
+    safeBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.xxl, height: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, elevation: 12 },
     safeBtnDisabled: { opacity: 0.6 },
-    safeBtnText: { color: "#fff", fontSize: Typography.sizes.md, fontWeight: "800" },
+    safeBtnText: { color: "#fff", fontSize: Typography.sizes.md, fontWeight: "800", letterSpacing: 0.3 },
 });

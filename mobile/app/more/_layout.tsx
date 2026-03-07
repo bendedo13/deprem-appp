@@ -5,9 +5,11 @@ export default function MoreLayout() {
     return (
         <Stack
             screenOptions={{
+                headerShown: false,
                 headerStyle: { backgroundColor: Colors.background.dark },
                 headerTintColor: Colors.text.dark,
                 headerTitleStyle: { fontWeight: "700" },
+                contentStyle: { backgroundColor: Colors.background.dark },
             }}
         />
     );
