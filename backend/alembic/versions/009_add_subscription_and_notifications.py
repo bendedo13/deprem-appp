@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "009"
-down_revision = "008"
+down_revision = "007_add_app_settings"
 branch_labels = None
 depends_on = None
 
