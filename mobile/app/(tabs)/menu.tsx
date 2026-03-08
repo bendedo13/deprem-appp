@@ -6,31 +6,10 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 import { logout, getMe, type UserOut } from "../../src/services/authService";
-import { getSubscriptionStatus, type SubscriptionStatus } from "../../src/services/subscriptionService";
 
 export default function MenuScreen() {
     const { t } = useTranslation();
-    const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
-    const [loadingSub, setLoadingSub] = useState(false);
     const [user, setUser] = useState<UserOut | null>(null);
-
-    useEffect(() => {
-        let mounted = true;
-        setLoadingSub(true);
-        getSubscriptionStatus()
-            .then((data) => {
-                if (mounted) setSubStatus(data);
-            })
-            .catch(() => {
-                if (mounted) setSubStatus(null);
-            })
-            .finally(() => {
-                if (mounted) setLoadingSub(false);
-            });
-        return () => {
-            mounted = false;
-        };
-    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -45,8 +24,6 @@ export default function MenuScreen() {
             mounted = false;
         };
     }, []);
-
-    const isPro = subStatus?.is_pro;
 
     const adminPanelUrl =
         (Constants.expoConfig?.extra?.adminPanelUrl as string | undefined) ||
@@ -91,10 +68,6 @@ export default function MenuScreen() {
         } catch {
             Alert.alert(t("common.error") || "Hata", "Uygulama mağazası açılamadı.");
         }
-    };
-
-    const goToPremium = () => {
-        router.push("/more/premium");
     };
 
     const MenuItem = ({ icon, title, href, onPress, color = Colors.text.dark, badge }: any) => {
@@ -159,15 +132,25 @@ export default function MenuScreen() {
                 </View>
             )}
 
-            {/* Premium */}
+            {/* Premium — bilgilendirme (tüm özellikler herkese açık) */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>⭐ Premium</Text>
+                <Text style={styles.sectionTitle}>⭐ Abonelik</Text>
                 <MenuItem
                     icon="crown"
                     title="QuakeSense PRO"
                     href="/more/premium"
                     color="#F59E0B"
-                    badge="PRO"
+                />
+            </View>
+
+            {/* Deprem Akademisi — Eğitim */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>📚 Eğitim</Text>
+                <MenuItem
+                    icon="school-outline"
+                    title="Deprem Akademisi"
+                    href="/more/earthquake_academy"
+                    color={Colors.primary}
                 />
             </View>
 
@@ -191,16 +174,14 @@ export default function MenuScreen() {
                 <MenuItem
                     icon="microphone"
                     title="S.O.S Sesli Mesaj"
-                    onPress={isPro ? () => router.push("/more/sos") : goToPremium}
+                    onPress={() => router.push("/more/sos")}
                     color={Colors.danger}
-                    badge={isPro ? undefined : "PRO"}
                 />
                 <MenuItem
                     icon="account-heart-outline"
                     title="Güvenlik Ağım"
-                    onPress={isPro ? () => router.push("/more/family_safety") : goToPremium}
+                    onPress={() => router.push("/more/family_safety")}
                     color={Colors.danger}
-                    badge={isPro ? "Yeni" : "PRO"}
                 />
                 <MenuItem
                     icon="map-marker-radius"
@@ -214,6 +195,12 @@ export default function MenuScreen() {
                     href="/more/impact_map"
                     color={Colors.accent}
                 />
+                <MenuItem
+                    icon="chat-processing-outline"
+                    title="Sohbet Odası"
+                    href="/more/chat"
+                    color={Colors.accent}
+                />
             </View>
 
             {/* Hazırlık */}
@@ -222,17 +209,15 @@ export default function MenuScreen() {
                 <MenuItem
                     icon="shield-star-outline"
                     title="Hazırlık Skorum"
-                    onPress={isPro ? () => router.push("/more/safety_score") : goToPremium}
+                    onPress={() => router.push("/more/safety_score")}
                     color={Colors.primary}
-                    badge={isPro ? "Yeni" : "PRO"}
                 />
                 <MenuItem icon="shield-search" title={t("menu.risk_analysis") || "Risk Analizi"} href="/more/risk_analysis" color={Colors.primary} />
                 <MenuItem
                     icon="account-multiple-outline"
                     title={t("menu.emergency_contacts") || "Acil Kişiler"}
-                    onPress={isPro ? () => router.push("/more/contacts") : goToPremium}
+                    onPress={() => router.push("/more/contacts")}
                     color={Colors.primary}
-                    badge={isPro ? undefined : "PRO"}
                 />
                 <MenuItem
                     icon="briefcase-outline"

@@ -14,7 +14,6 @@ import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 import { GatheringPoint, findNearestPoints, loadGatheringPoints } from "../../src/services/gatheringService";
-import { getSubscriptionStatus, type SubscriptionStatus } from "../../src/services/subscriptionService";
 
 export default function GatheringPointsScreen() {
     const [loading, setLoading] = useState(true);
@@ -23,21 +22,14 @@ export default function GatheringPointsScreen() {
         { point: GatheringPoint; distanceKm: number; bearingDeg: number }[]
     >([]);
     const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
-    const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
-
-    const isPro = subStatus?.is_pro;
 
     useEffect(() => {
         let mounted = true;
         (async () => {
             try {
-                const [all, status] = await Promise.all([
-                    loadGatheringPoints(),
-                    getSubscriptionStatus().catch(() => null),
-                ]);
+                const all = await loadGatheringPoints();
                 if (!mounted) return;
                 setPoints(all);
-                if (status) setSubStatus(status);
 
                 const { status: perm } = await Location.requestForegroundPermissionsAsync();
                 if (perm === "granted") {
@@ -167,20 +159,7 @@ export default function GatheringPointsScreen() {
                     </View>
 
                     <View style={styles.card}>
-                        <View style={styles.cardHeaderRow}>
-                            <Text style={styles.sectionLabel}>Tüm Toplanma Alanları</Text>
-                            {isPro ? (
-                                <View style={styles.proPill}>
-                                    <MaterialCommunityIcons name="crown" size={14} color="#fff" />
-                                    <Text style={styles.proPillText}>PRO Detaylar</Text>
-                                </View>
-                            ) : (
-                                <View style={styles.proPillMuted}>
-                                    <MaterialCommunityIcons name="lock" size={14} color={Colors.text.muted} />
-                                    <Text style={styles.proPillMutedText}>Detaylar için PRO</Text>
-                                </View>
-                            )}
-                        </View>
+                        <Text style={styles.sectionLabel}>Tüm Toplanma Alanları</Text>
 
                         {points.map((p) => (
                             <View key={p.id} style={styles.listItem}>
@@ -192,47 +171,26 @@ export default function GatheringPointsScreen() {
                                     <Text style={styles.listMeta}>
                                         {p.district}, {p.city}
                                     </Text>
-                                    {isPro && (
-                                        <View style={styles.amenitiesRow}>
-                                            {typeof p.capacity === "number" && (
-                                                <Text style={styles.amenityChip}>
-                                                    👥 Kapasite ≈ {p.capacity}
-                                                </Text>
-                                            )}
-                                            {p.amenities?.water && (
-                                                <Text style={styles.amenityChip}>💧 Su</Text>
-                                            )}
-                                            {p.amenities?.electricity && (
-                                                <Text style={styles.amenityChip}>⚡ Elektrik</Text>
-                                            )}
-                                            {p.amenities?.shelter && (
-                                                <Text style={styles.amenityChip}>🏕️ Barınma</Text>
-                                            )}
-                                        </View>
-                                    )}
+                                    <View style={styles.amenitiesRow}>
+                                        {typeof p.capacity === "number" && (
+                                            <Text style={styles.amenityChip}>
+                                                👥 Kapasite ≈ {p.capacity}
+                                            </Text>
+                                        )}
+                                        {p.amenities?.water && (
+                                            <Text style={styles.amenityChip}>💧 Su</Text>
+                                        )}
+                                        {p.amenities?.electricity && (
+                                            <Text style={styles.amenityChip}>⚡ Elektrik</Text>
+                                        )}
+                                        {p.amenities?.shelter && (
+                                            <Text style={styles.amenityChip}>🏕️ Barınma</Text>
+                                        )}
+                                    </View>
                                 </View>
                             </View>
                         ))}
                     </View>
-
-                    {!isPro && (
-                        <TouchableOpacity
-                            style={styles.upgradeBtn}
-                            activeOpacity={0.85}
-                            onPress={() => {
-                                handleHaptic();
-                                // Premium ekranına yönlendir
-                                // import döngüsünden kaçınmak için string route
-                                // eslint-disable-next-line @typescript-eslint/no-var-requires
-                                const { router } = require("expo-router");
-                                router.push("/more/premium");
-                            }}
-                        >
-                            <Text style={styles.upgradeText}>
-                                Kapasite ve imkan detayları için QuakeSense PRO'yu deneyin
-                            </Text>
-                        </TouchableOpacity>
-                    )}
                 </>
             )}
         </ScrollView>

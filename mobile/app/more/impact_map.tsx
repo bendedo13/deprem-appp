@@ -9,6 +9,7 @@ import {
     Vibration,
 } from "react-native";
 import * as Location from "expo-location";
+import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 import {
@@ -44,6 +45,8 @@ export default function ImpactMapScreen() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [activeType, setActiveType] = useState<ImpactType | "all">("all");
+    /** Seçilen bildirim tipi — "Gönder"e basılınca sohbet odasına bu tip + adres gider. */
+    const [selectedReportType, setSelectedReportType] = useState<ImpactType | null>(null);
 
     useEffect(() => {
         let mounted = true;
@@ -66,7 +69,6 @@ export default function ImpactMapScreen() {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== "granted") {
-                // Sadece simülasyon olarak kaydet, koordinatları 0 bırakma
                 const next = await addImpactReport({
                     type,
                     latitude: 0,
@@ -84,6 +86,45 @@ export default function ImpactMapScreen() {
                 longitude: pos.coords.longitude,
             });
             setReports(next);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    /** Seçilen tipi sohbet odasına "Barış mahallesinde 1007. sokakta yollar kapalı" formatında gönderir. */
+    const handleSendToChat = async () => {
+        if (!selectedReportType) return;
+        Vibration.vibrate(30);
+        setSubmitting(true);
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            let addressText = TYPE_META[selectedReportType].label;
+            let lat = 0;
+            let lng = 0;
+            if (status === "granted") {
+                const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                lat = pos.coords.latitude;
+                lng = pos.coords.longitude;
+                try {
+                    const [place] = await Location.reverseGeocodeAsync({
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                    });
+                    if (place) {
+                        const parts = [place.street, place.district, place.subregion, place.city].filter(Boolean);
+                        const locationStr = parts.length > 0 ? parts.join(", ") : `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+                        addressText = `${locationStr} — ${TYPE_META[selectedReportType].label}`;
+                    } else {
+                        addressText = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)} — ${TYPE_META[selectedReportType].label}`;
+                    }
+                } catch {
+                    addressText = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)} — ${TYPE_META[selectedReportType].label}`;
+                }
+            }
+            const next = await addImpactReport({ type: selectedReportType, latitude: lat, longitude: lng });
+            setReports(next);
+            router.push({ pathname: "/more/chat", params: { initialMessage: addressText } });
+            setSelectedReportType(null);
         } finally {
             setSubmitting(false);
         }
@@ -145,23 +186,24 @@ export default function ImpactMapScreen() {
                 )}
             </View>
 
-            {/* Bildirim butonları */}
+            {/* Bildirim butonları — seçim + Gönder */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Hızlı Hasar Bildirimi</Text>
                 <View style={styles.reportRow}>
                     {(["building_damage", "road_blocked", "fire"] as ImpactType[]).map(
                         (t) => {
                             const meta = TYPE_META[t];
+                            const selected = selectedReportType === t;
                             return (
                                 <TouchableOpacity
                                     key={t}
-                                    style={[styles.reportBtn, { borderColor: meta.color + "70" }]}
+                                    style={[styles.reportBtn, { borderColor: meta.color + "70" }, selected && { backgroundColor: meta.color + "18", borderWidth: 2 }]}
                                     activeOpacity={0.85}
                                     disabled={submitting}
-                                    onPress={() => handleSubmit(t)}
+                                    onPress={() => setSelectedReportType(selected ? null : t)}
                                 >
                                     <MaterialCommunityIcons
-                                        name={meta.icon as any}
+                                        name={meta.icon as "home-alert" | "road-variant" | "fire"}
                                         size={20}
                                         color={meta.color}
                                     />
@@ -173,9 +215,24 @@ export default function ImpactMapScreen() {
                         }
                     )}
                 </View>
+                {selectedReportType !== null && (
+                    <TouchableOpacity
+                        style={[styles.sendToChatBtn, submitting && { opacity: 0.7 }]}
+                        onPress={handleSendToChat}
+                        disabled={submitting}
+                    >
+                        {submitting ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                            <>
+                                <MaterialCommunityIcons name="send" size={20} color="#fff" />
+                                <Text style={styles.sendToChatBtnText}>Gönder — Sohbet Odasına Paylaş</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                )}
                 <Text style={styles.helperText}>
-                    * Bildirimler cihazınızda simüle edilir; gerçek kurtarma ekipleriyle paylaşılan
-                    veriler için backend entegrasyonu devreye alınabilir.
+                    * Bir seçenek seçip "Gönder"e basarak konumunuzla birlikte sohbet odasında paylaşabilirsiniz.
                 </Text>
             </View>
 
@@ -219,47 +276,23 @@ export default function ImpactMapScreen() {
                     </View>
                 ) : filtered.length === 0 ? (
                     <Text style={styles.emptyText}>
-                        Henüz kayıtlı bildirim yok. İlk bildirimi yukarıdan
-                        ekleyebilirsin.
+                        Henüz kayıtlı bildirim yok. Bir seçenek seçip "Gönder"e basarak sohbet odasına paylaşın.
                     </Text>
                 ) : (
-                    filtered.map((r) => {
+                    filtered.map((r: ImpactReport) => {
                         const meta = TYPE_META[r.type];
                         const date = new Date(r.created_at);
                         return (
                             <View key={r.id} style={styles.reportItem}>
-                                <View
-                                    style={[
-                                        styles.reportBadge,
-                                        { borderColor: meta.color + "70" },
-                                    ]}
-                                >
-                                    <MaterialCommunityIcons
-                                        name={meta.icon as any}
-                                        size={18}
-                                        color={meta.color}
-                                    />
+                                <View style={[styles.reportBadge, { borderColor: meta.color + "70" }]}>
+                                    <MaterialCommunityIcons name={meta.icon as "home-alert" | "road-variant" | "fire"} size={18} color={meta.color} />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text
-                                        style={[
-                                            styles.reportTitle,
-                                            { color: meta.color },
-                                        ]}
-                                    >
-                                        {meta.label}
-                                    </Text>
+                                    <Text style={[styles.reportTitle, { color: meta.color }]}>{meta.label}</Text>
                                     <Text style={styles.reportMeta}>
-                                        {r.latitude !== 0
-                                            ? `${r.latitude.toFixed(
-                                                  3
-                                              )}, ${r.longitude.toFixed(3)}`
-                                            : "Konum bilgisi yok"}
+                                        {r.latitude !== 0 ? `${r.latitude.toFixed(3)}, ${r.longitude.toFixed(3)}` : "Konum bilgisi yok"}
                                         {"  •  "}
-                                        {date.toLocaleTimeString("tr-TR", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                        })}
+                                        {date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
                                     </Text>
                                 </View>
                             </View>
@@ -368,6 +401,21 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: Colors.text.muted,
         marginTop: Spacing.sm,
+    },
+    sendToChatBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: Colors.primary,
+        paddingVertical: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        marginTop: Spacing.sm,
+    },
+    sendToChatBtnText: {
+        fontSize: Typography.sizes.sm,
+        fontWeight: "800",
+        color: "#fff",
     },
     filterRow: {
         flexDirection: "row",

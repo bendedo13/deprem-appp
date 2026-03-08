@@ -107,15 +107,24 @@ export default function RiskAnalysisScreen() {
             });
             setResult(data);
         } catch (err: unknown) {
-            const status = (err as { response?: { status?: number } })?.response?.status;
-            const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-            if (status === 401) {
-                Alert.alert("Oturum Gerekli", "Risk analizi için giriş yapmanız gerekiyor.");
-            } else if (detail) {
-                Alert.alert("Hata", String(detail));
+            const ax = err as { code?: string; message?: string; response?: { status?: number; data?: { detail?: string | unknown } } };
+            const status = ax?.response?.status;
+            const detail = ax?.response?.data?.detail;
+            let msg: string;
+            if (ax?.code === "ECONNABORTED" || ax?.message?.toLowerCase?.().includes("timeout")) {
+                msg = "İstek zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.";
+            } else if (status === 401) {
+                msg = "Risk analizi için giriş gerekmiyor; sunucu erişilemiyor olabilir.";
+            } else if (detail != null) {
+                msg = typeof detail === "string" ? detail : Array.isArray(detail)
+                    ? (detail as { msg?: string }[]).map((d) => d?.msg).filter(Boolean).join(", ") || "Sunucu hatası."
+                    : "Sunucu hatası. Lütfen tekrar deneyin.";
+            } else if (ax?.message && !ax?.message.includes("Network Error")) {
+                msg = String(ax.message);
             } else {
-                Alert.alert("Sunucu Hatası", "Risk analizi sunucuya ulaşamadı. VPN veya internet bağlantınızı kontrol edin.");
+                msg = "Sunucuya ulaşılamadı. VPN veya internet bağlantınızı kontrol edin.";
             }
+            Alert.alert("Hata", msg);
         } finally {
             setLoading(false);
         }

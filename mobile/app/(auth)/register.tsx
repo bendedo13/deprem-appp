@@ -25,10 +25,12 @@ import {
     getFirebaseAuthErrorKey,
     getIdToken,
 } from "../../src/services/firebaseAuthService";
-import { syncFirebaseToken } from "../../src/services/authService";
+import { syncFirebaseToken, updateProfileName } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function RegisterScreen() {
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirm, setConfirm] = useState("");
@@ -37,6 +39,10 @@ export default function RegisterScreen() {
     const { t } = useTranslation();
 
     async function handleRegister() {
+        if (!firstName.trim() || !lastName.trim()) {
+            Alert.alert(t("auth.error_register"), "İsim ve soyisim alanları zorunludur.");
+            return;
+        }
         if (!email.trim() || !password || !confirm) {
             Alert.alert(t("auth.error_register"), t("auth.all_fields_required"));
             return;
@@ -53,10 +59,12 @@ export default function RegisterScreen() {
         setLoading(true);
         try {
             await firebaseRegister(email.trim().toLowerCase(), password);
-            // Backend sync — hata olsa da devam et (Firebase auth yeterli)
             try {
                 const idToken = await getIdToken();
-                if (idToken) await syncFirebaseToken(idToken);
+                if (idToken) {
+                    await syncFirebaseToken(idToken);
+                    await updateProfileName(`${firstName.trim()} ${lastName.trim()}`);
+                }
             } catch (syncErr) {
                 console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
             }
@@ -92,6 +100,36 @@ export default function RegisterScreen() {
 
                     {/* Form */}
                     <View style={styles.form}>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>İsim</Text>
+                            <View style={styles.inputWrapper}>
+                                <MaterialCommunityIcons name="account-outline" size={20} color={Colors.text.muted} style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Adınız"
+                                    placeholderTextColor={Colors.text.muted + "80"}
+                                    autoCapitalize="words"
+                                    value={firstName}
+                                    onChangeText={setFirstName}
+                                    editable={!loading}
+                                />
+                            </View>
+                        </View>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Soyisim</Text>
+                            <View style={styles.inputWrapper}>
+                                <MaterialCommunityIcons name="account-outline" size={20} color={Colors.text.muted} style={styles.inputIcon} />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Soyadınız"
+                                    placeholderTextColor={Colors.text.muted + "80"}
+                                    autoCapitalize="words"
+                                    value={lastName}
+                                    onChangeText={setLastName}
+                                    editable={!loading}
+                                />
+                            </View>
+                        </View>
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>{t("auth.email")}</Text>
                             <View style={styles.inputWrapper}>

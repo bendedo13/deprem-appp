@@ -11,6 +11,7 @@ import { api, TOKEN_KEY } from "./api";
 export interface UserOut {
     id: number;
     email: string;
+    name?: string | null;
     fcm_token: string | null;
     latitude: number | null;
     longitude: number | null;
@@ -51,8 +52,15 @@ export async function updateProfile(params: {
     fcm_token?: string;
     latitude?: number;
     longitude?: number;
+    name?: string;
 }): Promise<UserOut> {
     const { data } = await api.patch<UserOut>("/api/v1/users/me", params);
+    return data;
+}
+
+/** Profil adını günceller (isim/soyisim). PUT /me kullanır. */
+export async function updateProfileName(name: string): Promise<UserOut> {
+    const { data } = await api.put<UserOut>("/api/v1/users/me", { name: name.trim() });
     return data;
 }
 

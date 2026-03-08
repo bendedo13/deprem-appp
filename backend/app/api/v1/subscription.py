@@ -196,13 +196,13 @@ async def check_feature_access(
     feature: str,
     current_user: User = Depends(get_current_user),
 ) -> ProFeatureGate:
-    """Belirli bir Pro özelliğin kullanıcı için kilitli olup olmadığını döner."""
+    """Özellik kilidi. Global PRO Unlock ile tüm kullanıcılar için açık."""
     if feature not in PRO_FEATURES:
         raise HTTPException(status_code=404, detail=f"Bilinmeyen özellik: {feature}")
 
-    locked = not current_user.is_pro
+    locked = False  # Global PRO Unlock — tüm özellikler herkese açık
     return ProFeatureGate(
         feature=feature,
         locked=locked,
-        message=f"Bu özellik Pro kullanıcılara özeldir: {PRO_FEATURES[feature]}" if locked else None,
+        message=None,
     )

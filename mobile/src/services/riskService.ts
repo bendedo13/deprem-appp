@@ -20,9 +20,14 @@ export interface RiskResult {
 
 /**
  * Risk analizi servisi.
+ * Sunucu yanıt süresi uzun olabildiği için timeout 25 saniye.
  */
+const RISK_SCORE_TIMEOUT_MS = 25_000;
+
 export const calculateRiskScore = async (data: RiskScoreIn): Promise<RiskResult> => {
-    const response = await api.post("/api/v1/risk/score", data);
+    const response = await api.post("/api/v1/risk/score", data, {
+        timeout: RISK_SCORE_TIMEOUT_MS,
+    });
     return response.data;
 };
 

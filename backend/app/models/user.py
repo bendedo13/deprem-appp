@@ -77,12 +77,8 @@ class User(Base):
 
     @property
     def is_pro(self) -> bool:
-        """Kullanıcı şu an Pro (veya aktif Trial) mu?"""
-        if self.subscription_plan == "free":
-            return False
-        if self.subscription_expires_at is None:
-            return self.subscription_plan in ("monthly_pro", "yearly_pro", "trial")
-        return self.subscription_expires_at > datetime.now(tz=timezone.utc)
+        """Tüm kullanıcılara tam erişim (toplumsal fayda). Eski mantık: subscription_plan ve expires_at kontrolü."""
+        return True  # Global PRO Unlock — tüm özellikler herkese açık
 
     @property
     def effective_plan(self) -> str:

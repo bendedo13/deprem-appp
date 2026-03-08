@@ -85,14 +85,17 @@ export default function ContactsScreen() {
 
         setSaving(true);
         try {
-            await api.post("/api/v1/users/me/contacts", {
+            const payload: Record<string, unknown> = {
                 name: name.trim(),
-                phone: phone.trim(),
-                email: email.trim() || undefined,
+                phone: phone.trim().replace(/\s/g, ""),
                 relation,
-                methods,   // ["sms"], ["whatsapp"], ["sms", "whatsapp"] vb.
+                methods: methods.length > 0 ? methods : ["sms"],
                 priority: 1,
-            });
+            };
+            if (email.trim()) {
+                payload.email = email.trim();
+            }
+            await api.post("/api/v1/users/me/contacts", payload);
             Alert.alert("Başarılı", `${name} acil kişiler listesine eklendi.`);
             setName("");
             setPhone("");
@@ -102,10 +105,16 @@ export default function ContactsScreen() {
             setAdding(false);
             fetchContacts();
         } catch (error: unknown) {
-            const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-            const msg = Array.isArray(detail)
-                ? detail.map((d: { msg?: string }) => d.msg).join(", ")
-                : (detail as string) ?? "Kişi eklenemedi. Bilgileri kontrol edin.";
+            const err = error as { response?: { data?: { detail?: string | unknown }; status?: number } };
+            const detail = err?.response?.data?.detail;
+            let msg = "Kişi eklenemedi. Bilgileri kontrol edin.";
+            if (typeof detail === "string") {
+                msg = detail;
+            } else if (Array.isArray(detail)) {
+                msg = detail.map((d: { msg?: string }) => d?.msg ?? "").filter(Boolean).join(", ") || msg;
+            } else if (detail && typeof detail === "object" && "msg" in detail) {
+                msg = String((detail as { msg: string }).msg);
+            }
             Alert.alert("Hata", msg);
         } finally {
             setSaving(false);

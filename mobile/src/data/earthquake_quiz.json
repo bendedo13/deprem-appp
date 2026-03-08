@@ -1,0 +1,107 @@
+[
+  {
+    "id": "q1",
+    "question": "Deprem anında ilk yapmanız gereken hareket nedir?",
+    "options": ["Koşup dışarı çıkmak", "Çök-Kapan-Tutun pozisyonu almak", "Asansöre binmek", "Pencereye yaklaşmak"],
+    "correctIndex": 1,
+    "explanation": "Deprem sırasında en güvenli davranış Çök-Kapan-Tutun'tur. Koşmak düşme ve yaralanma riskini artırır; asansör kullanılmamalı; pencere cam kırılması riski taşır."
+  },
+  {
+    "id": "q2",
+    "question": "Çök-Kapan-Tutun pozisyonunda başınızı nasıl korursunuz?",
+    "options": ["Ellerinizi başınızın üzerine koyup sıkıca tutun", "Sadece yere uzanın", "Başınızı yastıkla kapatın", "Kollarınızı açık tutun"],
+    "correctIndex": 0,
+    "explanation": "Ellerinizi başınızın ve ensenizin üzerine koyup sıkıca tutarak düşen eşyalardan korunursunuz. Boyun ve kafa travması riski azalır."
+  },
+  {
+    "id": "q3",
+    "question": "Deprem sırasında asansör kullanılmalı mı?",
+    "options": ["Evet, en hızlı çıkış yolu", "Hayır, asla kullanılmamalı", "Sadece tek kişi varsa", "Sadece 2. kattan aşağıdaysanız"],
+    "correctIndex": 1,
+    "explanation": "Asansör depremde sıkışabilir veya düşebilir. Asansörü asla kullanmayın; merdivenleri kullanarak tahliye edin."
+  },
+  {
+    "id": "q4",
+    "question": "Deprem çantasında aşağıdakilerden hangisi mutlaka bulunmalıdır?",
+    "options": ["Değerli takılar", "Su, konserve gıda, ilk yardım malzemesi", "Elektronik cihazlar", "Giysi koleksiyonu"],
+    "correctIndex": 1,
+    "explanation": "Deprem çantasında su, bozulmayan gıda, ilk yardım seti, fener, düdük ve önemli evrakların kopyaları bulunmalıdır."
+  },
+  {
+    "id": "q5",
+    "question": "Deprem bittikten sonra bina içinde ne yapmalısınız?",
+    "options": ["Hemen dışarı koşun", "Gaz ve elektriği kapatıp, sağlam ayakkabı giyip kontrollü çıkın", "Balkona çıkın", "Asansörle inin"],
+    "correctIndex": 1,
+    "explanation": "Gaz kaçağı ve yangın riskine karşı gaz ve elektrik kapatılmalı; cam kırıklarına karşı ayakkabı giyilmeli; panik yapmadan merdivenlerden çıkılmalıdır."
+  },
+  {
+    "id": "q6",
+    "question": "Açık alandayken deprem olursa ne yapmalısınız?",
+    "options": ["Binalara yaklaşın", "Ağaçların altına girin", "Araçtaysanız köprü ve üst geçitlerden uzak durun, açık alanda kalın", "Köprüde kalın"],
+    "correctIndex": 2,
+    "explanation": "Bina, ağaç, köprü ve üst geçitlerden uzak durulmalı. Açık alanda çök-kapan-tutun yapın veya aracı güvenli yerde durdurun."
+  },
+  {
+    "id": "q7",
+    "question": "Deprem sırasında kapı eşiğinde durmak doğru mu?",
+    "options": ["Evet, en güvenli yer", "Hayır, kapı çerçevesi yıkılabilir; masa/masif mobilya yanı tercih edin", "Sadece dış kapıda", "Evet, sadece çelik kapıdaysa"],
+    "correctIndex": 1,
+    "explanation": "Kapı çerçevesi eski inşaatlarda yıkılma riski taşır. Sağlam bir masanın veya divanın yanında çök-kapan-tutun daha güvenlidir."
+  },
+  {
+    "id": "q8",
+    "question": "Deprem sonrası aile bireyleriyle nerede buluşmayı planlamalısınız?",
+    "options": ["Bina içinde", "Belirlenmiş bir açık toplanma alanında", "Arabada", "Komşu evde"],
+    "correctIndex": 1,
+    "explanation": "Önceden belirlenmiş, açık ve güvenli bir toplanma alanı (AFAD toplanma alanı vb.) aile buluşma noktası olarak seçilmelidir."
+  },
+  {
+    "id": "q9",
+    "question": "Tsunami riski olan kıyı bölgesinde deprem sonrası ne yapılmalı?",
+    "options": ["Sahile inip denizi izleyin", "Yüksek ve iç kesimlere doğru hızla tahliye edin", "Aracınızda kalın", "Evde bekleyin"],
+    "correctIndex": 1,
+    "explanation": "Kıyıda deprem sonrası tsunami riski vardır. Hemen yüksek ve iç kesimlere tahliye edilmeli, sahile yaklaşılmamalıdır."
+  },
+  {
+    "id": "q10",
+    "question": "Deprem çantası nerede ve nasıl saklanmalıdır?",
+    "options": ["Balkonda", "Kolay ulaşılır bir yerde (çıkış yolunda), her 6 ayda kontrol edilmeli", "Kilerde en üst rafa", "Garajda"],
+    "correctIndex": 1,
+    "explanation": "Çanta çıkış yolunda, kolay ulaşılır olmalı; su ve gıda son kullanma tarihleri için en az 6 ayda bir güncellenmelidir."
+  },
+  {
+    "id": "q11",
+    "question": "Bina yıkıntısı altında mahsur kaldıysanız ne yapmalısınız?",
+    "options": ["Sürekli bağırın", "Düdük kullanın veya duvarlara vurarak periyodik ses çıkarın; enerjinizi tasarruflu kullanın", "Hareket etmeyin hiç", "Kurtarma gelene kadar uyuyun"],
+    "correctIndex": 1,
+    "explanation": "Sürekli bağırmak boğazı yorar ve sesiniz kısılır. Periyodik düdük veya vurma sesi kurtarma ekiplerinin sizi bulmasını kolaylaştırır."
+  },
+  {
+    "id": "q12",
+    "question": "Deprem sigortası (DASK) hangi riski kapsar?",
+    "options": ["Sadece yangın", "Deprem nedeniyle bina ve eşyalarda oluşan maddi hasar", "Sadece araç hasarı", "Sağlık giderleri"],
+    "correctIndex": 1,
+    "explanation": "DASK, deprem sonucu oluşan bina ve eşya hasarlarını kapsayan zorunlu deprem sigortasıdır. Yangın ve diğer riskler ayrı poliçelerle temin edilir."
+  },
+  {
+    "id": "q13",
+    "question": "Deprem anında araçtaysanız ne yapmalısınız?",
+    "options": ["Hızla eve sürün", "Köprü, üst geçit ve tünelden uzak güvenli bir yerde durun; aracı terk edip açık alanda çök-kapan-tutun", "Tünelde bekleyin", "Viyadük altında park edin"],
+    "correctIndex": 1,
+    "explanation": "Köprü, viyadük ve tüneller çökme riski taşır. Aracı güvenli açık alanda durdurun; mümkünse aracı terk edip açık alanda çök-kapan-tutun."
+  },
+  {
+    "id": "q14",
+    "question": "Acil durum için evde hangi numaralar bilinmeli?",
+    "options": ["Sadece 112", "112 (Acil), AFAD, itfaiye, aile iletişim numaraları", "Sadece polis", "Sadece komşu"],
+    "correctIndex": 1,
+    "explanation": "112 tek numara; AFAD, itfaiye ve aile/arkadaş numaraları da yazılı olarak deprem çantasında veya buzdolabında bulunmalıdır."
+  },
+  {
+    "id": "q15",
+    "question": "Deprem tatbikatı ne sıklıkla yapılmalıdır?",
+    "options": ["Hiç gerek yok", "Ailece en az yılda bir kez", "Sadece okulda", "Sadece iş yerinde"],
+    "correctIndex": 1,
+    "explanation": "Ailece yılda en az bir kez deprem tatbikatı yapmak (çök-kapan-tutun, tahliye, toplanma alanı) refleks oluşturur ve gerçek depremde paniği azaltır."
+  }
+]
