@@ -6,12 +6,18 @@
 import { api } from "./api";
 
 export interface SubscriptionStatus {
-    user_id: number;
-    subscription_plan: string;
-    subscription_expires_at: string | null;
-    trial_used: boolean;
-    is_pro: boolean;
+    /** Kaydedilen plan: free | trial | monthly_pro | yearly_pro */
+    plan: string;
+    /** Süresi dolmuşsa bile fiili plan (örn. free) */
     effective_plan: string;
+    /** Şu anda Pro özelliklere erişebiliyor mu? */
+    is_pro: boolean;
+    /** 10 günlük deneme daha önce kullanıldı mı? */
+    trial_used: boolean;
+    /** Abonelik bitiş tarihi (UTC ISO) */
+    expires_at: string | null;
+    /** Kalan gün sayısı (yoksa null) */
+    days_remaining: number | null;
 }
 
 export interface FeatureCheck {
@@ -33,24 +39,25 @@ export const PRO_FEATURES = {
  * Kullanıcının abonelik durumunu getirir.
  */
 export async function getSubscriptionStatus(): Promise<SubscriptionStatus> {
-    const { data } = await api.get("/api/v1/subscription/status");
+    const { data } = await api.get<SubscriptionStatus>("/api/v1/subscription/status");
     return data;
 }
 
 /**
- * 10 günlük ücretsiz deneme süresini başlatır.
+ * 10 günlük ücretsiz deneme süresini başlatır ve güncel durumu döner.
  */
 export async function activateTrial(): Promise<SubscriptionStatus> {
-    const { data } = await api.post("/api/v1/subscription/activate-trial");
-    return data;
+    await api.post("/api/v1/subscription/activate-trial");
+    // Trial sonrası güncel durumu tekrar çek
+    return getSubscriptionStatus();
 }
 
 /**
- * PRO plan satın alır (monthly_pro | yearly_pro).
+ * PRO plan satın alır (monthly_pro | yearly_pro) ve güncel durumu döner.
  */
 export async function subscribe(plan: "monthly_pro" | "yearly_pro"): Promise<SubscriptionStatus> {
-    const { data } = await api.post("/api/v1/subscription/subscribe", { plan });
-    return data;
+    await api.post("/api/v1/subscription/subscribe", { plan });
+    return getSubscriptionStatus();
 }
 
 /**

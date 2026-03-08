@@ -129,7 +129,7 @@ export default function PremiumScreen() {
     }
 
     const isPro = status?.is_pro;
-    const isTrial = status?.subscription_plan === "trial";
+    const isTrial = status?.plan === "trial";
     const trialUsed = status?.trial_used;
 
     return (
@@ -152,7 +152,7 @@ export default function PremiumScreen() {
                 <Text style={styles.heroSubtitle}>
                     {isPro
                         ? isTrial
-                            ? `Deneme süresi: ${status?.subscription_expires_at ? new Date(status.subscription_expires_at).toLocaleDateString("tr-TR") : ""}`
+                            ? `Deneme süresi: ${status?.expires_at ? new Date(status.expires_at).toLocaleDateString("tr-TR") : ""}`
                             : "Tüm premium özellikler aktif"
                         : "Deprem güvenliğinizi üst seviyeye taşıyın"}
                 </Text>

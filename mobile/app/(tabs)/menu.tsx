@@ -1,21 +1,45 @@
+import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Linking, Platform } from "react-native";
 import { Link, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 import { logout } from "../../src/services/authService";
+import { getSubscriptionStatus, type SubscriptionStatus } from "../../src/services/subscriptionService";
 
 export default function MenuScreen() {
     const { t } = useTranslation();
+    const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
+    const [loadingSub, setLoadingSub] = useState(false);
+
+    useEffect(() => {
+        let mounted = true;
+        setLoadingSub(true);
+        getSubscriptionStatus()
+            .then((data) => {
+                if (mounted) setSubStatus(data);
+            })
+            .catch(() => {
+                if (mounted) setSubStatus(null);
+            })
+            .finally(() => {
+                if (mounted) setLoadingSub(false);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const isPro = subStatus?.is_pro;
 
     const handleLogout = async () => {
         Alert.alert(
             t("auth.logout_title") || "Çıkış Yap",
             t("auth.logout_confirm") || "Çıkış yapmak istediğinizden emin misiniz?",
             [
-                { text: t("map.close"), style: "cancel" },
+                { text: t("auth.logout_cancel") || "Vazgeç", style: "cancel" },
                 {
-                    text: t("auth.login_btn"),
+                    text: t("auth.logout_confirm_btn") || "Çıkış Yap",
                     style: "destructive",
                     onPress: async () => {
                         await logout();
@@ -41,6 +65,10 @@ export default function MenuScreen() {
         } catch {
             Alert.alert(t("common.error") || "Hata", "Uygulama mağazası açılamadı.");
         }
+    };
+
+    const goToPremium = () => {
+        router.push("/more/premium");
     };
 
     const MenuItem = ({ icon, title, href, onPress, color = Colors.text.dark, badge }: any) => {
@@ -121,13 +149,19 @@ export default function MenuScreen() {
             {/* Acil Durum */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>🆘 {t("menu.emergency") || "Acil Durum"}</Text>
-                <MenuItem icon="microphone" title="S.O.S Sesli Mesaj" href="/more/sos" color={Colors.danger} />
+                <MenuItem
+                    icon="microphone"
+                    title="S.O.S Sesli Mesaj"
+                    onPress={isPro ? () => router.push("/more/sos") : goToPremium}
+                    color={Colors.danger}
+                    badge={isPro ? undefined : "PRO"}
+                />
                 <MenuItem
                     icon="account-heart-outline"
                     title="Güvenlik Ağım"
-                    href="/more/family_safety"
+                    onPress={isPro ? () => router.push("/more/family_safety") : goToPremium}
                     color={Colors.danger}
-                    badge="Yeni"
+                    badge={isPro ? "Yeni" : "PRO"}
                 />
             </View>
 
@@ -137,13 +171,24 @@ export default function MenuScreen() {
                 <MenuItem
                     icon="shield-star-outline"
                     title="Hazırlık Skorum"
-                    href="/more/safety_score"
+                    onPress={isPro ? () => router.push("/more/safety_score") : goToPremium}
                     color={Colors.primary}
-                    badge="Yeni"
+                    badge={isPro ? "Yeni" : "PRO"}
                 />
                 <MenuItem icon="shield-search" title={t("menu.risk_analysis") || "Risk Analizi"} href="/more/risk_analysis" color={Colors.primary} />
-                <MenuItem icon="account-multiple-outline" title={t("menu.emergency_contacts") || "Acil Kişiler"} href="/more/contacts" color={Colors.primary} />
-                <MenuItem icon="briefcase-outline" title={t("menu.survival_kit") || "Deprem Çantası"} href="/more/survival_kit" color="#f59e0b" />
+                <MenuItem
+                    icon="account-multiple-outline"
+                    title={t("menu.emergency_contacts") || "Acil Kişiler"}
+                    onPress={isPro ? () => router.push("/more/contacts") : goToPremium}
+                    color={Colors.primary}
+                    badge={isPro ? undefined : "PRO"}
+                />
+                <MenuItem
+                    icon="briefcase-outline"
+                    title={t("menu.survival_kit") || "Deprem Çantası"}
+                    href="/more/survival_kit"
+                    color="#f59e0b"
+                />
             </View>
 
             {/* Hakkımızda */}
