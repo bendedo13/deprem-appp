@@ -210,15 +210,19 @@ def _send_emergency_alerts(
             f"Gönderen: {user.email}"
         )
 
-        # Send SMS/WhatsApp
-        twilio = get_twilio_service()
-        phone_numbers = [c.phone for c in contacts if c.phone and c.channel in ["sms", "whatsapp"]]
+        # Send SMS + Twilio WhatsApp hibrit
+        from app.services.sos_service import send_hybrid_via_twilio_sync
+
+        phone_numbers = [c.phone for c in contacts if c.phone]
 
         if phone_numbers:
-            # SMS gönder (sync call)
-            import asyncio
-            sms_count = asyncio.run(twilio.send_emergency_alert(phone_numbers, message, use_whatsapp=False))
-            logger.info("SMS gönderildi: %d/%d", sms_count, len(phone_numbers))
+            result = send_hybrid_via_twilio_sync(phone_numbers, message, channel="hybrid")
+            logger.info(
+                "SOS hibrit bildirim: sms=%d, whatsapp=%d, contacts=%d",
+                result["sms_sent"],
+                result["whatsapp_sent"],
+                len(phone_numbers),
+            )
 
         logger.info("Emergency alerts gönderildi: user_id=%d, contacts=%d", user_id, len(contacts))
 

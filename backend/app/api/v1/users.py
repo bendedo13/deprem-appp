@@ -410,9 +410,8 @@ async def i_am_safe(
     # FCM token'ı olan acil kişi token'larını topla (eğer acil kişi de app kullanıcısıysa)
     fcm_tokens: List[str] = []
     
-    # SMS ve Email gönderimi
-    from app.services.twilio_sms import get_twilio_service
-    twilio = get_twilio_service()
+    # Hibrit SMS + Twilio WhatsApp gönderimi için servis
+    from app.services.sos_service import send_hybrid_via_twilio
     
     # Mesaj oluştur
     user_name = current_user.name or current_user.email
@@ -422,35 +421,8 @@ async def i_am_safe(
     if body.include_location and body.latitude and body.longitude:
         message += f" Konum: https://maps.google.com/?q={body.latitude},{body.longitude}"
     
-    # Telefonu olan güvenilir kişilere SMS gönder (Twilio)
+    # Telefonu olan güvenilir kişilere hibrit kanal ile gönderim
     contacts_with_phone = [c for c in target_contacts if c.phone]
-    sms_sent = 0
-    try:
-        for contact in contacts_with_phone:
-            try:
-                success = await twilio.send_sms(contact.phone, message)
-                if success:
-                    sms_sent += 1
-            except Exception as e:
-                logger.error("SMS gönderme hatası (contact_id=%s): %s", contact.id, e)
-    except Exception as e:
-        logger.error("Twilio S.O.S hatası: %s", e)
-        return {
-            "status": "error",
-            "message": "SMS servisi şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
-            "notified_contacts": 0,
-            "total_contacts": len(contacts),
-            "sms_sent": 0,
-            "detail": str(e),
-        }
-
-    logger.info(
-        "Ben İyiyim: user_id=%d, location=%s, sms_sent=%d/%d",
-        current_user.id,
-        "Var" if body.include_location and body.latitude and body.longitude else "Yok",
-        sms_sent,
-        len(contacts_with_phone),
-    )
 
     if not contacts_with_phone:
         return {
@@ -459,12 +431,59 @@ async def i_am_safe(
             "notified_contacts": 0,
             "total_contacts": len(contacts),
             "sms_sent": 0,
+            "whatsapp_sent": 0,
+            "channel_used": "none",
         }
 
+    phone_numbers = [c.phone for c in contacts_with_phone if c.phone]
+    channel = (body.channel or "hybrid").lower()
+
+    try:
+        result = await send_hybrid_via_twilio(phone_numbers, message, channel=channel)  # type: ignore[arg-type]
+    except Exception as e:
+        logger.error("Hibrit S.O.S hatası: %s", e)
+        return {
+            "status": "error",
+            "message": "S.O.S mesajı gönderilemedi. Lütfen daha sonra tekrar deneyin.",
+            "notified_contacts": 0,
+            "total_contacts": len(contacts),
+            "sms_sent": 0,
+            "whatsapp_sent": 0,
+            "channel_used": "none",
+            "detail": str(e),
+        }
+
+    sms_sent = result["sms_sent"]
+    whatsapp_sent = result["whatsapp_sent"]
+
+    if sms_sent > 0 and whatsapp_sent > 0:
+        channel_used = "sms+whatsapp"
+        user_message = "SMS ve WhatsApp üzerinden bilgilendirme yapıldı."
+    elif sms_sent > 0:
+        channel_used = "sms"
+        user_message = "SMS üzerinden bilgilendirme yapıldı."
+    elif whatsapp_sent > 0:
+        channel_used = "whatsapp"
+        user_message = "WhatsApp üzerinden bilgilendirme yapıldı."
+    else:
+        channel_used = "none"
+        user_message = "Hiçbir kanaldan S.O.S mesajı gönderilemedi."
+
+    logger.info(
+        "Ben İyiyim Hibrit: user_id=%d, location=%s, sms_sent=%d, whatsapp_sent=%d, contacts=%d",
+        current_user.id,
+        "Var" if body.include_location and body.latitude and body.longitude else "Yok",
+        sms_sent,
+        whatsapp_sent,
+        len(contacts_with_phone),
+    )
+
     return {
-        "status": "ok",
-        "message": "Bildirim gönderildi.",
-        "notified_contacts": sms_sent,
+        "status": "ok" if channel_used != "none" else "error",
+        "message": user_message,
+        "notified_contacts": sms_sent or whatsapp_sent,
         "total_contacts": len(contacts),
         "sms_sent": sms_sent,
+        "whatsapp_sent": whatsapp_sent,
+        "channel_used": channel_used,
     }

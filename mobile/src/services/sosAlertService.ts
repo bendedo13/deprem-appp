@@ -103,6 +103,9 @@ export async function sendSOSAlert(
                 notified_contacts?: number;
                 message?: string;
                 detail?: string;
+                channel_used?: string;
+                sms_sent?: number;
+                whatsapp_sent?: number;
             }>(
                 "/api/v1/users/i-am-safe",
                 {
@@ -110,6 +113,7 @@ export async function sendSOSAlert(
                     latitude: location?.latitude ?? null,
                     longitude: location?.longitude ?? null,
                     include_location: !!location,
+                    channel: "hybrid",
                 },
                 { timeout: 15_000 }
             );

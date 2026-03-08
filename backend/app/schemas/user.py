@@ -50,6 +50,10 @@ class ImSafeRequest(BaseModel):
     contact_ids: Optional[List[int]] = Field(None, description="Belirli kişilere gönder (boşsa hepsine)")
     latitude: Optional[float] = Field(None, ge=-90.0, le=90.0)
     longitude: Optional[float] = Field(None, ge=-180.0, le=180.0)
+    channel: Optional[str] = Field(
+        "hybrid",
+        description="sms | whatsapp | hybrid — varsayılan: hybrid (önce SMS sonra WhatsApp)",
+    )
 
 
 # ── Response Şemaları ──────────────────────────────────────────────────────────
