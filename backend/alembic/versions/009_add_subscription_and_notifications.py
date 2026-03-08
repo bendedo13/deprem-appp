@@ -1,7 +1,7 @@
 """Add subscription fields and notification_logs table
 
 Revision ID: 009
-Revises: 008
+Revises: 007_add_app_settings
 Create Date: 2026-03-08
 
 Users tablosuna abonelik alanları (subscription_plan, subscription_expires_at, trial_used)
