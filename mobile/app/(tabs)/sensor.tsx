@@ -47,9 +47,12 @@ import {
 import {
     startEarthquakeSimulation,
     runAlarmOnlyWithoutSOS,
+    runHybridSensorTest,
     SimulationResult,
+    type HybridTestResult,
 } from "../../src/services/simulationService";
 import { sendSOSAlert } from "../../src/services/sosAlertService";
+import { startCriticalAlarm } from "../../src/services/criticalAlarmService";
 
 // ─── Yardımcı Fonksiyonlar ────────────────────────────────────────────────────
 
@@ -136,9 +139,19 @@ export default function SensorScreen() {
     const [countdownError, setCountdownError] = useState<string | null>(null);
     const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Gerçek ivmeölçer hook
+    // Hibrit test: tek tıkla alarm + gerçek TEST MESAJI + Twilio raporu
+    const [hybridTestResult, setHybridTestResult] = useState<HybridTestResult | null>(null);
+    const [hybridTestLoading, setHybridTestLoading] = useState(false);
+
+    // Gerçek ivmeölçer hook — 1.8G+ nükleer alarm tetiklemesi
+    const handleCriticalTrigger = useCallback((lat: number | null, lng: number | null) => {
+        startCriticalAlarm(
+            lat != null ? String(lat) : undefined,
+            lng != null ? String(lng) : undefined
+        );
+    }, []);
     const { isMonitoring, isTriggered, peakAcceleration, staLtaRatio, triggerTime } =
-        useShakeDetector(location?.lat ?? null, location?.lng ?? null);
+        useShakeDetector(location?.lat ?? null, location?.lng ?? null, handleCriticalTrigger);
 
     // Animasyon referansları
     const gaugeAnim = useRef(new Animated.Value(0)).current;
@@ -376,6 +389,35 @@ export default function SensorScreen() {
         };
         run();
     }, [simulating, countdown, settings, showToast]);
+
+    // ── Hibrit sensör testi: ivme simülasyonu + gerçek TEST MESAJI (Konum + "Bu bir testtir") + Twilio raporu ──
+    const handleHybridSensorTest = useCallback(async () => {
+        if (simulating || hybridTestLoading || countdown !== null) return;
+        setHybridTestLoading(true);
+        setHybridTestResult(null);
+        setSimulatedRatio(8.5 + Math.random() * 2.0);
+        try {
+            const result = await runHybridSensorTest({
+                loudAlarmEnabled: settings.loudAlarmEnabled,
+                vibrationEnabled: settings.vibrationEnabled,
+                flashEnabled: settings.flashEnabled,
+            });
+            setHybridTestResult(result);
+            if (result.sosSent) {
+                showToast(
+                    `Hibrit test tamamlandı — ${result.notifiedContacts} kişi (SMS: ${result.smsSent}, WP: ${result.whatsappSent})`,
+                    "success"
+                );
+            } else if (result.error) {
+                showToast(result.error, "error");
+            }
+        } catch (err) {
+            showToast("Hibrit test hatası: " + String(err), "error");
+        } finally {
+            setHybridTestLoading(false);
+            setTimeout(() => setSimulatedRatio(null), 6000);
+        }
+    }, [simulating, hybridTestLoading, countdown, settings, showToast]);
 
     // Render değerleri
     const color = ratioColor(displayRatio);
@@ -818,6 +860,65 @@ export default function SensorScreen() {
                             </>
                         )}
                     </TouchableOpacity>
+
+                    <Text style={styles.simSectionLabel}>Hibrit test (alarm + gerçek TEST MESAJI + Twilio raporu)</Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.simButton,
+                            styles.simButtonSecondary,
+                            (simulating || hybridTestLoading) && styles.simButtonActive,
+                        ]}
+                        onPress={handleHybridSensorTest}
+                        disabled={simulating || hybridTestLoading}
+                        activeOpacity={0.8}
+                    >
+                        {hybridTestLoading ? (
+                            <>
+                                <ActivityIndicator size="small" color="#fff" />
+                                <Text style={styles.simButtonText}>Hibrit test çalışıyor...</Text>
+                            </>
+                        ) : (
+                            <>
+                                <MaterialCommunityIcons name="test-tube" size={22} color="#fff" />
+                                <Text style={styles.simButtonText}>Hibrit Sensör Testini Başlat</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+
+                    {hybridTestResult && (
+                        <View style={styles.simResultBox}>
+                            <Text style={styles.simResultTitle}>Hibrit Test Raporu</Text>
+                            <SimResultRow icon="volume-high" label="Ses (sessiz bypass)" ok={hybridTestResult.soundPlayed} />
+                            <SimResultRow icon="vibrate" label="Titreşim" ok={hybridTestResult.vibrated} />
+                            <SimResultRow icon="bell-ring" label="Full-screen bildirim" ok={hybridTestResult.notificationSent} />
+                            <SimResultRow
+                                icon="message-alert"
+                                label={`S.O.S test mesajı (${hybridTestResult.notifiedContacts} kişi)`}
+                                ok={hybridTestResult.sosSent}
+                                warn={!hybridTestResult.sosSent}
+                            />
+                            <View style={simResultStyles.row}>
+                                <MaterialCommunityIcons name="message-text" size={16} color={Colors.text.muted} />
+                                <Text style={simResultStyles.label}>SMS gönderilen: {hybridTestResult.smsSent}</Text>
+                            </View>
+                            <View style={simResultStyles.row}>
+                                <MaterialCommunityIcons name="whatsapp" size={16} color={Colors.text.muted} />
+                                <Text style={simResultStyles.label}>WhatsApp gönderilen: {hybridTestResult.whatsappSent}</Text>
+                            </View>
+                            <View style={simResultStyles.row}>
+                                <MaterialCommunityIcons name="lan-connect" size={16} color={Colors.text.muted} />
+                                <Text style={simResultStyles.label}>Kanal: {hybridTestResult.channelUsed}</Text>
+                            </View>
+                            {hybridTestResult.location && (
+                                <Text style={styles.simError}>
+                                    Konum: {hybridTestResult.location.latitude.toFixed(4)}, {hybridTestResult.location.longitude.toFixed(4)}
+                                </Text>
+                            )}
+                            {hybridTestResult.error && (
+                                <Text style={styles.simError}>Hata: {hybridTestResult.error}</Text>
+                            )}
+                        </View>
+                    )}
                 </View>
 
                 {/* ── Arka Plan Koruması ── */}

@@ -24,6 +24,10 @@ export interface SOSResult {
     notifiedContacts: number;
     location: { latitude: number; longitude: number } | null;
     error?: string;
+    /** Backend'den dönen kanal bilgisi (raporlama için) */
+    sms_sent?: number;
+    whatsapp_sent?: number;
+    channel_used?: string;
 }
 
 const MAX_RETRIES = 3;
@@ -131,6 +135,9 @@ export async function sendSOSAlert(
                 success: true,
                 notifiedContacts: notified,
                 location,
+                sms_sent: data.sms_sent,
+                whatsapp_sent: data.whatsapp_sent,
+                channel_used: data.channel_used,
             };
         } catch (err: unknown) {
             const axErr = err as { response?: { data?: unknown; status: number }; message?: string };

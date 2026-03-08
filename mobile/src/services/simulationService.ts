@@ -208,6 +208,74 @@ export interface AlarmOnlyResult {
     error?: string;
 }
 
+/** Hibrit test sonucu: alarm + gerçek SOS test mesajı + Twilio raporu */
+export interface HybridTestResult {
+    soundPlayed: boolean;
+    vibrated: boolean;
+    notificationSent: boolean;
+    sosSent: boolean;
+    notifiedContacts: number;
+    smsSent: number;
+    whatsappSent: number;
+    channelUsed: string;
+    location: { latitude: number; longitude: number } | null;
+    error?: string;
+}
+
+/**
+ * Hibrit sensör testi: ivmeölçer simülasyonu + gerçek "TEST MESAJI" (Konum + Bu bir testtir) acil kişilere gönderilir.
+ * Test bitiminde ses, titreşim, bildirim ve Twilio SMS/WhatsApp başarı durumu raporlanır.
+ */
+export async function runHybridSensorTest(options: {
+    loudAlarmEnabled: boolean;
+    vibrationEnabled: boolean;
+    flashEnabled: boolean;
+}): Promise<HybridTestResult> {
+    const result: HybridTestResult = {
+        soundPlayed: false,
+        vibrated: false,
+        notificationSent: false,
+        sosSent: false,
+        notifiedContacts: 0,
+        smsSent: 0,
+        whatsappSent: 0,
+        channelUsed: "none",
+        location: null,
+    };
+
+    try {
+        if (options.loudAlarmEnabled) {
+            result.soundPlayed = await configureSilentModeBypass();
+        }
+        if (options.vibrationEnabled) {
+            try {
+                triggerVibration();
+                result.vibrated = true;
+            } catch (e) {
+                result.error = (e as Error).message;
+            }
+        }
+        result.notificationSent = await sendCriticalNotification();
+
+        const sosResult = await sendSOSAlert(
+            "sensor",
+            "Bu bir testtir. Konum + test mesajı — gerçek acil durum değildir."
+        );
+        result.sosSent = sosResult.success;
+        result.notifiedContacts = sosResult.notifiedContacts;
+        result.location = sosResult.location;
+        result.smsSent = sosResult.sms_sent ?? 0;
+        result.whatsappSent = sosResult.whatsapp_sent ?? 0;
+        result.channelUsed = sosResult.channel_used ?? "none";
+        if (sosResult.error) {
+            result.error = result.error ? `${result.error}; ${sosResult.error}` : sosResult.error;
+        }
+    } catch (err) {
+        result.error = (err as Error).message;
+    }
+    return result;
+}
+
 /**
  * Sadece ses + titreşim + bildirim; SOS göndermez.
  * Sensör testi akışında önce bu çalışır, ekranda 10..9..8 geri sayımı bitince SOS ayrı çağrılır.
