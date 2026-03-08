@@ -217,3 +217,86 @@ async def send_i_am_safe(
     except Exception as exc:
         logger.error("Ben İyiyim FCM hatası: %s", exc)
         return 0
+
+
+# ─── Rich Notifications (Admin Panel) ────────────────────────────────────────
+
+async def send_rich_multicast(
+    tokens: list[str],
+    title: str,
+    body: str,
+    image_url: str | None = None,
+    data: dict | None = None,
+) -> int:
+    """
+    Zengin içerikli multicast bildirim — görsel, başlık, mesaj ve ek veri.
+    Admin panelinden broadcast veya tek kullanıcıya gönderim için kullanılır.
+
+    Returns:
+        Başarıyla gönderilen bildirim sayısı.
+    """
+    if not tokens or not _init_firebase():
+        return 0
+
+    try:
+        notification = messaging.Notification(
+            title=title,
+            body=body,
+            image=image_url,
+        )
+
+        str_data = {k: str(v) for k, v in (data or {}).items()}
+        str_data["type"] = str_data.get("type", "ADMIN_BROADCAST")
+
+        message = messaging.MulticastMessage(
+            notification=notification,
+            data=str_data,
+            tokens=tokens[:500],
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    channel_id="admin_notifications",
+                    priority="high",
+                    image=image_url,
+                    click_action="OPEN_APP",
+                ),
+            ),
+            apns=messaging.APNSConfig(
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        alert=messaging.ApsAlert(title=title, body=body),
+                        sound="default",
+                        content_available=True,
+                        mutable_content=True,
+                    )
+                ),
+            ),
+        )
+        response = messaging.send_each_for_multicast(message)
+        logger.info(
+            "Rich multicast: %d başarılı / %d başarısız",
+            response.success_count,
+            response.failure_count,
+        )
+        return response.success_count
+    except Exception as exc:
+        logger.error("Rich multicast hatası: %s", exc)
+        return 0
+
+
+async def send_rich_single(
+    token: str,
+    title: str,
+    body: str,
+    image_url: str | None = None,
+    data: dict | None = None,
+) -> bool:
+    """Tek bir kullanıcıya zengin bildirim gönderir."""
+    result = await send_rich_multicast([token], title, body, image_url, data)
+    return result > 0
+
+
+# Backward compatibility alias
+async def send_raw_multicast(tokens: list[str], title: str, body: str) -> int:
+    """Eski broadcast endpoint'i için uyumluluk alias'ı."""
+    return await send_rich_multicast(tokens=tokens, title=title, body=body)

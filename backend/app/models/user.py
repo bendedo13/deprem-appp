@@ -1,12 +1,12 @@
 """
 Kullanıcı modeli.
-JWT kimlik doğrulama, FCM push bildirimi ve konum tabanlı uyarılar için kullanılır.
+JWT kimlik doğrulama, FCM push bildirimi, abonelik ve konum tabanlı uyarılar için kullanılır.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import String, Float, DateTime, Boolean
+from sqlalchemy import String, Float, DateTime, Boolean, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class User(Base):
-    """Kullanıcı: JWT auth, FCM token ve konum tabanlı bildirim için."""
+    """Kullanıcı: JWT auth, FCM token, abonelik ve konum tabanlı bildirim için."""
 
     __tablename__ = "users"
 
@@ -32,6 +32,20 @@ class User(Base):
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     avatar: Mapped[str | None] = mapped_column(String(10), nullable=True)  # Emoji avatar
     plan: Mapped[str] = mapped_column(String(20), default="free", nullable=False)
+
+    # ── Abonelik (Subscription) alanları ──────────────────────────────────────
+    subscription_plan: Mapped[str] = mapped_column(
+        String(20), default="free", server_default="free", nullable=False,
+        comment="free | trial | monthly_pro | yearly_pro"
+    )
+    subscription_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Pro/Trial bitiş tarihi. NULL = süresiz (free)"
+    )
+    trial_used: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False,
+        comment="10 günlük deneme hakkı kullanıldı mı"
+    )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -56,6 +70,31 @@ class User(Base):
     sos_records: Mapped[List["SOSRecord"]] = relationship(
         "SOSRecord", back_populates="user", lazy="select"
     )
+
+    @property
+    def is_pro(self) -> bool:
+        """Kullanıcı şu an Pro (veya aktif Trial) mu?"""
+        if self.subscription_plan == "free":
+            return False
+        if self.subscription_expires_at is None:
+            return self.subscription_plan in ("monthly_pro", "yearly_pro", "trial")
+        return self.subscription_expires_at > datetime.now(tz=timezone.utc)
+
+    @property
+    def effective_plan(self) -> str:
+        """Gerçek aktif plan: süresi dolmuşsa 'free' döner."""
+        if self.is_pro:
+            return self.subscription_plan
+        return "free"
+
+    def activate_trial(self) -> bool:
+        """10 günlük Pro deneme başlat. Daha önce kullanıldıysa False döner."""
+        if self.trial_used:
+            return False
+        self.subscription_plan = "trial"
+        self.subscription_expires_at = datetime.now(tz=timezone.utc) + timedelta(days=10)
+        self.trial_used = True
+        return True
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r}>"

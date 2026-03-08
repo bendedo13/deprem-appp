@@ -5,7 +5,10 @@ import {
     ShieldCheck,
     Bell,
     TrendingUp,
-    Clock
+    Clock,
+    Crown,
+    Zap,
+    UserCheck
 } from 'lucide-react';
 import { adminService } from '../../services/api';
 import {
@@ -17,7 +20,10 @@ import {
     Tooltip,
     ResponsiveContainer,
     AreaChart,
-    Area
+    Area,
+    PieChart,
+    Pie,
+    Cell
 } from 'recharts';
 
 export default function AdminDashboard() {
@@ -48,9 +54,16 @@ export default function AdminDashboard() {
 
     const cards = [
         { label: 'Toplam Kullanıcı', value: stats.total_users, sub: `Aktif: ${stats.active_users}`, icon: <Users />, color: 'blue' },
-        { label: 'Adminler', value: stats.admin_users, sub: 'Yönetim Ekibi', icon: <ShieldCheck />, color: 'primary' },
-        { label: 'Deprem (24s)', value: stats.earthquakes_last_24h, sub: `7 Gün: ${stats.earthquakes_last_7d}`, icon: <Activity />, color: 'red' },
+        { label: 'PRO Aboneler', value: stats.pro_users || 0, sub: `Deneme: ${stats.trial_users || 0}`, icon: <Crown />, color: 'amber' },
         { label: 'FCM Token', value: stats.users_with_fcm, sub: 'Push Bildirim Hazır', icon: <Bell />, color: 'green' },
+        { label: 'Deprem (24s)', value: stats.earthquakes_last_24h, sub: `7 Gün: ${stats.earthquakes_last_7d}`, icon: <Activity />, color: 'red' },
+    ];
+
+    const PLAN_COLORS = ['#10B981', '#F59E0B', '#3B82F6'];
+    const planData = [
+        { name: 'Free', value: stats.free_users || (stats.total_users - (stats.pro_users || 0) - (stats.trial_users || 0)) },
+        { name: 'Trial', value: stats.trial_users || 0 },
+        { name: 'Pro', value: stats.pro_users || 0 },
     ];
 
     return (
@@ -78,7 +91,46 @@ export default function AdminDashboard() {
             </div>
 
             {/* Distribution Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Subscription Pie Chart */}
+                <div className="bg-dark-surface border border-dark-border rounded-2xl p-6">
+                    <h4 className="text-sm font-black text-white uppercase italic tracking-widest mb-6 flex items-center gap-2">
+                        <Crown size={16} className="text-amber-500" />
+                        Abonelik Dağılımı
+                    </h4>
+                    <div className="h-[300px] w-full flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={planData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={100}
+                                    dataKey="value"
+                                    stroke="none"
+                                    label={({ name, value }) => `${name}: ${value}`}
+                                >
+                                    {planData.map((_entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={PLAN_COLORS[index % PLAN_COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1e1e2d', border: '1px solid #333', borderRadius: '12px' }}
+                                    itemStyle={{ color: '#fff', fontWeight: 'bold' }}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-center gap-4 mt-4">
+                        {planData.map((item, i) => (
+                            <div key={item.name} className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAN_COLORS[i] }} />
+                                <span className="text-xs text-slate-400 font-bold">{item.name}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
                 <div className="bg-dark-surface border border-dark-border rounded-2xl p-6">
                     <h4 className="text-sm font-black text-white uppercase italic tracking-widest mb-6 flex items-center gap-2">
                         <TrendingUp size={16} className="text-primary" />

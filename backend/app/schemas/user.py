@@ -70,6 +70,12 @@ class UserOut(BaseModel):
     longitude: Optional[float]
     created_at: datetime
 
+    # Subscription fields
+    subscription_plan: str = "free"
+    subscription_expires_at: Optional[datetime] = None
+    trial_used: bool = False
+    is_pro: bool = False
+
     model_config = {"from_attributes": True}
 
 

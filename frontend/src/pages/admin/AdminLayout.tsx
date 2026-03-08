@@ -4,11 +4,12 @@ import {
     LayoutDashboard,
     Users,
     Activity,
-    Send,
+    Bell,
     LogOut,
     Menu,
     X,
-    ShieldCheck
+    ShieldCheck,
+    Settings
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -25,7 +26,8 @@ export default function AdminLayout() {
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
         { icon: <Users size={20} />, label: 'Kullanıcılar', path: '/admin/users' },
         { icon: <Activity size={20} />, label: 'Depremler', path: '/admin/earthquakes' },
-        { icon: <Send size={20} />, label: 'Broadcast', path: '/admin/broadcast' },
+        { icon: <Bell size={20} />, label: 'Bildirimler', path: '/admin/notifications' },
+        { icon: <Settings size={20} />, label: 'Ayarlar', path: '/admin/settings' },
     ];
 
     return (

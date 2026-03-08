@@ -8,7 +8,9 @@ import {
     Trash2,
     Calendar,
     MapPin,
-    Smartphone
+    Smartphone,
+    Crown,
+    Zap
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -94,6 +96,7 @@ export default function AdminUsers() {
                         <thead className="bg-dark/50 border-b border-dark-border">
                             <tr>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Kullanıcı</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Plan</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Durum & Rol</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cihaz / Konum</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Kayıt Tarihi</th>
@@ -113,9 +116,33 @@ export default function AdminUsers() {
                                                     {user.email}
                                                     {user.is_admin && <Shield size={14} className="text-primary" />}
                                                 </div>
-                                                <div className="text-xs text-slate-500">ID: #{user.id}</div>
+                                                <div className="text-xs text-slate-500">ID: #{user.id}{user.name ? ` — ${user.name}` : ''}</div>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        {(() => {
+                                            const plan = user.subscription_plan || user.plan || 'free';
+                                            if (plan === 'monthly_pro' || plan === 'yearly_pro') {
+                                                return (
+                                                    <span className="px-2.5 py-1 rounded-md text-[10px] font-black w-fit uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1 whitespace-nowrap">
+                                                        <Crown size={12} /> PRO
+                                                    </span>
+                                                );
+                                            }
+                                            if (plan === 'trial') {
+                                                return (
+                                                    <span className="px-2.5 py-1 rounded-md text-[10px] font-black w-fit uppercase bg-blue-500/10 text-blue-500 border border-blue-500/20 flex items-center gap-1 whitespace-nowrap">
+                                                        <Zap size={12} /> DENEME
+                                                    </span>
+                                                );
+                                            }
+                                            return (
+                                                <span className="px-2.5 py-1 rounded-md text-[10px] font-black w-fit uppercase bg-slate-500/10 text-slate-500 border border-slate-500/20">
+                                                    FREE
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col gap-2">

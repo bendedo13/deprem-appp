@@ -92,6 +92,18 @@ export default function MenuScreen() {
                 </View>
             </View>
 
+            {/* Premium */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>⭐ Premium</Text>
+                <MenuItem
+                    icon="crown"
+                    title="QuakeSense PRO"
+                    href="/more/premium"
+                    color="#F59E0B"
+                    badge="PRO"
+                />
+            </View>
+
             {/* Ayarlar */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.settings")}</Text>
