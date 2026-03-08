@@ -7,6 +7,8 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Vibration,
+    Linking,
+    Platform,
 } from "react-native";
 import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -69,6 +71,16 @@ export default function GatheringPointsScreen() {
 
     const handleHaptic = () => {
         Vibration.vibrate(15);
+    };
+
+    const openNavigation = (lat: number, lon: number, name: string) => {
+        Vibration.vibrate(15);
+        const encodedName = encodeURIComponent(name);
+        const url = Platform.select({
+            ios: `maps:0,0?q=${encodedName}&ll=${lat},${lon}`,
+            android: `google.navigation:q=${lat},${lon}`,
+        }) ?? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+        Linking.openURL(url);
     };
 
     return (
@@ -140,6 +152,14 @@ export default function GatheringPointsScreen() {
                                             {distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`}
                                         </Text>
                                         <Text style={styles.bearingText}>{formatBearing(bearingDeg)}</Text>
+                                        <TouchableOpacity
+                                            style={styles.navBtn}
+                                            onPress={() => openNavigation(point.latitude, point.longitude, point.name)}
+                                            activeOpacity={0.8}
+                                        >
+                                            <MaterialCommunityIcons name="navigation-variant" size={14} color="#fff" />
+                                            <Text style={styles.navBtnText}>Yol Tarifi</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 </View>
                             ))
@@ -436,6 +456,21 @@ const styles = StyleSheet.create({
         fontSize: Typography.sizes.sm,
         fontWeight: "800",
         textAlign: "center",
+    },
+    navBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        marginTop: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: BorderRadius.full,
+        backgroundColor: Colors.primary,
+    },
+    navBtnText: {
+        color: "#fff",
+        fontSize: 10,
+        fontWeight: "800",
     },
 });
 

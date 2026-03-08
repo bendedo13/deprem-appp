@@ -49,7 +49,10 @@ export async function ensureEarthquakeChannel(): Promise<void> {
 
 /**
  * Sessiz modu bypass et — iOS silent switch + Android tam ses.
+ * Gerçek alarm sesi çalar.
  */
+let alarmSoundObj: Audio.Sound | null = null;
+
 export async function playAlarmSound(): Promise<void> {
   try {
     await Audio.setAudioModeAsync({
@@ -58,9 +61,48 @@ export async function playAlarmSound(): Promise<void> {
       staysActiveInBackground: true,
       shouldDuckAndroid: false,
     });
-    console.log("[EarthquakeAlarm] Ses modu: sessiz bypass aktif");
+
+    // Önceki sesi temizle
+    if (alarmSoundObj) {
+      try { await alarmSoundObj.unloadAsync(); } catch { /* ignore */ }
+      alarmSoundObj = null;
+    }
+
+    // Sistem uyarı sesi çal
+    let soundSource: any;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      soundSource = require("../../../assets/alarm.mp3");
+    } catch {
+      soundSource = null;
+    }
+
+    if (soundSource) {
+      const { sound } = await Audio.Sound.createAsync(
+        soundSource,
+        { shouldPlay: true, isLooping: true, volume: 1.0 }
+      );
+      alarmSoundObj = sound;
+      console.log("[EarthquakeAlarm] Alarm sesi çalınıyor");
+    } else {
+      console.warn("[EarthquakeAlarm] alarm.mp3 bulunamadı, bildirim sesiyle devam ediliyor");
+    }
   } catch (err) {
-    console.warn("[EarthquakeAlarm] Ses modu ayarlanamadı:", err);
+    console.warn("[EarthquakeAlarm] Ses dosyası yüklenemedi, varsayılan bildirim sesi kullanılacak:", err);
+    // Ses dosyası olmasa bile audio mode ayarlanmış olacak
+  }
+}
+
+/**
+ * Alarm sesini durdur.
+ */
+export async function stopAlarmSound(): Promise<void> {
+  if (alarmSoundObj) {
+    try {
+      await alarmSoundObj.stopAsync();
+      await alarmSoundObj.unloadAsync();
+    } catch { /* ignore */ }
+    alarmSoundObj = null;
   }
 }
 

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api } from "./api";
 
 const CACHE_KEY = "quakesense_impact_reports_v1";
 
@@ -46,6 +47,19 @@ export async function addImpactReport(
     };
     const next = [full, ...existing].slice(0, 200);
     await saveImpactReports(next);
+
+    // Backend'e de gönder (fire-and-forget, hata olursa yerel kayıt yeterli)
+    try {
+        await api.post("/api/v1/impact-reports", {
+            type: full.type,
+            latitude: full.latitude,
+            longitude: full.longitude,
+            description: full.description ?? null,
+        });
+    } catch {
+        // Backend henüz hazır değilse veya hata olursa sessizce devam et
+    }
+
     return next;
 }
 

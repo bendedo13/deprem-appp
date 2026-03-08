@@ -113,6 +113,7 @@ export default function MapScreen() {
     const { t, i18n } = useTranslation();
     const [selected, setSelected] = useState<UnifiedEarthquake | null>(null);
     const [activeFilter, setActiveFilter] = useState<FilterOption>("ALL");
+    const [regionFilter, setRegionFilter] = useState<"ALL" | "TR">("ALL");
 
     const {
         earthquakes,
@@ -123,11 +124,15 @@ export default function MapScreen() {
         refresh,
     } = useLiveEarthquakes();
 
-    // Apply source filter
-    const filtered =
-        activeFilter === "ALL"
-            ? earthquakes
-            : earthquakes.filter((q) => q.source === activeFilter);
+    // Apply source + region filter
+    const filtered = earthquakes.filter((q) => {
+        if (activeFilter !== "ALL" && q.source !== activeFilter) return false;
+        if (regionFilter === "TR") {
+            const { latitude, longitude } = q.coordinates;
+            if (latitude < 35.5 || latitude > 42.5 || longitude < 25.5 || longitude > 45) return false;
+        }
+        return true;
+    });
 
     const FILTER_OPTIONS: { key: FilterOption; label: string; color: string }[] = [
         { key: "ALL", label: "Tümü", color: Colors.primary },
@@ -152,6 +157,26 @@ export default function MapScreen() {
                 </View>
                 <TouchableOpacity onPress={refresh} style={styles.refreshBtn}>
                     <MaterialCommunityIcons name="refresh" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+            </View>
+
+            {/* Region toggle: Global / Türkiye */}
+            <View style={styles.regionRow}>
+                <TouchableOpacity
+                    style={[styles.regionBtn, regionFilter === "ALL" && styles.regionBtnActive]}
+                    onPress={() => setRegionFilter("ALL")}
+                    activeOpacity={0.7}
+                >
+                    <MaterialCommunityIcons name="earth" size={14} color={regionFilter === "ALL" ? "#fff" : Colors.text.muted} />
+                    <Text style={[styles.regionBtnText, regionFilter === "ALL" && styles.regionBtnTextActive]}>Global</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.regionBtn, regionFilter === "TR" && styles.regionBtnActive]}
+                    onPress={() => setRegionFilter("TR")}
+                    activeOpacity={0.7}
+                >
+                    <MaterialCommunityIcons name="flag" size={14} color={regionFilter === "TR" ? "#fff" : Colors.text.muted} />
+                    <Text style={[styles.regionBtnText, regionFilter === "TR" && styles.regionBtnTextActive]}>Türkiye</Text>
                 </TouchableOpacity>
             </View>
 
@@ -458,4 +483,35 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     closeBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+
+    // Region toggle
+    regionRow: {
+        flexDirection: "row",
+        gap: 8,
+        paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.sm,
+    },
+    regionBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        paddingHorizontal: 14,
+        paddingVertical: 7,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        borderColor: Colors.border.glass,
+        backgroundColor: Colors.background.surface,
+    },
+    regionBtnActive: {
+        backgroundColor: Colors.primary,
+        borderColor: Colors.primary,
+    },
+    regionBtnText: {
+        fontSize: 12,
+        fontWeight: "700",
+        color: Colors.text.muted,
+    },
+    regionBtnTextActive: {
+        color: "#fff",
+    },
 });

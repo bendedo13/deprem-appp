@@ -47,6 +47,69 @@ const QUESTIONS: Question[] = [
             { id: "c", label: "Etrafı kazmak için sürekli hareket etmek" },
         ],
     },
+    {
+        id: "q4",
+        text: "Deprem çantasında bulunması ZORUNLU olan madde hangisidir?",
+        options: [
+            { id: "a", label: "Laptop ve şarj kablosu" },
+            { id: "b", label: "En az 3 günlük su ve dayanıklı gıda", correct: true },
+            { id: "c", label: "Kitap ve defter" },
+        ],
+    },
+    {
+        id: "q5",
+        text: "Deprem sonrası BİNAYI NE ZAMAN terk etmelisiniz?",
+        options: [
+            { id: "a", label: "Sarsıntı tamamen durduktan sonra, merdivenleri kullanarak", correct: true },
+            { id: "b", label: "Sarsıntı devam ederken hemen koşarak" },
+            { id: "c", label: "Asansör çalışırsa asansörle" },
+        ],
+    },
+    {
+        id: "q6",
+        text: "Tsunami riski olan bir sahildeyseniz deprem sonrası ne yapmalısınız?",
+        options: [
+            { id: "a", label: "Denize yaklaşıp dalga olup olmadığını kontrol etmek" },
+            { id: "b", label: "Sahilde bekleyip resmi uyarı beklemek" },
+            { id: "c", label: "Derhal yüksek ve denizden uzak bir noktaya gitmek", correct: true },
+        ],
+    },
+    {
+        id: "q7",
+        text: "Depremde doğalgaz kokusu alırsanız ne yapmalısınız?",
+        options: [
+            { id: "a", label: "Elektrik düğmelerine dokunmadan binayı terk edip vanayı kapatmak", correct: true },
+            { id: "b", label: "Kibrit yakarak kaçak noktasını bulmak" },
+            { id: "c", label: "Havalandırma için pencere açmak yeterli" },
+        ],
+    },
+    {
+        id: "q8",
+        text: "Deprem sırasında AÇIK ALANDAYSANIZ en güvenli davranış hangisidir?",
+        options: [
+            { id: "a", label: "En yakın binaya sığınmak" },
+            { id: "b", label: "Bina, enerji hattı ve ağaçlardan uzak açık alanda durmak", correct: true },
+            { id: "c", label: "Aracınıza koşup hareket etmek" },
+        ],
+    },
+    {
+        id: "q9",
+        text: "Artçı sarsıntılar için hangisi DOĞRUDUR?",
+        options: [
+            { id: "a", label: "Ana depremden sonra artçı sarsıntı olmaz" },
+            { id: "b", label: "Artçı sarsıntılar günlerce-haftalarca sürebilir ve tehlikeli olabilir", correct: true },
+            { id: "c", label: "Artçılar her zaman ana depremden daha hafiftir ve zararsızdır" },
+        ],
+    },
+    {
+        id: "q10",
+        text: "Depreme hazırlık olarak evde yapılması gereken EN ÖNEMLİ şey nedir?",
+        options: [
+            { id: "a", label: "Mobilyaları duvara sabitlemek ve deprem çantası hazırlamak", correct: true },
+            { id: "b", label: "Tüm pencerelere film yapıştırmak" },
+            { id: "c", label: "Bodrum katını depo olarak kullanmak" },
+        ],
+    },
 ];
 
 export default function AcademyScreen() {
