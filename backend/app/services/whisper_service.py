@@ -1,12 +1,13 @@
 """
-OpenAI Whisper API servisi.
-Ses dosyalarını metne çevirir (speech-to-text).
+Groq Whisper transkripsiyon servisi (S.O.S ses → metin).
+OpenAI Whisper yerine Groq whisper-large-v3 kullanır.
+API anahtarı .env içinde GROQ_API_KEY olarak tanımlanır.
 """
 
 import logging
 from typing import Optional
 
-import httpx
+from groq import Groq
 
 from app.config import settings
 
@@ -14,19 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 class WhisperServiceError(Exception):
-    """Whisper API hatası."""
+    """Transkripsiyon API hatası."""
     pass
 
 
 class WhisperService:
-    """OpenAI Whisper API client."""
+    """Groq Whisper API client (whisper-large-v3)."""
 
-    def __init__(self):
-        self.api_key = settings.OPENAI_API_KEY
-        self.api_url = "https://api.openai.com/v1/audio/transcriptions"
-        self.model = settings.OPENAI_WHISPER_MODEL
-        self.language = settings.OPENAI_WHISPER_LANGUAGE
-        self.timeout = 10  # seconds
+    def __init__(self) -> None:
+        self.api_key = settings.GROQ_API_KEY
+        self.model = settings.GROQ_WHISPER_MODEL
+        self.language = settings.GROQ_WHISPER_LANGUAGE
+        self.timeout = 10  # saniye
 
     async def transcribe(
         self,
@@ -35,64 +35,52 @@ class WhisperService:
         timeout: Optional[int] = None
     ) -> str:
         """
-        Ses dosyasını metne çevirir.
+        Ses dosyasını metne çevirir (Groq whisper-large-v3).
 
         Args:
-            audio_path: Ses dosyası yolu
-            language: Dil kodu (default: "tr" for Turkish)
-            timeout: Request timeout (saniye)
+            audio_path: Ses dosyası yolu (M4A, WAV, MP3 vb.)
+            language: Dil kodu (varsayılan: "tr")
+            timeout: İstek zaman aşımı (saniye)
 
         Returns:
-            Transcribed text
+            Transkribe edilmiş metin
 
         Raises:
-            WhisperServiceError: Transcription başarısız olursa
+            WhisperServiceError: Transkripsiyon başarısız olursa
         """
         if not self.api_key:
-            raise WhisperServiceError("OpenAI API key yapılandırılmamış")
+            raise WhisperServiceError("GROQ_API_KEY yapılandırılmamış")
 
-        timeout = timeout or self.timeout
-        language = language or self.language
+        lang = language or self.language
 
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                with open(audio_path, "rb") as audio_file:
-                    response = await client.post(
-                        self.api_url,
-                        headers={"Authorization": f"Bearer {self.api_key}"},
-                        files={"file": audio_file},
-                        data={
-                            "model": self.model,
-                            "language": language,
-                            "response_format": "text"
-                        }
-                    )
+            client = Groq(api_key=self.api_key, timeout=timeout or self.timeout)
+            with open(audio_path, "rb") as audio_file:
+                response = client.audio.transcriptions.create(
+                    file=audio_file,
+                    model=self.model,
+                    language=lang,
+                    response_format="text",
+                )
 
-                if response.status_code != 200:
-                    error_detail = response.text
-                    logger.error("Whisper API error: %s", error_detail)
-                    raise WhisperServiceError(f"Whisper API error: {error_detail}")
+            if hasattr(response, "text"):
+                text = response.text.strip()
+            else:
+                text = str(response).strip()
 
-                transcription = response.text.strip()
-                logger.info("Whisper transcription başarılı: %d karakter", len(transcription))
-                return transcription
+            logger.info("Groq Whisper transkripsiyon başarılı: %d karakter", len(text))
+            return text
 
-        except httpx.TimeoutException:
-            logger.error("Whisper API timeout")
-            raise WhisperServiceError("Whisper API timeout")
-        except WhisperServiceError:
-            raise
         except Exception as exc:
-            logger.error("Whisper transcription hatası: %s", exc)
-            raise WhisperServiceError(f"Whisper transcription failed: {str(exc)}")
+            logger.error("Groq transkripsiyon hatası: %s", exc)
+            raise WhisperServiceError(f"Groq transcription failed: {str(exc)}")
 
 
-# Singleton instance
 _whisper_service: Optional[WhisperService] = None
 
 
 def get_whisper_service() -> WhisperService:
-    """Whisper service singleton döndürür."""
+    """Transkripsiyon servisi singleton döndürür (Groq)."""
     global _whisper_service
     if _whisper_service is None:
         _whisper_service = WhisperService()

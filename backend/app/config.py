@@ -64,10 +64,15 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = ""
 
-    # ── OpenAI (Whisper for S.O.S Voice) ──
+    # ── OpenAI (Whisper for S.O.S Voice) — DEPRECATED: Groq kullanılıyor ──
     OPENAI_API_KEY: str = ""
     OPENAI_WHISPER_MODEL: str = "whisper-1"
     OPENAI_WHISPER_LANGUAGE: str = "tr"
+
+    # ── Groq (S.O.S ses → metin, whisper-large-v3) ──
+    GROQ_API_KEY: str = ""
+    GROQ_WHISPER_MODEL: str = "whisper-large-v3"
+    GROQ_WHISPER_LANGUAGE: str = "tr"
 
     # ── Anthropic Claude (NLP for S.O.S Voice) ──
     ANTHROPIC_API_KEY: str = ""

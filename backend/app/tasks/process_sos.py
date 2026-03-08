@@ -1,6 +1,6 @@
 """
 S.O.S ses kaydı işleme Celery task'ı.
-Asenkron olarak Whisper + LLM + DB + Notification pipeline'ını çalıştırır.
+Asenkron olarak Groq Whisper + LLM + DB + Notification pipeline'ını çalıştırır.
 """
 
 import logging
@@ -35,7 +35,7 @@ def process_sos_audio_task(
     """
     S.O.S ses kaydını işler:
     1. Ses dosyasını storage'a kaydet
-    2. Whisper ile transcribe et
+    2. Groq Whisper ile transcribe et
     3. LLM ile structured data çıkar
     4. Database'e kaydet
     5. Emergency contacts'a bildirim gönder
@@ -78,7 +78,7 @@ def process_sos_audio_task(
         try:
             import asyncio
             transcription = asyncio.run(whisper.transcribe(audio_path, timeout=10))
-            logger.info("Whisper transcription başarılı: %d karakter", len(transcription))
+            logger.info("Groq Whisper transkripsiyon başarılı: %d karakter", len(transcription))
         except WhisperServiceError as exc:
             logger.warning("Whisper hatası, fallback kullanılıyor: %s", exc)
             return _handle_whisper_failure(
@@ -210,6 +210,7 @@ def _send_emergency_alerts(
                 "kisi_sayisi": extracted_data["kisi_sayisi"],
                 "aciliyet": extracted_data["aciliyet"],
                 "lokasyon": extracted_data["lokasyon"],
+                "orijinal_metin": sos_record.orijinal_metin or "",
                 "audio_url": audio_url,
                 "user_email": user.email,
             }
@@ -219,6 +220,7 @@ def _send_emergency_alerts(
                 "Kişi Sayısı: {kisi_sayisi}\n"
                 "Aciliyet: {aciliyet}\n"
                 "Konum: {lokasyon}\n"
+                "Ses mesajı metni: {orijinal_metin}\n"
                 "Ses Kaydı: {audio_url}\n"
                 "Gönderen: {user_email}"
             )
