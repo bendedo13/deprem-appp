@@ -7,12 +7,14 @@ Tüm router'ları, middleware ve lifespan yönetir.
 
 import logging
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException
 
 from app.config import settings
 from app.core.redis import get_redis, close_redis
@@ -61,12 +63,39 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
+def _error_body(detail: str, code: Optional[str] = None) -> dict:
+    """Standart hata JSON: ok=False, detail."""
+    return {"ok": False, "detail": detail, **({"code": code} if code else {})}
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Tüm HTTPException yanıtlarını standart JSON formata sokar."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_error_body(detail=exc.detail if isinstance(exc.detail, str) else str(exc.detail)),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Pydantic doğrulama hatalarını standart formatta döner."""
+    errors = exc.errors()
+    detail = "; ".join(
+        f"{e.get('loc', ())[-1]}: {e.get('msg', '')}" for e in errors[:3]
+    ) or "Geçersiz istek verisi."
+    return JSONResponse(
+        status_code=422,
+        content=_error_body(detail=detail, code="validation_error"),
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Beklenmeyen hata: %s %s — %s", request.method, request.url.path, exc, exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Sunucu hatası. Lütfen daha sonra tekrar deneyin."},
+        content=_error_body(detail="Sunucu hatası. Lütfen daha sonra tekrar deneyin."),
     )
 
 

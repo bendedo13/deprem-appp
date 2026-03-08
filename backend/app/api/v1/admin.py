@@ -19,22 +19,14 @@ from app.models.seismic_report import SeismicReport
 from app.models.notification_pref import NotificationPref
 from app.models.notification_log import NotificationLog
 from app.models.app_settings import AppSettings, DEFAULT_SETTINGS
-from app.api.v1.users import get_current_user
+from app.dependencies import get_current_user, get_admin_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 # ─── Admin Dependency ─────────────────────────────────────────────────────────
-
-async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
-    """JWT doğrulamasına ek olarak is_admin kontrolü yapar."""
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Bu endpoint yalnızca admin kullanıcılara açıktır.",
-        )
-    return current_user
+# get_admin_user artık app.dependencies'tan import ediliyor.
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────

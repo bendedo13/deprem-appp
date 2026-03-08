@@ -59,7 +59,7 @@ import { startCriticalAlarm } from "../../src/services/criticalAlarmService";
 function ratioColor(ratio: number): string {
     if (ratio >= TRIGGER_RATIO) return Colors.danger;
     if (ratio >= TRIGGER_RATIO * 0.7) return Colors.accent;
-    if (ratio >= TRIGGER_RATIO * 0.4) return "#ca8a04";
+    if (ratio >= TRIGGER_RATIO * 0.4) return Colors.semantic?.warningAmber ?? Colors.status.warning;
     return Colors.primary;
 }
 
@@ -981,8 +981,8 @@ const styles = StyleSheet.create({
         zIndex: 9999,
         ...Shadows.lg,
     },
-    toastSuccess: { backgroundColor: "#065f46" },
-    toastError: { backgroundColor: "#7f1d1d" },
+    toastSuccess: { backgroundColor: Colors.semantic?.toastSuccess ?? Colors.status.success },
+    toastError: { backgroundColor: Colors.semantic?.toastError ?? Colors.danger },
     toastText: { color: "#fff", fontSize: Typography.sizes.sm, fontWeight: "700", flex: 1 },
 
     // ── Header ──

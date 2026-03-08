@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.services.risk_calculator import RiskCalculator, RiskResult
 from app.services.report_generator import RiskReportGenerator
-from app.api.v1.users import get_current_user
+from app.dependencies import get_current_user
 from app.models.user import User
 
 logger = logging.getLogger(__name__)

@@ -49,7 +49,7 @@ const TOTAL_POSSIBLE = Object.values(CHECKLIST_POINT_MAP).reduce((a, b) => a + b
 function magnitudeColor(mag: number): string {
     if (mag >= 6) return Colors.danger;
     if (mag >= 5) return Colors.accent;
-    if (mag >= 4) return "#ca8a04";
+    if (mag >= 4) return Colors.semantic.warningAmber;
     if (mag >= 3) return Colors.primary;
     return Colors.text.muted;
 }
@@ -321,7 +321,7 @@ export default function DashboardScreen() {
                         isConnected && { transform: [{ scale: pulseAnim }] },
                     ]} />
                     <Text style={[styles.statusChipText, { color: isConnected ? Colors.primary : Colors.text.muted }]}>
-                        {isConnected ? "CANLI" : "BAĞLANTI KESİLDİ"}
+                        {isConnected ? t("home.live").toUpperCase() : t("home.disconnected").toUpperCase()}
                     </Text>
                     {isStale && (
                         <Text style={styles.staleTag}> · ÖNBELLEKTEN</Text>

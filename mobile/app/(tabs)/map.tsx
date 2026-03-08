@@ -27,7 +27,7 @@ import { SOURCE_META } from "../../src/types/earthquake";
 function magnitudeColor(m: number): string {
     if (m >= 6) return Colors.danger;
     if (m >= 5) return Colors.accent;
-    if (m >= 4) return "#ca8a04";
+    if (m >= 4) return Colors.semantic?.warningAmber ?? Colors.status.warning;
     return Colors.primary;
 }
 
@@ -43,6 +43,7 @@ function timeAgo(date: Date): string {
 
 function SourceBadge({ source }: { source: EarthquakeSource }) {
     const meta = SOURCE_META[source];
+    if (!meta) return null;
     return (
         <View style={[styles.badge, { backgroundColor: meta.bg, borderColor: meta.color + "60" }]}>
             <View style={[styles.badgeDot, { backgroundColor: meta.color }]} />
@@ -125,10 +126,11 @@ export default function MapScreen() {
     } = useLiveEarthquakes();
 
     // Apply source + region filter
-    const filtered = earthquakes.filter((q) => {
+    const filtered = (earthquakes ?? []).filter((q) => {
         if (activeFilter !== "ALL" && q.source !== activeFilter) return false;
         if (regionFilter === "TR") {
-            const { latitude, longitude } = q.coordinates;
+            const { latitude, longitude } = q.coordinates ?? {};
+            if (latitude == null || longitude == null) return false;
             if (latitude < 35.5 || latitude > 42.5 || longitude < 25.5 || longitude > 45) return false;
         }
         return true;
@@ -167,7 +169,7 @@ export default function MapScreen() {
                     onPress={() => setRegionFilter("ALL")}
                     activeOpacity={0.7}
                 >
-                    <MaterialCommunityIcons name="earth" size={14} color={regionFilter === "ALL" ? "#fff" : Colors.text.muted} />
+                    <MaterialCommunityIcons name="earth" size={14} color={regionFilter === "ALL" ? Colors.background.onPrimary : Colors.text.muted} />
                     <Text style={[styles.regionBtnText, regionFilter === "ALL" && styles.regionBtnTextActive]}>Global</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -175,7 +177,7 @@ export default function MapScreen() {
                     onPress={() => setRegionFilter("TR")}
                     activeOpacity={0.7}
                 >
-                    <MaterialCommunityIcons name="flag" size={14} color={regionFilter === "TR" ? "#fff" : Colors.text.muted} />
+                    <MaterialCommunityIcons name="flag" size={14} color={regionFilter === "TR" ? Colors.background.onPrimary : Colors.text.muted} />
                     <Text style={[styles.regionBtnText, regionFilter === "TR" && styles.regionBtnTextActive]}>Türkiye</Text>
                 </TouchableOpacity>
             </View>

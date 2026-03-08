@@ -16,9 +16,10 @@ export const Colors = {
     background: {
         light: '#f0f4f8',
         dark: '#0a0e17',       // Deep Navy
-        surface: '#111827',    // Glassmorphism kart tabani
-        elevated: '#1f2937',   // Yukseltiimis yuzey
+        surface: '#111827',   // Glassmorphism kart tabani
+        elevated: '#1f2937',  // Yukseltiimis yuzey
         glass: 'rgba(17, 24, 39, 0.7)',  // Glassmorphism efekti
+        onPrimary: '#ffffff',  // Beyaz (primary üzerinde metin)
     },
     text: {
         light: '#0F172A',
@@ -32,6 +33,14 @@ export const Colors = {
         danger: '#DC2626',
         info: '#3B82F6',
         critical: '#EF4444',
+    },
+    // QuakeSense semantik — Toast/Snackbar, bağlantı durumu
+    semantic: {
+        toastSuccess: '#065f46',
+        toastError: '#7f1d1d',
+        warningAmber: '#ca8a04',
+        liveBadge: '#10B981',
+        disconnectedBadge: '#6B7280',
     },
     border: {
         light: '#E2E8F0',

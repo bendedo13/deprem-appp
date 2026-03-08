@@ -104,6 +104,9 @@ export default function ChatScreen() {
                         keyExtractor={(item) => item.id}
                         renderItem={renderItem}
                         contentContainerStyle={styles.listContent}
+                        initialNumToRender={15}
+                        maxToRenderPerBatch={10}
+                        windowSize={7}
                         ListEmptyComponent={
                             <View style={styles.empty}>
                                 <MaterialCommunityIcons name="chat-outline" size={48} color={Colors.text.muted} />
@@ -128,7 +131,7 @@ export default function ChatScreen() {
                         onPress={handleSend}
                         disabled={!input.trim()}
                     >
-                        <MaterialCommunityIcons name="send" size={22} color="#fff" />
+                        <MaterialCommunityIcons name="send" size={22} color={Colors.background.onPrimary} />
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
