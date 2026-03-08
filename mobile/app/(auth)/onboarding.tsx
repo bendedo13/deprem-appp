@@ -1,6 +1,6 @@
 /**
- * Professional Onboarding - Hos Geldin + Izin Talepleri
- * 4 slaytli karsilama ekrani + izin adimlari
+ * Onboarding — Karşılama + 4 Kritik İzin Kartı (UX/Settings)
+ * İzin Ver → ilgili sistem ayarına yönlendirir. Eksik izinle ana ekrana geçiş uyarı ile kısıtlanır.
  */
 
 import { useState, useRef } from "react";
@@ -13,193 +13,168 @@ import {
     Alert,
     Platform,
     Animated,
-    Linking,
     useWindowDimensions,
+    Linking,
 } from "react-native";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import * as Location from "expo-location";
-import * as Notifications from "expo-notifications";
-
-const ONBOARDING_KEY = "onboarding_complete";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
+import {
+    openPermissionSystemScreen,
+    hasCriticalPermissionsForWarning,
+    type PermissionId,
+} from "../../src/services/permissionService";
 
-interface Slide {
+const ONBOARDING_KEY = "onboarding_complete";
+
+interface PermissionSlide {
     id: string;
-    type: "welcome" | "permission";
+    permissionId: PermissionId;
     icon: string;
     iconColor: string;
     iconBg: string;
-    accentColor: string;
     badge: string;
     title: string;
     description: string;
     buttonText: string;
-    skipText: string;
     metric?: { value: string; label: string };
-    permissionId?: "location" | "notifications" | "sensor";
-    stats?: Array<{ value: string; label: string }>;
 }
 
-const SLIDES: Slide[] = [
-    {
-        id: "welcome",
-        type: "welcome",
-        icon: "shield-check",
-        iconColor: Colors.primary,
-        iconBg: "rgba(16, 185, 129, 0.12)",
-        accentColor: Colors.primary,
-        badge: "Yapay Zeka Destekli",
-        title: "QuakeSense'e\nHoş Geldiniz",
-        description:
-            "Türkiye'nin en gelişmiş deprem erken uyarı sistemi. Hayatınızı ve sevdiklerinizi korumak için buradayız.",
-        buttonText: "Keşfet",
-        skipText: "Atla",
-        stats: [
-            { value: "0.3s", label: "Uyarı Hızı" },
-            { value: "3", label: "Resmi Kaynak" },
-            { value: "%99.7", label: "Doğruluk" },
-        ],
-    },
-    {
-        id: "earlywarning",
-        type: "welcome",
-        icon: "broadcast",
-        iconColor: Colors.accent,
-        iconBg: "rgba(249, 115, 22, 0.12)",
-        accentColor: Colors.accent,
-        badge: "Erken Uyarı Sistemi",
-        title: "Yıkıcı Dalgadan\nÖnce Uyarılın",
-        description:
-            "Telefonunuzun sensörleri ile P-dalgasını tespit ederiz. Yıkıcı S-dalgası gelmeden saniyeler önce sizi uyararak tahliye sürenizi artırırız.",
-        buttonText: "Devam Et",
-        skipText: "Atla",
-        metric: { value: "8-12s", label: "Tahliye Süresi Kazanımı" },
-    },
-    {
-        id: "datasources",
-        type: "welcome",
-        icon: "database-check",
-        iconColor: Colors.status.info,
-        iconBg: "rgba(59, 130, 246, 0.12)",
-        accentColor: Colors.status.info,
-        badge: "Resmi Veri Kaynakları",
-        title: "Güvenilir\nResmi Veriler",
-        description:
-            "AFAD, Kandilli Rasathanesi ve USGS'den anlık veri alıyoruz. Hiçbir şey doğrulanmadan size ulaşmıyor.",
-        buttonText: "Harika!",
-        skipText: "Atla",
-        stats: [
-            { value: "AFAD", label: "T.C. Resmi" },
-            { value: "KRİBO", label: "Kandilli" },
-            { value: "USGS", label: "Uluslararası" },
-        ],
-    },
+const PERMISSION_SLIDES: PermissionSlide[] = [
     {
         id: "location",
-        type: "permission",
-        permissionId: "location",
+        permissionId: "location_always",
         icon: "crosshairs-gps",
         iconColor: Colors.primary,
         iconBg: "rgba(16, 185, 129, 0.12)",
-        accentColor: Colors.primary,
-        badge: "Gerekli İzin",
-        title: "Hassas Konum\nErişimi",
+        badge: "Kritik İzin",
+        title: "Konum İzni\n(Her Zaman)",
         description:
-            "Konumunuza en yakın depremleri filtreleyerek gereksiz bildirimleri engelliyoruz. Aile güvenlik ağınız için de konum şart.",
-        buttonText: "Konumu Etkinleştir",
-        skipText: "Şimdi Değil",
-        metric: { value: "<2km", label: "Konum Hassasiyeti" },
+            "Arka planda konum takibi ile deprem anında acil kişilerinize konumunuz iletilsin. Yakın deprem uyarıları için gereklidir.",
+        buttonText: "İzin Ver",
+        metric: { value: "Arka plan", label: "Sürekli konum" },
     },
     {
         id: "battery",
-        type: "permission",
-        permissionId: "sensor",
+        permissionId: "battery_optimization",
         icon: "battery-charging",
-        iconColor: "#f59e0b",
+        iconColor: "#F59E0B",
         iconBg: "rgba(245, 158, 11, 0.12)",
-        accentColor: "#f59e0b",
-        badge: "Arka Plan Çalışması",
+        badge: "Android",
         title: "Pil Optimizasyonunu\nDevre Dışı Bırak",
         description:
-            "Deprem anında hızlı uyarı alabilmek için uygulamanın arka planda kesintisiz çalışması gerekir. Pil optimizasyonunu kapatın.",
+            "Uygulamanın uyutulmaması için pil optimizasyonundan QuakeSense'i çıkarın. Deprem anında kesintisiz uyarı alırsınız.",
         buttonText: "Ayarları Aç",
-        skipText: "Atla",
-        metric: { value: "7/24", label: "Kesintisiz Koruma" },
+        metric: { value: "7/24", label: "Kesintisiz koruma" },
     },
+    {
+        id: "sensor",
+        permissionId: "sensor_activity",
+        icon: "motion-sensor",
+        iconColor: Colors.status.info,
+        iconBg: "rgba(59, 130, 246, 0.12)",
+        badge: "Sensör",
+        title: "Fiziksel Aktivite / Sensör",
+        description:
+            "İvmeölçer verisi için hareket/aktivite izni. Erken uyarı sensörü bu veriyle çalışır.",
+        buttonText: "Ayarları Aç",
+        metric: { value: "İvmeölçer", label: "STA/LTA algılama" },
+    },
+    {
+        id: "notification",
+        permissionId: "critical_notification",
+        icon: "bell-ring",
+        iconColor: Colors.danger,
+        iconBg: "rgba(220, 38, 38, 0.12)",
+        badge: "Kritik Bildirim",
+        title: "Öncelikli / Kritik Bildirim",
+        description:
+            "Rahatsız Etmeyin modunu delmek için bildirim izni gerekir. Deprem uyarısı sessizde bile çalar.",
+        buttonText: "İzin Ver",
+        metric: { value: "DND bypass", label: "Tam ses" },
+    },
+];
+
+const WELCOME_SLIDES = [
+    {
+        id: "welcome",
+        type: "welcome" as const,
+        icon: "shield-check",
+        iconColor: Colors.primary,
+        iconBg: "rgba(16, 185, 129, 0.12)",
+        badge: "Yapay Zeka Destekli",
+        title: "QuakeSense'e\nHoş Geldiniz",
+        description:
+            "Türkiye'nin deprem erken uyarı sistemi. Hayatınızı ve sevdiklerinizi korumak için 4 kritik izni verin.",
+        buttonText: "Başla",
+        skipText: "Atla",
+        stats: [
+            { value: "0.3s", label: "Uyarı Hızı" },
+            { value: "4", label: "Kritik İzin" },
+            { value: "%99.7", label: "Doğruluk" },
+        ],
+    },
+];
+
+type SlideItem =
+    | (typeof WELCOME_SLIDES)[0]
+    | (PermissionSlide & { type: "permission" });
+
+const ALL_SLIDES: SlideItem[] = [
+    ...WELCOME_SLIDES,
+    ...PERMISSION_SLIDES.map((s) => ({ ...s, type: "permission" as const })),
 ];
 
 export default function OnboardingScreen() {
     const { width, height } = useWindowDimensions();
     const isSmallScreen = height < 700;
-    const iconOuterSize = isSmallScreen ? 120 : 152;
-    const iconInnerSize = isSmallScreen ? 82 : 104;
-    const iconIconSize = isSmallScreen ? 38 : 48;
+    const iconSize = isSmallScreen ? 100 : 128;
     const [currentStep, setCurrentStep] = useState(0);
     const flatListRef = useRef<FlatList>(null);
     const fadeAnim = useRef(new Animated.Value(1)).current;
 
-    async function handleAction() {
-        const slide = SLIDES[currentStep];
-
-        if (slide.type === "permission") {
-            if (slide.permissionId === "location") {
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== "granted") {
-                    Alert.alert(
-                        "Konum İzni",
-                        "Konum izni olmadan yakın deprem uyarıları alınamaz. Ayarlardan açabilirsiniz.",
-                        [{ text: "Tamam", onPress: () => requestNotificationsThenNext() }]
-                    );
-                    return;
-                }
-                requestNotificationsThenNext();
-                return;
-            }
-
-            if (slide.permissionId === "sensor") {
-                // Battery optimization — Android ayarlarına yönlendir
-                if (Platform.OS === "android") {
-                    try {
-                        await Linking.openURL("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS");
-                    } catch {
-                        await Linking.openSettings();
-                    }
-                }
-                finishOnboarding();
-                return;
-            }
-        }
-
-        goNext();
-    }
-
-    async function requestNotificationsThenNext() {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== "granted") {
-            Alert.alert("Bildirim İzni", "Deprem bildirimlerini almak için izin gereklidir.");
-        }
-        // iOS'ta pil optimizasyonu yok — doğrudan bitir
-        if (Platform.OS === "ios") {
-            finishOnboarding();
+    async function finishOnboarding() {
+        const { ok, missing } = await hasCriticalPermissionsForWarning();
+        if (!ok && missing.length > 0) {
+            Alert.alert(
+                "Önerilen İzinler Verilmedi",
+                `Şu izinler henüz verilmedi: ${missing.join(", ")}. Ana ekrana geçmek istiyor musunuz?`,
+                [
+                    { text: "Yine de Devam Et", onPress: () => saveAndGoToLogin() },
+                    { text: "Ayarlara Git", onPress: () => Linking.openSettings() },
+                ]
+            );
             return;
         }
-        goNext(); // Android: pil optimizasyonu slide'ına geç
+        await saveAndGoToLogin();
     }
 
-    async function finishOnboarding() {
+    async function saveAndGoToLogin() {
         await SecureStore.setItemAsync(ONBOARDING_KEY, "true");
         router.replace("/(auth)/login");
     }
 
-    async function goNext() {
-        if (currentStep < SLIDES.length - 1) {
+    async function handlePrimaryButton() {
+        const slide = ALL_SLIDES[currentStep];
+        if ("type" in slide && slide.type === "permission") {
+            await openPermissionSystemScreen(slide.permissionId);
+            if (currentStep >= ALL_SLIDES.length - 1) {
+                finishOnboarding();
+            } else {
+                goNext();
+            }
+            return;
+        }
+        goNext();
+    }
+
+    function goNext() {
+        if (currentStep < ALL_SLIDES.length - 1) {
             Animated.sequence([
                 Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
                 Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
             ]).start();
-
             const next = currentStep + 1;
             setCurrentStep(next);
             flatListRef.current?.scrollToIndex({ index: next, animated: true });
@@ -208,44 +183,80 @@ export default function OnboardingScreen() {
         }
     }
 
-    function renderSlide({ item }: { item: Slide }) {
+    function renderSlide({ item }: { item: SlideItem }) {
+        const isWelcome = "type" in item && item.type === "welcome";
+        const isPermission = "type" in item && item.type === "permission";
+        const permSlide = isPermission ? (item as PermissionSlide & { type: "permission" }) : null;
+
         return (
             <View style={[styles.slide, { width }]}>
                 <View style={styles.slideContent}>
-                    {/* Icon Container */}
-                    <View style={[styles.iconOuter, { backgroundColor: item.iconBg, width: iconOuterSize, height: iconOuterSize, borderRadius: iconOuterSize / 2 }]}>
-                        <View style={[styles.iconInner, { borderColor: item.iconColor + "30", backgroundColor: item.iconBg, width: iconInnerSize, height: iconInnerSize, borderRadius: iconInnerSize / 2 }]}>
-                            <MaterialCommunityIcons name={item.icon as any} size={iconIconSize} color={item.iconColor} />
+                    <View
+                        style={[
+                            styles.iconOuter,
+                            {
+                                backgroundColor: item.iconBg,
+                                width: iconSize,
+                                height: iconSize,
+                                borderRadius: iconSize / 2,
+                            },
+                        ]}
+                    >
+                        <View
+                            style={[
+                                styles.iconInner,
+                                {
+                                    borderColor: item.iconColor + "40",
+                                    backgroundColor: item.iconBg,
+                                    width: iconSize * 0.7,
+                                    height: iconSize * 0.7,
+                                    borderRadius: iconSize * 0.35,
+                                },
+                            ]}
+                        >
+                            <MaterialCommunityIcons
+                                name={item.icon as "shield-check"}
+                                size={iconSize * 0.4}
+                                color={item.iconColor}
+                            />
                         </View>
-                        {/* Pulse ring */}
-                        <View style={[styles.iconPulse, { borderColor: item.iconColor + "15", width: iconOuterSize, height: iconOuterSize, borderRadius: iconOuterSize / 2 }]} />
                     </View>
 
-                    {/* Badge */}
-                    <View style={[styles.badge, { borderColor: item.accentColor + "40", backgroundColor: item.accentColor + "10" }]}>
-                        <View style={[styles.badgeDot, { backgroundColor: item.accentColor }]} />
-                        <Text style={[styles.badgeText, { color: item.accentColor }]}>{item.badge}</Text>
+                    <View
+                        style={[
+                            styles.badge,
+                            {
+                                borderColor: item.iconColor + "40",
+                                backgroundColor: item.iconColor + "12",
+                            },
+                        ]}
+                    >
+                        <View style={[styles.badgeDot, { backgroundColor: item.iconColor }]} />
+                        <Text style={[styles.badgeText, { color: item.iconColor }]}>{item.badge}</Text>
                     </View>
 
-                    {/* Title */}
                     <Text style={styles.title}>{item.title}</Text>
-
-                    {/* Description */}
                     <Text style={styles.description}>{item.description}</Text>
 
-                    {/* Metric or Stats */}
-                    {item.metric && (
-                        <View style={[styles.metricCard, { borderColor: item.accentColor + "30" }]}>
-                            <Text style={[styles.metricValue, { color: item.accentColor }]}>{item.metric.value}</Text>
-                            <Text style={styles.metricLabel}>{item.metric.label}</Text>
+                    {permSlide?.metric && (
+                        <View style={[styles.metricCard, { borderColor: item.iconColor + "30" }]}>
+                            <Text style={[styles.metricValue, { color: item.iconColor }]}>
+                                {permSlide.metric.value}
+                            </Text>
+                            <Text style={styles.metricLabel}>{permSlide.metric.label}</Text>
                         </View>
                     )}
 
-                    {item.stats && (
+                    {isWelcome && "stats" in item && item.stats && (
                         <View style={styles.statsRow}>
-                            {item.stats.map((stat, i) => (
-                                <View key={i} style={[styles.statItem, { borderColor: item.accentColor + "25" }]}>
-                                    <Text style={[styles.statValue, { color: item.accentColor }]}>{stat.value}</Text>
+                            {item.stats.map((stat: { value: string; label: string }, i: number) => (
+                                <View
+                                    key={i}
+                                    style={[styles.statItem, { borderColor: item.iconColor + "25" }]}
+                                >
+                                    <Text style={[styles.statValue, { color: item.iconColor }]}>
+                                        {stat.value}
+                                    </Text>
                                     <Text style={styles.statLabel}>{stat.label}</Text>
                                 </View>
                             ))}
@@ -256,20 +267,22 @@ export default function OnboardingScreen() {
         );
     }
 
-    const currentSlide = SLIDES[currentStep];
+    const currentSlide = ALL_SLIDES[currentStep];
+    const accentColor = currentSlide.iconColor;
+    const isLastStep = currentStep === ALL_SLIDES.length - 1;
+    const isPermissionStep = "type" in currentSlide && currentSlide.type === "permission";
 
     return (
         <View style={styles.container}>
-            {/* Header: Progress + Skip */}
             <View style={styles.topBar}>
                 <View style={styles.progressBar}>
-                    {SLIDES.map((_, i) => (
+                    {ALL_SLIDES.map((_, i) => (
                         <View
                             key={i}
                             style={[
                                 styles.progressSegment,
                                 {
-                                    backgroundColor: i <= currentStep ? currentSlide.accentColor : Colors.background.elevated,
+                                    backgroundColor: i <= currentStep ? accentColor : Colors.background.elevated,
                                     flex: 1,
                                 },
                             ]}
@@ -281,11 +294,10 @@ export default function OnboardingScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* Slides */}
             <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
                 <FlatList
                     ref={flatListRef}
-                    data={SLIDES}
+                    data={ALL_SLIDES}
                     renderItem={renderSlide}
                     keyExtractor={(item) => item.id}
                     horizontal
@@ -296,37 +308,37 @@ export default function OnboardingScreen() {
                 />
             </Animated.View>
 
-            {/* Footer */}
             <View style={styles.footer}>
-                {/* Dot indicators */}
                 <View style={styles.dots}>
-                    {SLIDES.map((_, i) => (
+                    {ALL_SLIDES.map((_, i) => (
                         <View
                             key={i}
                             style={[
                                 styles.dot,
                                 i === currentStep
-                                    ? [styles.dotActive, { backgroundColor: currentSlide.accentColor, width: 24 }]
+                                    ? [styles.dotActive, { backgroundColor: accentColor, width: 24 }]
                                     : { backgroundColor: Colors.background.elevated },
                             ]}
                         />
                     ))}
                 </View>
 
-                {/* Primary Button */}
                 <TouchableOpacity
-                    style={[styles.primaryBtn, { backgroundColor: currentSlide.accentColor }]}
-                    onPress={handleAction}
+                    style={[styles.primaryBtn, { backgroundColor: accentColor }]}
+                    onPress={handlePrimaryButton}
                     activeOpacity={0.88}
                 >
-                    <MaterialCommunityIcons name={currentSlide.icon as any} size={20} color="#fff" />
-                    <Text style={styles.primaryBtnText}>{currentSlide.buttonText}</Text>
+                    <MaterialCommunityIcons name={currentSlide.icon as "shield-check"} size={20} color="#fff" />
+                    <Text style={styles.primaryBtnText}>
+                        {isPermissionStep ? "İzin Ver" : currentSlide.buttonText}
+                    </Text>
                     <MaterialCommunityIcons name="arrow-right" size={18} color="rgba(255,255,255,0.7)" />
                 </TouchableOpacity>
 
-                {/* Secondary / Skip */}
                 <TouchableOpacity onPress={goNext} style={styles.skipBtn} activeOpacity={0.7}>
-                    <Text style={styles.skipBtnText}>{currentSlide.skipText}</Text>
+                    <Text style={styles.skipBtnText}>
+                        {isLastStep ? "Bitir" : "Atla"}
+                    </Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -339,8 +351,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.background.dark,
         paddingTop: Platform.OS === "android" ? 44 : 54,
     },
-
-    // Top bar
     topBar: {
         flexDirection: "row",
         alignItems: "center",
@@ -354,10 +364,7 @@ const styles = StyleSheet.create({
         gap: 6,
         height: 3,
     },
-    progressSegment: {
-        height: 3,
-        borderRadius: 2,
-    },
+    progressSegment: { height: 3, borderRadius: 2 },
     skipTopBtn: {
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -371,45 +378,22 @@ const styles = StyleSheet.create({
         fontSize: Typography.sizes.sm,
         fontWeight: "700",
     },
-
-    // Slide
-    slide: {
-        flex: 1,
-        justifyContent: "center",
-    },
+    slide: { flex: 1, justifyContent: "center" },
     slideContent: {
         paddingHorizontal: Spacing.xl,
         alignItems: "center",
         paddingBottom: Spacing.lg,
     },
-
-    // Icon
     iconOuter: {
-        width: 160,
-        height: 160,
-        borderRadius: 80,
         justifyContent: "center",
         alignItems: "center",
         marginBottom: Spacing.xl,
-        position: "relative",
     },
     iconInner: {
-        width: 110,
-        height: 110,
-        borderRadius: 55,
         borderWidth: 2,
         justifyContent: "center",
         alignItems: "center",
     },
-    iconPulse: {
-        position: "absolute",
-        width: 160,
-        height: 160,
-        borderRadius: 80,
-        borderWidth: 1,
-    },
-
-    // Badge
     badge: {
         flexDirection: "row",
         alignItems: "center",
@@ -427,27 +411,22 @@ const styles = StyleSheet.create({
         textTransform: "uppercase",
         letterSpacing: 1.2,
     },
-
-    // Text
     title: {
-        fontSize: 28,
+        fontSize: 26,
         fontWeight: "900",
         color: Colors.text.dark,
         textAlign: "center",
-        letterSpacing: -0.5,
-        lineHeight: 36,
+        lineHeight: 34,
         marginBottom: Spacing.md,
     },
     description: {
         fontSize: Typography.sizes.md,
         color: Colors.text.muted,
         textAlign: "center",
-        lineHeight: 25,
+        lineHeight: 24,
         maxWidth: 340,
         marginBottom: Spacing.xl,
     },
-
-    // Metric
     metricCard: {
         backgroundColor: Colors.background.surface,
         borderWidth: 1,
@@ -458,9 +437,8 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.sm,
     },
     metricValue: {
-        fontSize: Typography.sizes.xxxl,
+        fontSize: Typography.sizes.xl,
         fontWeight: "900",
-        letterSpacing: -1,
     },
     metricLabel: {
         fontSize: Typography.sizes.xs,
@@ -470,13 +448,7 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
         marginTop: 4,
     },
-
-    // Stats
-    statsRow: {
-        flexDirection: "row",
-        gap: Spacing.sm,
-        marginBottom: Spacing.sm,
-    },
+    statsRow: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.sm },
     statItem: {
         flex: 1,
         backgroundColor: Colors.background.surface,
@@ -485,11 +457,7 @@ const styles = StyleSheet.create({
         padding: Spacing.md,
         alignItems: "center",
     },
-    statValue: {
-        fontSize: Typography.sizes.lg,
-        fontWeight: "900",
-        letterSpacing: -0.5,
-    },
+    statValue: { fontSize: Typography.sizes.lg, fontWeight: "900" },
     statLabel: {
         fontSize: 9,
         color: Colors.text.muted,
@@ -498,8 +466,6 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
         marginTop: 2,
     },
-
-    // Footer
     footer: {
         paddingHorizontal: Spacing.xl,
         paddingBottom: Platform.OS === "android" ? Spacing.xxl : Spacing.xxxl,
@@ -512,15 +478,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginBottom: Spacing.sm,
     },
-    dot: {
-        height: 6,
-        width: 6,
-        borderRadius: 3,
-    },
-    dotActive: {
-        height: 6,
-        borderRadius: 3,
-    },
+    dot: { height: 6, width: 6, borderRadius: 3 },
+    dotActive: { height: 6, borderRadius: 3 },
     primaryBtn: {
         width: "100%",
         borderRadius: BorderRadius.xl,
@@ -539,9 +498,7 @@ const styles = StyleSheet.create({
         textAlign: "center",
         marginLeft: -28,
     },
-    skipBtn: {
-        paddingVertical: Spacing.xs,
-    },
+    skipBtn: { paddingVertical: Spacing.xs },
     skipBtnText: {
         color: Colors.text.muted,
         fontSize: Typography.sizes.sm,
