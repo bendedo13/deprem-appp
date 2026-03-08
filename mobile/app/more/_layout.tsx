@@ -25,6 +25,10 @@ export default function MoreLayout() {
             <Stack.Screen name="security" options={{ title: "Güvenlik" }} />
             <Stack.Screen name="sos" options={{ title: "Acil SOS" }} />
             <Stack.Screen name="support" options={{ title: "Destek Talebi" }} />
+            <Stack.Screen name="assembly_areas" options={{ title: "Toplanma Alanları" }} />
+            <Stack.Screen name="community" options={{ title: "Bölge Sohbeti" }} />
+            <Stack.Screen name="academy" options={{ title: "Deprem Akademisi" }} />
+            <Stack.Screen name="health_card" options={{ title: "Sağlık Kartım" }} />
         </Stack>
     );
 }

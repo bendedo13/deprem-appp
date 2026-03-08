@@ -140,19 +140,17 @@ export default function MenuScreen() {
                 />
             </View>
 
-            {/* Hazırlık */}
+            {/* Hazırlık & Bilgi */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.preparation") || "Hazırlık"}</Text>
-                <MenuItem
-                    icon="shield-star-outline"
-                    title="Hazırlık Skorum"
-                    href="/more/safety_score"
-                    color={Colors.primary}
-                    badge="Yeni"
-                />
+                <MenuItem icon="school-outline" title="Deprem Akademisi" href="/more/academy" color="#6366f1" badge="Yeni" />
+                <MenuItem icon="map-marker-check-outline" title="Toplanma Alanları" href="/more/assembly_areas" color={Colors.primary} />
+                <MenuItem icon="chat-alert-outline" title="Bölge Sohbeti" href="/more/community" color="#f97316" badge="Yeni" />
+                <MenuItem icon="shield-star-outline" title="Hazırlık Skorum" href="/more/safety_score" color={Colors.primary} />
                 <MenuItem icon="shield-search" title={t("menu.risk_analysis") || "Risk Analizi"} href="/more/risk_analysis" color={Colors.primary} />
                 <MenuItem icon="account-multiple-outline" title={t("menu.emergency_contacts") || "Acil Kişiler"} href="/more/contacts" color={Colors.primary} />
                 <MenuItem icon="briefcase-outline" title={t("menu.survival_kit") || "Deprem Çantası"} href="/more/survival_kit" color="#f59e0b" />
+                <MenuItem icon="heart-pulse" title="Sağlık Kartım" href="/more/health_card" color={Colors.danger} />
             </View>
 
             {/* Hakkımızda */}
@@ -166,17 +164,11 @@ export default function MenuScreen() {
 
             {/* Destek */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t("menu.support") || "Destek"}</Text>
-                <MenuItem
-                    icon="ticket-outline"
-                    title="Destek Talebi Oluştur"
-                    href="/more/support"
-                    color={Colors.primary}
-                    badge="Yeni"
-                />
+                <Text style={styles.sectionTitle}>Destek</Text>
+                <MenuItem icon="ticket-outline" title="Destek Talebi Oluştur" href="/more/support" color={Colors.primary} />
                 <MenuItem icon="share-variant-outline" title={t("menu.share") || "Uygulamayı Paylaş"} onPress={handleShare} />
                 <MenuItem icon="star-outline" title={t("menu.rate") || "Puan Ver"} onPress={handleRate} />
-                <MenuItem icon="logout-variant" title={t("auth.logout") || "Çıkış Yap"} onPress={handleLogout} color={Colors.danger} />
+                <MenuItem icon="logout-variant" title="Çıkış Yap" onPress={handleLogout} color={Colors.danger} />
             </View>
 
             {/* Footer */}

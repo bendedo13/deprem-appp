@@ -1,6 +1,6 @@
 /**
- * Deprem Harita/Liste Ekranı — Çoklu kaynak, filtrelenebilir, skeleton loader.
- * Veri: useLiveEarthquakes (AFAD + USGS + EMSC + Sunucu)
+ * Deprem Harita/Liste Ekranı — TR/Dünya filtreli, koordinatlı, navigasyonlu.
+ * Cihaz dili TR veya konum Türkiye ise otomatik olarak TR modu açılır.
  */
 
 import { useState, useRef, useEffect } from "react";
@@ -14,6 +14,8 @@ import {
     SafeAreaView,
     Platform,
     Animated,
+    Linking,
+    Alert,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -23,6 +25,16 @@ import type { UnifiedEarthquake, EarthquakeSource } from "../../src/types/earthq
 import { SOURCE_META } from "../../src/types/earthquake";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const TURKEY_BOUNDS = { minLat: 35.5, maxLat: 42.5, minLon: 25.5, maxLon: 44.8 };
+
+function isTurkey(eq: UnifiedEarthquake): boolean {
+    const { latitude: lat, longitude: lon } = eq.coordinates;
+    return (
+        lat >= TURKEY_BOUNDS.minLat && lat <= TURKEY_BOUNDS.maxLat &&
+        lon >= TURKEY_BOUNDS.minLon && lon <= TURKEY_BOUNDS.maxLon
+    );
+}
 
 function magnitudeColor(m: number): string {
     if (m >= 6) return Colors.danger;
@@ -34,9 +46,26 @@ function magnitudeColor(m: number): string {
 function timeAgo(date: Date): string {
     const d = Math.floor((Date.now() - date.getTime()) / 1000);
     if (d < 60) return `${d}s`;
-    if (d < 3600) return `${Math.floor(d / 60)}m`;
-    if (d < 86400) return `${Math.floor(d / 3600)}h`;
+    if (d < 3600) return `${Math.floor(d / 60)}d`;
+    if (d < 86400) return `${Math.floor(d / 3600)}s`;
     return `${Math.floor(d / 86400)}g`;
+}
+
+async function openInMaps(eq: UnifiedEarthquake) {
+    const { latitude, longitude } = eq.coordinates;
+    const label = encodeURIComponent(eq.title ?? "Deprem");
+    const googleUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    const appleUrl = `maps://maps.apple.com/?ll=${latitude},${longitude}&q=${label}`;
+    try {
+        if (Platform.OS === "ios") {
+            const canApple = await Linking.canOpenURL(appleUrl);
+            await Linking.openURL(canApple ? appleUrl : googleUrl);
+        } else {
+            await Linking.openURL(googleUrl);
+        }
+    } catch {
+        Alert.alert("Hata", "Harita uygulaması açılamadı.");
+    }
 }
 
 // ─── Source Badge ─────────────────────────────────────────────────────────────
@@ -54,24 +83,14 @@ function SourceBadge({ source }: { source: EarthquakeSource }) {
 // ─── Filter Chip ──────────────────────────────────────────────────────────────
 
 type FilterOption = "ALL" | EarthquakeSource;
+type RegionFilter = "TR" | "WORLD";
 
 function FilterChip({
-    label,
-    active,
-    color,
-    onPress,
-}: {
-    label: string;
-    active: boolean;
-    color: string;
-    onPress: () => void;
-}) {
+    label, active, color, onPress,
+}: { label: string; active: boolean; color: string; onPress: () => void }) {
     return (
         <TouchableOpacity
-            style={[
-                styles.filterChip,
-                active && { backgroundColor: color + "25", borderColor: color + "70" },
-            ]}
+            style={[styles.filterChip, active && { backgroundColor: color + "25", borderColor: color + "70" }]}
             onPress={onPress}
             activeOpacity={0.7}
         >
@@ -112,22 +131,24 @@ function SkeletonGridCard() {
 export default function MapScreen() {
     const { t, i18n } = useTranslation();
     const [selected, setSelected] = useState<UnifiedEarthquake | null>(null);
-    const [activeFilter, setActiveFilter] = useState<FilterOption>("ALL");
+    const [sourceFilter, setSourceFilter] = useState<FilterOption>("ALL");
 
-    const {
-        earthquakes,
-        loading,
-        isConnected,
-        isStale,
-        activeSources,
-        refresh,
-    } = useLiveEarthquakes();
+    // Default: Turkey mode for TR language users
+    const defaultRegion: RegionFilter = i18n.language?.startsWith("tr") ? "TR" : "WORLD";
+    const [regionFilter, setRegionFilter] = useState<RegionFilter>(defaultRegion);
 
-    // Apply source filter
-    const filtered =
-        activeFilter === "ALL"
-            ? earthquakes
-            : earthquakes.filter((q) => q.source === activeFilter);
+    const { earthquakes, loading, isConnected, isStale, activeSources, refresh } = useLiveEarthquakes();
+
+    const regionFiltered = regionFilter === "TR"
+        ? earthquakes.filter(isTurkey)
+        : earthquakes;
+
+    const filtered = sourceFilter === "ALL"
+        ? regionFiltered
+        : regionFiltered.filter((q) => q.source === sourceFilter);
+
+    const trCount = earthquakes.filter(isTurkey).length;
+    const worldCount = earthquakes.filter((q) => !isTurkey(q)).length;
 
     const FILTER_OPTIONS: { key: FilterOption; label: string; color: string }[] = [
         { key: "ALL", label: "Tümü", color: Colors.primary },
@@ -155,21 +176,46 @@ export default function MapScreen() {
                 </TouchableOpacity>
             </View>
 
+            {/* Region Toggle: TR / Dünya */}
+            <View style={styles.regionRow}>
+                <TouchableOpacity
+                    style={[styles.regionBtn, regionFilter === "TR" && styles.regionBtnActiveTR]}
+                    onPress={() => { setRegionFilter("TR"); setSourceFilter("ALL"); }}
+                >
+                    <Text style={styles.regionFlag}>🇹🇷</Text>
+                    <Text style={[styles.regionBtnText, regionFilter === "TR" && styles.regionBtnTextActive]}>
+                        Türkiye
+                    </Text>
+                    <View style={styles.regionCount}>
+                        <Text style={styles.regionCountText}>{trCount}</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.regionBtn, regionFilter === "WORLD" && styles.regionBtnActiveWorld]}
+                    onPress={() => { setRegionFilter("WORLD"); setSourceFilter("ALL"); }}
+                >
+                    <Text style={styles.regionFlag}>🌍</Text>
+                    <Text style={[styles.regionBtnText, regionFilter === "WORLD" && styles.regionBtnTextActive]}>
+                        Dünya
+                    </Text>
+                    <View style={styles.regionCount}>
+                        <Text style={styles.regionCountText}>{worldCount}</Text>
+                    </View>
+                </TouchableOpacity>
+            </View>
+
             {/* Source filter chips */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filterRow}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
                 {FILTER_OPTIONS.filter((f) =>
                     f.key === "ALL" || activeSources.includes(f.key as EarthquakeSource)
                 ).map((f) => (
                     <FilterChip
                         key={f.key}
                         label={f.label}
-                        active={activeFilter === f.key}
+                        active={sourceFilter === f.key}
                         color={f.color}
-                        onPress={() => setActiveFilter(f.key)}
+                        onPress={() => setSourceFilter(f.key)}
                     />
                 ))}
             </ScrollView>
@@ -178,6 +224,7 @@ export default function MapScreen() {
             <View style={styles.countRow}>
                 <Text style={styles.countText}>
                     {filtered.length} deprem · {activeSources.length} kaynak aktif
+                    {regionFilter === "TR" ? " · 🇹🇷 Türkiye" : " · 🌍 Dünya"}
                 </Text>
             </View>
 
@@ -223,22 +270,12 @@ export default function MapScreen() {
             </ScrollView>
 
             {/* Detail Modal */}
-            <Modal
-                visible={!!selected}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setSelected(null)}
-            >
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setSelected(null)}
-                >
+            <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelected(null)}>
                     <View style={styles.modalContent}>
                         <View style={styles.sheetHandle} />
                         {selected && (
                             <View style={styles.modalBody}>
-                                {/* Title row */}
                                 <View style={styles.modalHeader}>
                                     <View style={[styles.modalMagBox, { backgroundColor: magnitudeColor(selected.magnitude) }]}>
                                         <Text style={styles.modalMagText}>{selected.magnitude.toFixed(1)}</Text>
@@ -257,7 +294,6 @@ export default function MapScreen() {
                                     </View>
                                 </View>
 
-                                {/* Stats */}
                                 <View style={styles.statsContainer}>
                                     <View style={styles.statBox}>
                                         <MaterialCommunityIcons name="arrow-down" size={22} color={Colors.accent} />
@@ -266,7 +302,7 @@ export default function MapScreen() {
                                     </View>
                                     <View style={styles.statBox}>
                                         <MaterialCommunityIcons name="map-marker" size={22} color={Colors.accent} />
-                                        <Text style={styles.statLabel}>Koordinatlar</Text>
+                                        <Text style={styles.statLabel}>Koordinat</Text>
                                         <Text style={styles.statValue}>
                                             {selected.coordinates.latitude.toFixed(3)}, {selected.coordinates.longitude.toFixed(3)}
                                         </Text>
@@ -280,9 +316,18 @@ export default function MapScreen() {
                                     </View>
                                 </View>
 
-                                <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}>
-                                    <Text style={styles.closeBtnText}>{t("map.close")}</Text>
-                                </TouchableOpacity>
+                                <View style={styles.modalActions}>
+                                    <TouchableOpacity
+                                        style={styles.mapsBtn}
+                                        onPress={() => { const s = selected; setSelected(null); openInMaps(s); }}
+                                    >
+                                        <MaterialCommunityIcons name="map-marker-radius" size={18} color="#fff" />
+                                        <Text style={styles.mapsBtnText}>Haritada Aç</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}>
+                                        <Text style={styles.closeBtnText}>{t("map.close")}</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         )}
                     </View>
@@ -297,77 +342,57 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background.dark, paddingTop: Platform.OS === "android" ? 30 : 0 },
 
-    // Header
     header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border.glass,
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+        paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
+        borderBottomWidth: 1, borderBottomColor: Colors.border.glass,
     },
     headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
     dot: { width: 8, height: 8, borderRadius: 4 },
     headerTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "700" },
     staleChip: {
         paddingHorizontal: 6, paddingVertical: 2,
-        backgroundColor: Colors.accent + "20",
-        borderRadius: BorderRadius.sm,
-        borderWidth: 1,
-        borderColor: Colors.accent + "50",
+        backgroundColor: Colors.accent + "20", borderRadius: BorderRadius.sm,
+        borderWidth: 1, borderColor: Colors.accent + "50",
     },
     staleChipText: { color: Colors.accent, fontSize: 8, fontWeight: "800", letterSpacing: 0.5 },
     refreshBtn: { padding: 8, backgroundColor: Colors.background.surface, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border.glass },
 
-    // Filters
-    filterRow: {
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.sm,
-        gap: 8,
-        flexDirection: "row",
+    regionRow: { flexDirection: "row", paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, gap: Spacing.sm },
+    regionBtn: {
+        flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+        gap: 6, paddingVertical: 10, borderRadius: BorderRadius.lg,
+        backgroundColor: Colors.background.surface, borderWidth: 1.5, borderColor: Colors.border.dark,
     },
+    regionBtnActiveTR: { borderColor: Colors.primary, backgroundColor: Colors.primary + "12" },
+    regionBtnActiveWorld: { borderColor: "#6366f1", backgroundColor: "#6366f115" },
+    regionFlag: { fontSize: 16 },
+    regionBtnText: { fontSize: 13, fontWeight: "800", color: Colors.text.muted },
+    regionBtnTextActive: { color: Colors.text.dark },
+    regionCount: {
+        backgroundColor: Colors.background.elevated, borderRadius: BorderRadius.sm,
+        paddingHorizontal: 6, paddingVertical: 1,
+    },
+    regionCountText: { fontSize: 10, fontWeight: "900", color: Colors.text.muted },
+
+    filterRow: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: 8, flexDirection: "row" },
     filterChip: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: BorderRadius.full,
-        borderWidth: 1,
-        borderColor: Colors.border.glass,
-        backgroundColor: Colors.background.surface,
+        flexDirection: "row", alignItems: "center", gap: 5,
+        paddingHorizontal: 12, paddingVertical: 6, borderRadius: BorderRadius.full,
+        borderWidth: 1, borderColor: Colors.border.glass, backgroundColor: Colors.background.surface,
     },
     filterDot: { width: 5, height: 5, borderRadius: 2.5 },
     filterChipText: { color: Colors.text.muted, fontSize: 11, fontWeight: "700" },
 
-    // Count
     countRow: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs },
     countText: { color: Colors.text.muted, fontSize: 11, fontWeight: "600" },
 
-    // Grid
-    grid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        padding: Spacing.sm,
-        gap: Spacing.sm,
-        paddingBottom: 30,
-    },
+    grid: { flexDirection: "row", flexWrap: "wrap", padding: Spacing.sm, gap: Spacing.sm, paddingBottom: 30 },
     card: {
-        width: "47.5%",
-        backgroundColor: Colors.background.surface,
-        borderRadius: BorderRadius.xl,
-        borderWidth: 1.5,
-        padding: Spacing.md,
-        alignItems: "center",
-        gap: 8,
+        width: "47.5%", backgroundColor: Colors.background.surface,
+        borderRadius: BorderRadius.xl, borderWidth: 1.5, padding: Spacing.md, alignItems: "center", gap: 8,
     },
-    circle: {
-        width: 52, height: 52,
-        borderRadius: BorderRadius.lg,
-        justifyContent: "center",
-        alignItems: "center",
-    },
+    circle: { width: 52, height: 52, borderRadius: BorderRadius.lg, justifyContent: "center", alignItems: "center" },
     magText: { color: "#fff", fontSize: 18, fontWeight: "800" },
     magUnit: { color: "rgba(255,255,255,0.7)", fontSize: 8, fontWeight: "700" },
     cardInfo: { alignItems: "center", gap: 6, width: "100%" },
@@ -376,86 +401,41 @@ const styles = StyleSheet.create({
     timeContainer: { flexDirection: "row", alignItems: "center", gap: 3 },
     time: { color: Colors.text.muted, fontSize: 10, fontWeight: "500" },
 
-    // Source badge (used on cards)
-    badge: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 3,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: BorderRadius.sm,
-        borderWidth: 1,
-    },
+    badge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: BorderRadius.sm, borderWidth: 1 },
     badgeDot: { width: 4, height: 4, borderRadius: 2 },
     badgeText: { fontSize: 8, fontWeight: "800", letterSpacing: 0.3 },
 
-    // Skeleton
     skeletonCard: { borderColor: Colors.border.glass },
     skeletonCircle: { width: 52, height: 52, borderRadius: BorderRadius.lg, backgroundColor: Colors.background.elevated },
     skeletonCardInfo: { alignItems: "center", gap: 6, width: "100%" },
     skeletonL1: { height: 12, width: "75%", backgroundColor: Colors.background.elevated, borderRadius: 4 },
     skeletonL2: { height: 10, width: "50%", backgroundColor: Colors.background.elevated, borderRadius: 4 },
 
-    // Empty
     emptyBox: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80, width: "100%" },
     emptyText: { color: Colors.text.muted, fontSize: 15, marginTop: 14, fontWeight: "500" },
-    retryBtn: {
-        marginTop: 16,
-        paddingHorizontal: 24, paddingVertical: 10,
-        backgroundColor: Colors.primary + "20",
-        borderRadius: BorderRadius.full,
-        borderWidth: 1,
-        borderColor: Colors.primary + "50",
-    },
+    retryBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors.primary + "20", borderRadius: BorderRadius.full, borderWidth: 1, borderColor: Colors.primary + "50" },
     retryBtnText: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: "700" },
 
-    // Modal
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
-    modalContent: {
-        backgroundColor: Colors.background.dark,
-        borderTopLeftRadius: 28, borderTopRightRadius: 28,
-        paddingTop: Spacing.sm,
-        paddingBottom: Spacing.xxl,
-    },
-    sheetHandle: {
-        width: 40, height: 4,
-        backgroundColor: Colors.background.elevated,
-        borderRadius: 2,
-        alignSelf: "center",
-        marginBottom: Spacing.md,
-    },
+    modalContent: { backgroundColor: Colors.background.dark, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl },
+    sheetHandle: { width: 40, height: 4, backgroundColor: Colors.background.elevated, borderRadius: 2, alignSelf: "center", marginBottom: Spacing.md },
     modalBody: { paddingHorizontal: Spacing.lg },
     modalHeader: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.md, marginBottom: Spacing.xl },
-    modalMagBox: {
-        width: 64, height: 64,
-        borderRadius: BorderRadius.xl,
-        justifyContent: "center",
-        alignItems: "center",
-        flexShrink: 0,
-    },
+    modalMagBox: { width: 64, height: 64, borderRadius: BorderRadius.xl, justifyContent: "center", alignItems: "center", flexShrink: 0 },
     modalMagText: { color: "#fff", fontSize: 24, fontWeight: "800" },
     modalMagUnit: { color: "rgba(255,255,255,0.7)", fontSize: 9, fontWeight: "700" },
     modalTitleBox: { flex: 1 },
     modalTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, flexWrap: "wrap", marginBottom: 4 },
     modalTitle: { flex: 1, color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "700" },
     modalSubtitle: { color: Colors.text.muted, fontSize: Typography.sizes.sm, marginTop: 2 },
-    statsContainer: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.xl },
-    statBox: {
-        flex: 1,
-        backgroundColor: Colors.background.surface,
-        borderRadius: BorderRadius.lg,
-        padding: Spacing.sm + 4,
-        alignItems: "center",
-        gap: 4,
-    },
+    statsContainer: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.lg },
+    statBox: { flex: 1, backgroundColor: Colors.background.surface, borderRadius: BorderRadius.lg, padding: Spacing.sm + 4, alignItems: "center", gap: 4 },
     statLabel: { color: Colors.text.muted, fontSize: 9, fontWeight: "700", textTransform: "uppercase" },
     statValue: { color: Colors.text.dark, fontSize: Typography.sizes.sm, fontWeight: "700", textAlign: "center" },
-    closeBtn: {
-        backgroundColor: Colors.accent,
-        borderRadius: BorderRadius.lg,
-        height: 52,
-        alignItems: "center",
-        justifyContent: "center",
-    },
+
+    modalActions: { flexDirection: "row", gap: Spacing.sm },
+    mapsBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#6366f1", borderRadius: BorderRadius.lg, height: 52 },
+    mapsBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+    closeBtn: { flex: 1, backgroundColor: Colors.accent, borderRadius: BorderRadius.lg, height: 52, alignItems: "center", justifyContent: "center" },
     closeBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
 });

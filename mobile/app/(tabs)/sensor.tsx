@@ -684,9 +684,13 @@ export default function SensorScreen() {
                             />
                             <SimResultRow
                                 icon="message-alert"
-                                label={`Otomatik SOS (${simResult.sosContacts} kişi bildirildi)`}
-                                ok={simResult.sosSent}
-                                warn={!simResult.sosSent}
+                                label={
+                                    simResult.sosContacts > 0
+                                        ? `Otomatik SOS (${simResult.sosContacts} kişi)`
+                                        : "Otomatik SOS (Acil kişi eklenmemiş)"
+                                }
+                                ok={simResult.sosSent && simResult.sosContacts > 0}
+                                warn={!simResult.sosSent || simResult.sosContacts === 0}
                             />
                             {simResult.error && (
                                 <Text style={styles.simError}>Hata: {simResult.error}</Text>

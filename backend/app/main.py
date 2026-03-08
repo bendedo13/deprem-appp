@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.redis import get_redis, close_redis
-from app.api.v1 import earthquakes, users, notifications, analytics, risk, seismic, admin, sos, support
+from app.api.v1 import earthquakes, users, notifications, analytics, risk, seismic, admin, sos, support, community
 from app.api.websocket import websocket_router
 from app.tasks.fetch_earthquakes import start_periodic_fetch
 
@@ -79,6 +79,7 @@ app.include_router(seismic.router, prefix="/api/v1/seismic", tags=["Seismic"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(sos.router, prefix="/api/v1/sos", tags=["S.O.S"])
 app.include_router(support.router, prefix="/api/v1/support", tags=["Destek"])
+app.include_router(community.router, prefix="/api/v1/community", tags=["Topluluk"])
 app.include_router(websocket_router, tags=["WebSocket"])
 
 
