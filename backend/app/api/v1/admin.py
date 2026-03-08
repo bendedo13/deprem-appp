@@ -18,6 +18,7 @@ from app.models.earthquake import Earthquake
 from app.models.seismic_report import SeismicReport
 from app.models.notification_pref import NotificationPref
 from app.models.app_settings import AppSettings, DEFAULT_SETTINGS
+from app.models.support_ticket import SupportTicket
 from app.api.v1.users import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -391,3 +392,54 @@ async def make_admin_by_email(
     user.is_admin = True
     await db.commit()
     return {"ok": True, "message": f"{email} admin yapıldı."}
+
+
+# ─── Support Tickets ─────────────────────────────────────────────────────────
+
+class AdminTicketOut(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    email: str
+    subject: str
+    message: str
+    category: str
+    status: str
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class TicketStatusUpdateIn(BaseModel):
+    status: str  # open | in_progress | resolved | closed
+
+
+@router.get("/tickets", response_model=List[AdminTicketOut], summary="Destek taleplerini listele")
+async def list_support_tickets(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    status: Optional[str] = Query(None),
+    _: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[AdminTicketOut]:
+    """Destek taleplerini listeler. Opsiyonel status filtresi."""
+    q = select(SupportTicket).order_by(SupportTicket.created_at.desc()).offset(skip).limit(limit)
+    if status:
+        q = q.where(SupportTicket.status == status)
+    result = await db.execute(q)
+    return [AdminTicketOut.model_validate(t) for t in result.scalars().all()]
+
+
+@router.patch("/tickets/{ticket_id}", response_model=AdminTicketOut, summary="Talep durumu güncelle")
+async def update_ticket_status(
+    ticket_id: int,
+    body: TicketStatusUpdateIn,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> AdminTicketOut:
+    ticket = await db.get(SupportTicket, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı.")
+    ticket.status = body.status
+    await db.commit()
+    await db.refresh(ticket)
+    logger.info("Admin talep güncelledi: admin=%d ticket=%d status=%s", admin.id, ticket_id, body.status)
+    return AdminTicketOut.model_validate(ticket)

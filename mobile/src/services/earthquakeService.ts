@@ -213,6 +213,18 @@ async function fetchBackend(): Promise<UnifiedEarthquake[]> {
     }));
 }
 
+// ─── Turkey bounds ────────────────────────────────────────────────────────────
+
+const TURKEY_BOUNDS = { minLat: 35.5, maxLat: 42.5, minLon: 25.5, maxLon: 44.8 };
+
+function isTurkey(eq: UnifiedEarthquake): boolean {
+    const { latitude: lat, longitude: lon } = eq.coordinates;
+    return (
+        lat >= TURKEY_BOUNDS.minLat && lat <= TURKEY_BOUNDS.maxLat &&
+        lon >= TURKEY_BOUNDS.minLon && lon <= TURKEY_BOUNDS.maxLon
+    );
+}
+
 // ─── Deduplication ────────────────────────────────────────────────────────────
 
 /**
@@ -282,8 +294,13 @@ export async function fetchAllEarthquakes(hours = 24): Promise<FetchResult> {
 
     const deduped = deduplicate(all);
 
-    // Final sort: newest first
-    deduped.sort((a, b) => b.date.getTime() - a.date.getTime());
+    // Final sort: Turkey-first, then newest within each group
+    deduped.sort((a, b) => {
+        const aTR = isTurkey(a);
+        const bTR = isTurkey(b);
+        if (aTR !== bTR) return aTR ? -1 : 1;
+        return b.date.getTime() - a.date.getTime();
+    });
 
     return { earthquakes: deduped, activeSources, failedSources };
 }

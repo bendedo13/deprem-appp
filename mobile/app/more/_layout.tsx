@@ -24,6 +24,7 @@ export default function MoreLayout() {
             <Stack.Screen name="notifications" options={{ title: "Bildirimler" }} />
             <Stack.Screen name="security" options={{ title: "Güvenlik" }} />
             <Stack.Screen name="sos" options={{ title: "Acil SOS" }} />
+            <Stack.Screen name="support" options={{ title: "Destek Talebi" }} />
         </Stack>
     );
 }

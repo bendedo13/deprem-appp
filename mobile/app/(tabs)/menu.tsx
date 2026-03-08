@@ -2,11 +2,28 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Lin
 import { Link, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useState, useEffect } from "react";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
-import { logout } from "../../src/services/authService";
+import { logout, getMe } from "../../src/services/authService";
+import QuakeSenseLogo from "../../src/components/QuakeSenseLogo";
 
 export default function MenuScreen() {
     const { t } = useTranslation();
+    const [userEmail, setUserEmail] = useState<string>("");
+    const [initials, setInitials] = useState<string>("?");
+
+    useEffect(() => {
+        getMe()
+            .then((user) => {
+                setUserEmail(user.email);
+                const parts = user.email.split("@")[0];
+                setInitials(parts.slice(0, 2).toUpperCase());
+            })
+            .catch(() => {
+                setInitials("?");
+            });
+    }, []);
 
     const handleLogout = async () => {
         Alert.alert(
@@ -79,17 +96,21 @@ export default function MenuScreen() {
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
-            {/* Header */}
+            {/* User Header */}
             <View style={styles.header}>
-                <View style={styles.headerBrand}>
-                    <View style={styles.headerLogo}>
-                        <MaterialCommunityIcons name="shield-check" size={18} color="#fff" />
-                    </View>
-                    <View>
-                        <Text style={styles.title}>{t("menu.title")}</Text>
-                        <Text style={styles.subtitle}>{t("menu.version")}</Text>
-                    </View>
+                <QuakeSenseLogo size="md" showText={false} />
+                <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                    <Text style={styles.title}>QuakeSense</Text>
+                    <Text style={styles.subtitle} numberOfLines={1}>
+                        {userEmail || "Profil yükleniyor..."}
+                    </Text>
                 </View>
+                <LinearGradient
+                    colors={["#10B981", "#059669"]}
+                    style={styles.avatar}
+                >
+                    <Text style={styles.avatarText}>{initials}</Text>
+                </LinearGradient>
             </View>
 
             {/* Ayarlar */}
@@ -146,6 +167,13 @@ export default function MenuScreen() {
             {/* Destek */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t("menu.support") || "Destek"}</Text>
+                <MenuItem
+                    icon="ticket-outline"
+                    title="Destek Talebi Oluştur"
+                    href="/more/support"
+                    color={Colors.primary}
+                    badge="Yeni"
+                />
                 <MenuItem icon="share-variant-outline" title={t("menu.share") || "Uygulamayı Paylaş"} onPress={handleShare} />
                 <MenuItem icon="star-outline" title={t("menu.rate") || "Puan Ver"} onPress={handleRate} />
                 <MenuItem icon="logout-variant" title={t("auth.logout") || "Çıkış Yap"} onPress={handleLogout} color={Colors.danger} />
@@ -153,10 +181,7 @@ export default function MenuScreen() {
 
             {/* Footer */}
             <View style={styles.footer}>
-                <View style={styles.branding}>
-                    <MaterialCommunityIcons name="shield-check" size={14} color={Colors.primary} />
-                    <Text style={styles.brandingText}>QuakeSense — Hayatınızı Koruyoruz</Text>
-                </View>
+                <QuakeSenseLogo size="sm" showText={true} textColor={Colors.text.muted} />
                 <Text style={styles.brandingSubText}>{t("menu.developed_by")}</Text>
             </View>
         </ScrollView>
@@ -168,6 +193,8 @@ const styles = StyleSheet.create({
     content: { paddingBottom: Spacing.xxxl },
 
     header: {
+        flexDirection: "row",
+        alignItems: "center",
         paddingHorizontal: Spacing.md,
         paddingTop: Spacing.xl,
         paddingBottom: Spacing.xl,
@@ -175,22 +202,29 @@ const styles = StyleSheet.create({
         borderBottomColor: Colors.border.glass,
         marginBottom: Spacing.md,
     },
-    headerBrand: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Spacing.sm,
+    title: { fontSize: Typography.sizes.lg, fontWeight: "900", color: Colors.text.dark, letterSpacing: -0.5 },
+    subtitle: {
+        fontSize: Typography.sizes.xs,
+        color: Colors.text.muted,
+        marginTop: 2,
+        fontWeight: "600",
+        maxWidth: 180,
     },
-    headerLogo: {
+
+    avatar: {
         width: 44,
         height: 44,
-        borderRadius: 14,
-        backgroundColor: Colors.primary,
+        borderRadius: 22,
         justifyContent: "center",
         alignItems: "center",
         ...Shadows.sm,
     },
-    title: { fontSize: Typography.sizes.xxl, fontWeight: "900", color: Colors.text.dark, letterSpacing: -0.5 },
-    subtitle: { fontSize: Typography.sizes.xs, color: Colors.text.muted, marginTop: 2, fontWeight: "600" },
+    avatarText: {
+        fontSize: 16,
+        fontWeight: "900",
+        color: "#fff",
+        letterSpacing: 0.5,
+    },
 
     section: {
         paddingHorizontal: Spacing.md,
@@ -245,18 +279,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.md,
         marginTop: Spacing.md,
         alignItems: "center",
-        gap: 4,
-        paddingBottom: Spacing.lg,
-    },
-    branding: {
-        flexDirection: "row",
-        alignItems: "center",
         gap: 6,
-    },
-    brandingText: {
-        fontSize: 13,
-        fontWeight: "700",
-        color: Colors.text.muted,
+        paddingBottom: Spacing.lg,
     },
     brandingSubText: {
         fontSize: 11,
