@@ -4,13 +4,14 @@ import { Link, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
-import { logout } from "../../src/services/authService";
+import { logout, getMe } from "../../src/services/authService";
 import { getSubscriptionStatus, type SubscriptionStatus } from "../../src/services/subscriptionService";
 
 export default function MenuScreen() {
     const { t } = useTranslation();
     const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
     const [loadingSub, setLoadingSub] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -25,6 +26,14 @@ export default function MenuScreen() {
             .finally(() => {
                 if (mounted) setLoadingSub(false);
             });
+
+        // Admin kontrolü
+        getMe()
+            .then((user: any) => {
+                if (mounted && user?.is_admin) setIsAdmin(true);
+            })
+            .catch(() => {});
+
         return () => {
             mounted = false;
         };
@@ -119,6 +128,31 @@ export default function MenuScreen() {
                     </View>
                 </View>
             </View>
+
+            {/* Patron Paneli — sadece admin görür */}
+            {isAdmin && (
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: "#FFD700" }]}>👑 YÖNETİM</Text>
+                    <TouchableOpacity
+                        style={[styles.menuItem, {
+                            borderColor: "#FFD70040",
+                            borderWidth: 1.5,
+                            backgroundColor: "#FFD70008",
+                        }]}
+                        onPress={() => router.push("/more/admin")}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.iconBox, { backgroundColor: "#FFD70020" }]}>
+                            <MaterialCommunityIcons name="shield-crown" size={20} color="#FFD700" />
+                        </View>
+                        <Text style={[styles.menuText, { color: "#FFD700" }]}>Patron Paneli (Admin)</Text>
+                        <View style={[styles.badge, { backgroundColor: "#FFD700" }]}>
+                            <Text style={[styles.badgeText, { color: "#000" }]}>ADMIN</Text>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={18} color="#FFD700" />
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {/* Premium */}
             <View style={styles.section}>
