@@ -72,6 +72,7 @@
         "has_account": "Already have an account? ",
         "error_login": "Login Error",
         "error_register": "Registration Error",
+        "logout": "Logout",
         "logout_title": "Logout",
         "logout_confirm": "Are you sure you want to logout?",
         "all_fields_required": "All fields are required.",

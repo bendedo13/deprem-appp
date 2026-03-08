@@ -45,9 +45,18 @@ export default function NotificationsScreen() {
     async function loadPrefs() {
         try {
             const { data } = await api.get<NotificationPrefs>("/api/v1/notifications/preferences");
-            setPrefs(data);
-        } catch (e) {
-            console.error("Tercihler yüklenemedi:", e);
+            if (data) {
+                setPrefs({
+                    min_magnitude: data.min_magnitude ?? 3.0,
+                    radius_km: data.radius_km ?? 500,
+                    is_enabled: data.is_enabled ?? true,
+                });
+            }
+        } catch (e: any) {
+            // If 404 (no prefs yet), keep defaults. Otherwise log.
+            if (e?.response?.status !== 404) {
+                console.error("Tercihler yüklenemedi:", e?.message ?? e);
+            }
         } finally {
             setLoading(false);
         }
@@ -56,12 +65,21 @@ export default function NotificationsScreen() {
     async function savePrefs() {
         setSaving(true);
         try {
-            await api.put("/api/v1/notifications/preferences", prefs);
+            await api.put("/api/v1/notifications/preferences", {
+                min_magnitude: prefs.min_magnitude,
+                radius_km: prefs.radius_km,
+                is_enabled: prefs.is_enabled,
+            });
             Alert.alert("✅ Kaydedildi", "Bildirim tercihleriniz güncellendi.", [
                 { text: "Tamam", onPress: () => router.back() },
             ]);
-        } catch (e) {
-            Alert.alert("Hata", "Kaydedilirken bir sorun oluştu.");
+        } catch (e: any) {
+            const msg =
+                e?.response?.data?.detail ??
+                e?.message ??
+                "Kaydedilirken bir sorun oluştu.";
+            console.error("Bildirim tercihleri kaydedilemedi:", msg, e);
+            Alert.alert("Hata", String(msg));
         } finally {
             setSaving(false);
         }

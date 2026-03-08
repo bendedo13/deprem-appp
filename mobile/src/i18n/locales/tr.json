@@ -72,6 +72,7 @@
         "has_account": "Zaten hesabın var mı? ",
         "error_login": "Giriş Hatası",
         "error_register": "Kayıt Hatası",
+        "logout": "Çıkış Yap",
         "logout_title": "Çıkış Yap",
         "logout_confirm": "Çıkış yapmak istediğinizden emin misiniz?",
         "all_fields_required": "Tüm alanlar zorunludur.",

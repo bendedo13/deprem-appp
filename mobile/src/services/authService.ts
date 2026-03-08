@@ -57,7 +57,7 @@ export async function updateProfile(params: {
 
 /** "Ben İyiyim" — acil kişilere bildirim gönder. */
 export async function iAmSafe(): Promise<{ status: string; notified_contacts: number }> {
-    const { data } = await api.post("/api/v1/users/me/safe");
+    const { data } = await api.post("/api/v1/users/i-am-safe", {});
     return data;
 }
 

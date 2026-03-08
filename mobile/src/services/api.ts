@@ -9,7 +9,7 @@ import Constants from "expo-constants";
 
 // VPS adresi veya local geliştirme — expo-constants üzerinden okunur
 const BASE_URL: string =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? "http://10.0.2.2:8000";
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? "http://46.4.123.77:8001";
 
 export const TOKEN_KEY = "deprem_access_token";
 
