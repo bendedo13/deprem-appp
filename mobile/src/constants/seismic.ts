@@ -61,6 +61,12 @@ export const COOLDOWN_AFTER_TRIGGER_MS = 45_000;
 /** Cluster yarıçapı (km) */
 export const CLUSTER_RADIUS_KM = 50;
 
+/** Nükleer alarm: bu ivme (G) aşılırsa tam ekran alarm + maksimum ses. 1.8G ≈ ciddi sarsıntı. */
+export const CRITICAL_ACCELERATION_G = 1.8;
+
+/** 1.8G m/s² cinsinden (g = 9.80665) */
+export const CRITICAL_ACCELERATION_MS2 = CRITICAL_ACCELERATION_G * 9.80665;
+
 /** Cluster zaman penceresi (saniye) */
 export const CLUSTER_WINDOW_SEC = 60;
 

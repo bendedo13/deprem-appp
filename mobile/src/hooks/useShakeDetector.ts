@@ -20,6 +20,7 @@ import {
     MIN_REPORT_ACCELERATION,
     MIN_TRIGGER_DURATION_MS,
     COOLDOWN_AFTER_TRIGGER_MS,
+    CRITICAL_ACCELERATION_MS2,
 } from "../constants/seismic";
 import { highPassFilter, vectorMagnitude, computeStaLta } from "../utils/staLta";
 import { reportTrigger } from "../services/seismicService";
@@ -49,9 +50,13 @@ const DEVICE_ID = `device-${Platform.OS}-${Date.now().toString(36)}`;
 /** UI state güncellemesi için throttle aralığı (ms) — JS Thread korunur */
 const UI_THROTTLE_MS = 200;
 
+/** Nükleer alarm tetiklemesi için minimum aralık (ms) — 60 sn */
+const CRITICAL_TRIGGER_COOLDOWN_MS = 60_000;
+
 export function useShakeDetector(
     latitude: number | null,
-    longitude: number | null
+    longitude: number | null,
+    onCriticalTrigger?: (lat: number | null, lng: number | null) => void
 ): ShakeState {
     const samples = useRef<number[]>([]);
     const prevRaw = useRef(0);
@@ -60,6 +65,7 @@ export function useShakeDetector(
     const triggerStartRef = useRef<number | null>(null);
     const peakRef = useRef(0);
     const cooldownUntilRef = useRef<number>(0);
+    const lastCriticalTriggerRef = useRef<number>(0);
     /** Son UI güncelleme zamanı — throttle için */
     const lastUiUpdateRef = useRef<number>(0);
 
@@ -91,6 +97,16 @@ export function useShakeDetector(
 
             const ratio = computeStaLta(samples.current, STA_WINDOW, LTA_WINDOW);
             const inCooldown = now < cooldownUntilRef.current;
+
+            // Nükleer alarm: 1.8G+ ivme (m/s²) aşılırsa tam ekran alarm (cooldown ile tekrarsız)
+            if (
+                onCriticalTrigger &&
+                raw >= CRITICAL_ACCELERATION_MS2 &&
+                now - lastCriticalTriggerRef.current >= CRITICAL_TRIGGER_COOLDOWN_MS
+            ) {
+                lastCriticalTriggerRef.current = now;
+                onCriticalTrigger(latitude, longitude);
+            }
 
             if (!triggeredRef.current && !inCooldown && ratio >= TRIGGER_RATIO) {
                 // Olası tetikleme başladı — kritik değişim, hemen güncelle
@@ -142,7 +158,7 @@ export function useShakeDetector(
             sub.remove();
             setState((s) => ({ ...s, isMonitoring: false, isTriggered: false }));
         };
-    }, [latitude, longitude]);
+    }, [latitude, longitude, onCriticalTrigger]);
 
     return state;
 }
