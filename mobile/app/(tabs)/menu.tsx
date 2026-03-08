@@ -163,6 +163,18 @@ export default function MenuScreen() {
                     color={Colors.danger}
                     badge={isPro ? "Yeni" : "PRO"}
                 />
+                <MenuItem
+                    icon="map-marker-radius"
+                    title="Toplanma Alanları"
+                    href="/more/gathering_points"
+                    color={Colors.primary}
+                />
+                <MenuItem
+                    icon="map-legend"
+                    title="Live Impact Map"
+                    href="/more/impact_map"
+                    color={Colors.accent}
+                />
             </View>
 
             {/* Hazırlık */}
@@ -198,6 +210,7 @@ export default function MenuScreen() {
                 <MenuItem icon="shield-check-outline" title={t("privacy.title")} href="/more/privacy" />
                 <MenuItem icon="security" title={t("menu.security")} href="/more/security" />
                 <MenuItem icon="email-outline" title={t("contact.title")} href="/more/contact" />
+                <MenuItem icon="medical-bag" title="Sağlık Kartı & Kurtarma QR" href="/more/health_card" />
             </View>
 
             {/* Destek */}

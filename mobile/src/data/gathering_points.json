@@ -1,0 +1,143 @@
+[
+  {
+    "id": 1,
+    "name": "İstanbul - Kadıköy İskele Meydanı",
+    "city": "İstanbul",
+    "district": "Kadıköy",
+    "latitude": 40.99005,
+    "longitude": 29.02502,
+    "capacity": 2500,
+    "amenities": {
+      "water": true,
+      "electricity": true,
+      "shelter": true
+    }
+  },
+  {
+    "id": 2,
+    "name": "İstanbul - Beşiktaş Çarşı Toplanma Alanı",
+    "city": "İstanbul",
+    "district": "Beşiktaş",
+    "latitude": 41.04303,
+    "longitude": 29.00812,
+    "capacity": 1800,
+    "amenities": {
+      "water": true,
+      "electricity": true,
+      "shelter": false
+    }
+  },
+  {
+    "id": 3,
+    "name": "Ankara - Kızılay Güvenpark",
+    "city": "Ankara",
+    "district": "Çankaya",
+    "latitude": 39.92077,
+    "longitude": 32.85205,
+    "capacity": 3200,
+    "amenities": {
+      "water": true,
+      "electricity": true,
+      "shelter": true
+    }
+  },
+  {
+    "id": 4,
+    "name": "Ankara - Batıkent Meydanı",
+    "city": "Ankara",
+    "district": "Yenimahalle",
+    "latitude": 39.97076,
+    "longitude": 32.73027,
+    "capacity": 2100,
+    "amenities": {
+      "water": true,
+      "electricity": false,
+      "shelter": false
+    }
+  },
+  {
+    "id": 5,
+    "name": "İzmir - Gündoğdu Meydanı",
+    "city": "İzmir",
+    "district": "Konak",
+    "latitude": 38.43261,
+    "longitude": 27.13589,
+    "capacity": 2700,
+    "amenities": {
+      "water": true,
+      "electricity": true,
+      "shelter": false
+    }
+  },
+  {
+    "id": 6,
+    "name": "İzmir - Bornova Cumhuriyet Meydanı",
+    "city": "İzmir",
+    "district": "Bornova",
+    "latitude": 38.46249,
+    "longitude": 27.21685,
+    "capacity": 1600,
+    "amenities": {
+      "water": true,
+      "electricity": false,
+      "shelter": false
+    }
+  },
+  {
+    "id": 7,
+    "name": "Bursa - Kent Meydanı",
+    "city": "Bursa",
+    "district": "Osmangazi",
+    "latitude": 40.19474,
+    "longitude": 29.06029,
+    "capacity": 1900,
+    "amenities": {
+      "water": true,
+      "electricity": true,
+      "shelter": true
+    }
+  },
+  {
+    "id": 8,
+    "name": "Antalya - Cumhuriyet Meydanı",
+    "city": "Antalya",
+    "district": "Muratpaşa",
+    "latitude": 36.88705,
+    "longitude": 30.70752,
+    "capacity": 2300,
+    "amenities": {
+      "water": true,
+      "electricity": true,
+      "shelter": false
+    }
+  },
+  {
+    "id": 9,
+    "name": "Gaziantep - Demokrasi Meydanı",
+    "city": "Gaziantep",
+    "district": "Şahinbey",
+    "latitude": 37.06592,
+    "longitude": 37.37808,
+    "capacity": 2000,
+    "amenities": {
+      "water": true,
+      "electricity": true,
+      "shelter": true
+    }
+  },
+  {
+    "id": 10,
+    "name": "Diyarbakır - Park Orman Toplanma Alanı",
+    "city": "Diyarbakır",
+    "district": "Kayapınar",
+    "latitude": 37.9405,
+    "longitude": 40.1948,
+    "capacity": 1500,
+    "amenities": {
+      "water": true,
+      "electricity": false,
+      "shelter": true
+    }
+  }
+]
+

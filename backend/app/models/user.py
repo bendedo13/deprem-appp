@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.models.emergency_contact import EmergencyContact
     from app.models.notification_pref import NotificationPref
     from app.models.sos_record import SOSRecord
+    from app.models.user_report import UserReport
 
 
 class User(Base):
@@ -69,6 +70,9 @@ class User(Base):
     )
     sos_records: Mapped[List["SOSRecord"]] = relationship(
         "SOSRecord", back_populates="user", lazy="select"
+    )
+    user_reports: Mapped[List["UserReport"]] = relationship(
+        "UserReport", back_populates="user", lazy="select"
     )
 
     @property
