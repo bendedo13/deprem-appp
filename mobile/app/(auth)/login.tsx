@@ -26,7 +26,7 @@ import {
     getFirebaseAuthErrorKey,
     getIdToken,
 } from "../../src/services/firebaseAuthService";
-import { syncFirebaseToken } from "../../src/services/authService";
+import { login as backendLogin, syncFirebaseToken } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function LoginScreen() {
@@ -42,26 +42,45 @@ export default function LoginScreen() {
             Alert.alert(t("auth.error_login"), t("auth.email_password_required"));
             return;
         }
+        const emailTrimmed = email.trim().toLowerCase();
         setLoading(true);
         try {
-            await firebaseLogin(email.trim().toLowerCase(), password);
-
+            await firebaseLogin(emailTrimmed, password);
             const idToken = await getIdToken();
             if (!idToken) {
                 throw new Error("Firebase ID token alınamadı.");
             }
-
             await syncFirebaseToken(idToken);
             router.replace("/(tabs)");
         } catch (err: unknown) {
-            const maybeAxios = err as { response?: { data?: { detail?: string } } };
-            const backendDetail = maybeAxios.response?.data?.detail;
+            const code = (err as { code?: string })?.code ?? "";
+            const backendErr = err as { response?: { data?: { detail?: string }; status?: number } };
+            const isFirebaseCredentialError =
+                code === "auth/invalid-credential" ||
+                code === "auth/wrong-password" ||
+                code === "auth/user-not-found";
 
-            if (typeof backendDetail === "string" && backendDetail.length > 0) {
-                Alert.alert(t("auth.error_login"), backendDetail);
+            if (isFirebaseCredentialError) {
+                try {
+                    await backendLogin(emailTrimmed, password);
+                    router.replace("/(tabs)");
+                    return;
+                } catch (backendLoginErr) {
+                    const detail = (backendLoginErr as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                    if (typeof detail === "string" && detail.length > 0) {
+                        Alert.alert(t("auth.error_login"), detail);
+                    } else {
+                        Alert.alert(t("auth.error_login"), t("auth.error_wrong_password"));
+                    }
+                }
             } else {
-                const errorKey = getFirebaseAuthErrorKey(err);
-                Alert.alert(t("auth.error_login"), t(errorKey));
+                const backendDetail = backendErr.response?.data?.detail;
+                if (typeof backendDetail === "string" && backendDetail.length > 0) {
+                    Alert.alert(t("auth.error_login"), backendDetail);
+                } else {
+                    const errorKey = getFirebaseAuthErrorKey(err);
+                    Alert.alert(t("auth.error_login"), t(errorKey));
+                }
             }
         } finally {
             setLoading(false);

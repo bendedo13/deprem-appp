@@ -14,7 +14,8 @@
     },
     "extra": {
       "apiUrl": "http://46.4.123.77:8001",
-      "googleWebClientId": "775124568904-flr9bo452no12v9giofdlb743m8gvqk4.apps.googleusercontent.com"
+      "googleWebClientId": "775124568904-flr9bo452no12v9giofdlb743m8gvqk4.apps.googleusercontent.com",
+      "adminPanelUrl": "https://deprem.quakesense.com/admin"
     },
     "plugins": [
       "./plugins/withNotifeeAndroidFix",

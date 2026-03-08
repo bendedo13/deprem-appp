@@ -60,8 +60,17 @@ eas build:download --id BUILD_ID
 |------|--------|
 | VPS deploy | `ssh root@IP 'cd /opt/deprem-appp && git pull && cd deploy && docker compose -f docker-compose.prod.yml up -d --build'` |
 | Migration | `docker exec deprem_backend alembic upgrade head` |
+| **Admin şifre/rol güncelle** | `docker exec deprem_backend python -m app.db.init_admin` |
 | Android APK | `cd mobile && eas build --platform android --profile production` |
 | Build cache temizle | `eas build:clear-cache` sonra `eas build --platform android --profile production --clear-cache` |
+
+### Admin girişi (Patron)
+
+- **E-posta:** `bendedo13@gmail.com`
+- **Şifre:** `Benalan.1`
+- Mobilde giriş: Önce Firebase dener; "E-posta veya şifre hatalı" alırsan backend girişi otomatik denenir. Bu hesabı admin yapmak ve şifreyi sabitlemek için deploy sonrası VPS’te:  
+  `docker exec deprem_backend python -m app.db.init_admin`  
+  Böylece bu e-posta `is_admin=True` ve şifre `Benalan.1` olarak güncellenir. Sadece bu hesap menüde **Patron — Admin Panel** butonunu görür.
 
 ---
 

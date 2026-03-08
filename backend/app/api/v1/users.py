@@ -63,12 +63,13 @@ async def get_current_user(
     summary="Yeni kullanıcı kaydı",
 )
 async def register(body: UserRegisterIn, db: AsyncSession = Depends(get_db)) -> TokenOut:
-    """E-posta ve şifre ile kullanıcı oluşturur. Aynı e-posta varsa 409 döner."""
-    existing = await db.execute(select(User).where(User.email == body.email))
+    """E-posta ve şifre ile kullanıcı oluşturur. Aynı e-posta varsa 409 döner. E-posta küçük harfe çevrilir."""
+    email_normalized = body.email.strip().lower()
+    existing = await db.execute(select(User).where(User.email == email_normalized))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bu e-posta adresi zaten kayıtlı.")
 
-    user = User(email=body.email, password_hash=hash_password(body.password))
+    user = User(email=email_normalized, password_hash=hash_password(body.password))
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -80,8 +81,9 @@ async def register(body: UserRegisterIn, db: AsyncSession = Depends(get_db)) -> 
 
 @router.post("/login", response_model=TokenOut, summary="Kullanıcı girişi")
 async def login(body: UserLoginIn, db: AsyncSession = Depends(get_db)) -> TokenOut:
-    """E-posta/şifre doğrular, JWT döner. Hatalı bilgide 401 (güvenlik: hangi alan hatalı belli olmaz)."""
-    result = await db.execute(select(User).where(User.email == body.email))
+    """E-posta/şifre doğrular, JWT döner. E-posta küçük harfe çevrilir. Hatalı bilgide 401."""
+    email_normalized = body.email.strip().lower()
+    result = await db.execute(select(User).where(User.email == email_normalized))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(body.password, user.password_hash):
@@ -125,14 +127,15 @@ async def firebase_auth_login(
     email = decoded.get("email")
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Firebase token'da e-posta bulunamadı.")
+    email_normalized = email.strip().lower()
 
     # Kullanıcıyı DB'de bul veya oluştur
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(select(User).where(User.email == email_normalized))
     user = result.scalar_one_or_none()
 
     if not user:
         user = User(
-            email=email,
+            email=email_normalized,
             password_hash="firebase_auth",
             name=decoded.get("name"),
         )

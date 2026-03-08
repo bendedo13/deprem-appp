@@ -15,6 +15,7 @@ export interface UserOut {
     latitude: number | null;
     longitude: number | null;
     created_at: string;
+    is_admin?: boolean;
 }
 
 export interface TokenOut {

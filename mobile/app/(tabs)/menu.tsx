@@ -3,14 +3,16 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Lin
 import { Link, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
-import { logout } from "../../src/services/authService";
+import { logout, getMe, type UserOut } from "../../src/services/authService";
 import { getSubscriptionStatus, type SubscriptionStatus } from "../../src/services/subscriptionService";
 
 export default function MenuScreen() {
     const { t } = useTranslation();
     const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
     const [loadingSub, setLoadingSub] = useState(false);
+    const [user, setUser] = useState<UserOut | null>(null);
 
     useEffect(() => {
         let mounted = true;
@@ -30,7 +32,31 @@ export default function MenuScreen() {
         };
     }, []);
 
+    useEffect(() => {
+        let mounted = true;
+        getMe()
+            .then((u) => {
+                if (mounted) setUser(u);
+            })
+            .catch(() => {
+                if (mounted) setUser(null);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
     const isPro = subStatus?.is_pro;
+
+    const adminPanelUrl =
+        (Constants.expoConfig?.extra?.adminPanelUrl as string | undefined) ||
+        "https://deprem.quakesense.com/admin";
+
+    const openAdminPanel = () => {
+        Linking.openURL(adminPanelUrl).catch(() => {
+            Alert.alert(t("common.error") || "Hata", "Admin panel açılamadı.");
+        });
+    };
 
     const handleLogout = async () => {
         Alert.alert(
@@ -119,6 +145,19 @@ export default function MenuScreen() {
                     </View>
                 </View>
             </View>
+
+            {/* Patron (sadece admin kullanıcılar görür) */}
+            {user?.is_admin === true && (
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>👑 Yönetim</Text>
+                    <MenuItem
+                        icon="shield-account"
+                        title="Patron — Admin Panel"
+                        onPress={openAdminPanel}
+                        color="#F59E0B"
+                    />
+                </View>
+            )}
 
             {/* Premium */}
             <View style={styles.section}>
