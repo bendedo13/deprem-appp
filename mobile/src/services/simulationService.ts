@@ -176,6 +176,48 @@ async function sendAutoSOS(): Promise<{ success: boolean; contacts: number; erro
     }
 }
 
+// ── Sadece Alarm (SOS olmadan) — Geri sayım testi için ─────────────────────────
+
+export interface AlarmOnlyResult {
+    soundPlayed: boolean;
+    vibrated: boolean;
+    notificationSent: boolean;
+    error?: string;
+}
+
+/**
+ * Sadece ses + titreşim + bildirim; SOS göndermez.
+ * Sensör testi akışında önce bu çalışır, ekranda 10..9..8 geri sayımı bitince SOS ayrı çağrılır.
+ */
+export async function runAlarmOnlyWithoutSOS(options: {
+    loudAlarmEnabled: boolean;
+    vibrationEnabled: boolean;
+    flashEnabled: boolean;
+}): Promise<AlarmOnlyResult> {
+    const result: AlarmOnlyResult = {
+        soundPlayed: false,
+        vibrated: false,
+        notificationSent: false,
+    };
+    try {
+        if (options.loudAlarmEnabled) {
+            result.soundPlayed = await configureSilentModeBypass();
+        }
+        if (options.vibrationEnabled) {
+            try {
+                triggerVibration();
+                result.vibrated = true;
+            } catch (e) {
+                result.error = (e as Error).message;
+            }
+        }
+        result.notificationSent = await sendCriticalNotification();
+    } catch (err) {
+        result.error = (err as Error).message;
+    }
+    return result;
+}
+
 // ── Ana Simülasyon Fonksiyonu ──────────────────────────────────────────────────
 
 /**

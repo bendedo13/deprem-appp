@@ -34,17 +34,28 @@ async function sleep(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Mevcut GPS konumunu al (10 sn timeout) */
+const LOCATION_TIMEOUT_MS = 10_000;
+
+/** Mevcut GPS konumunu al — yüksek doğruluk, 10 sn timeout. S.O.S mesajında canlı konum kritik. */
 async function getCurrentLocation(): Promise<{ latitude: number; longitude: number } | null> {
     try {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status !== "granted") return null;
 
-        const pos = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-        });
+        const pos = await Promise.race([
+            Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+                maximumAge: 5000,
+            }),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("LOCATION_TIMEOUT")), LOCATION_TIMEOUT_MS)
+            ),
+        ]);
         return { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-    } catch {
+    } catch (err) {
+        if ((err as Error).message === "LOCATION_TIMEOUT") {
+            return null;
+        }
         return null;
     }
 }
@@ -83,12 +94,16 @@ export async function sendSOSAlert(
         message += `\nNot: ${customMessage}`;
     }
 
-    // Backend'e gönder — retry logic
     let lastError: string = "Bilinmeyen hata";
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
-            const { data } = await api.post<{ status: string; notified_contacts: number }>(
+            const { data } = await api.post<{
+                status: string;
+                notified_contacts?: number;
+                message?: string;
+                detail?: string;
+            }>(
                 "/api/v1/users/i-am-safe",
                 {
                     custom_message: message,
@@ -99,17 +114,31 @@ export async function sendSOSAlert(
                 { timeout: 15_000 }
             );
 
+            const notified = data.notified_contacts ?? 0;
+            const backendMsg = [data.message, data.detail].find((m) => typeof m === "string") as string | undefined;
+            if (data.status === "error" && backendMsg) {
+                lastError = backendMsg;
+                if (attempt === MAX_RETRIES - 1) {
+                    return { success: false, notifiedContacts: 0, location, error: backendMsg };
+                }
+                continue;
+            }
             return {
                 success: true,
-                notifiedContacts: data.notified_contacts ?? 0,
+                notifiedContacts: notified,
                 location,
             };
         } catch (err: unknown) {
-            const errMsg = (err as { message?: string })?.message ?? "İstek başarısız";
+            const axErr = err as { response?: { data?: unknown; status: number }; message?: string };
+            const body = axErr.response?.data;
+            const errMsg =
+                (typeof body === "object" && body !== null && "detail" in body
+                    ? String((body as { detail: unknown }).detail)
+                    : null) ??
+                axErr.message ??
+                "İstek başarısız";
             lastError = errMsg;
-            console.warn(`[SOSAlert] Deneme ${attempt + 1}/${MAX_RETRIES} başarısız:`, errMsg);
 
-            // Son denemede bekleme yapma
             if (attempt < MAX_RETRIES - 1) {
                 await sleep(BASE_DELAY_MS * Math.pow(2, attempt));
             }

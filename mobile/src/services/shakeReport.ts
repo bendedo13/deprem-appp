@@ -1,9 +1,9 @@
 /**
  * Sarsıntı sinyalini backend'e gönderir.
- * POST /api/v1/sensors/shake — hızlı payload, rate limit ve cooldown mobil tarafta da uygulanır.
+ * POST /api/v1/sensors/shake — app api instance kullanır (base URL + auth).
  */
 
-import { API_BASE_URL } from "../config/constants";
+import { api } from "./api";
 
 export type ShakePayload = {
   device_id: string;
@@ -21,26 +21,27 @@ export type ShakeReportResult = {
 
 /**
  * Backend'e tek bir sarsıntı sinyali gönderir.
- * Hata durumunda exception fırlatmaz; { ok: false } döner veya loglanır.
+ * Hata durumunda exception fırlatmaz; { ok: false } döner.
  */
 export async function reportShake(payload: ShakePayload): Promise<ShakeReportResult> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/sensors/shake`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const { data } = await api.post<ShakeReportResult>("/api/v1/sensors/shake", payload, {
+      timeout: 10_000,
     });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.warn("[shakeReport] API error", res.status, text);
-      return { ok: false, message: text || "request_failed", confirmed: false };
+    return data ?? { ok: false, message: "empty_response", confirmed: false };
+  } catch (err: unknown) {
+    const axErr = err as { response?: { status: number; data?: unknown }; message?: string };
+    const status = axErr.response?.status;
+    const msg =
+      typeof axErr.response?.data === "string"
+        ? axErr.response.data
+        : (axErr.response?.data as { detail?: string })?.detail ?? axErr.message ?? "network_error";
+    if (status === 401) {
+      return { ok: false, message: "unauthorized", confirmed: false };
     }
-
-    const data = (await res.json()) as ShakeReportResult;
-    return data;
-  } catch (e) {
-    console.warn("[shakeReport] Network error", e);
-    return { ok: false, message: "network_error", confirmed: false };
+    if (status && status >= 500) {
+      return { ok: false, message: "server_error", confirmed: false };
+    }
+    return { ok: false, message: msg || "request_failed", confirmed: false };
   }
 }

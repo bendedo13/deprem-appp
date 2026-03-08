@@ -6,8 +6,12 @@
 /** Low-pass filter alpha (0–1). Küçük = daha yumuşak, düşme darbeleri zayıflar. */
 export const LOW_PASS_ALPHA = 0.2;
 
-/** Sarsıntı eşiği (m/s²). Bu değerin üzeri deprem benzeri kabul edilir. */
-export const SHAKE_THRESHOLD_MS2 = 2.0;
+/**
+ * Sarsıntı eşiği — expo-sensors Accelerometer G cinsinden döner (1 ≈ yerçekimi).
+ * 1.8G: Gerçek depremi yakalar; yürüme/araç titreşiminde (<1.2G) tetiklenmez.
+ * >5G çok yüksek (algılamaz), <1G çok düşük (her harekette tetiklenir).
+ */
+export const SHAKE_THRESHOLD_MS2 = 1.8;
 
 /** Eşik üzerinde kalma süresi (ms). Kısa sarsıntı = düşme, uzun = deprem. */
 export const SHAKE_DURATION_MS = 800;

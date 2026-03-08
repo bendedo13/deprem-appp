@@ -24,6 +24,7 @@ import {
     TextInput,
     ActivityIndicator,
     Alert,
+    Modal,
 } from "react-native";
 import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -45,8 +46,10 @@ import {
 } from "../../src/services/sensorSettings";
 import {
     startEarthquakeSimulation,
+    runAlarmOnlyWithoutSOS,
     SimulationResult,
 } from "../../src/services/simulationService";
+import { sendSOSAlert } from "../../src/services/sosAlertService";
 
 // ─── Yardımcı Fonksiyonlar ────────────────────────────────────────────────────
 
@@ -128,6 +131,11 @@ export default function SensorScreen() {
     const [simResult, setSimResult] = useState<SimulationResult | null>(null);
     const [simulatedRatio, setSimulatedRatio] = useState<number | null>(null);
 
+    // Sensör testi: alarm + geri sayım (10..9..8) sonra SOS
+    const [countdown, setCountdown] = useState<number | null>(null);
+    const [countdownError, setCountdownError] = useState<string | null>(null);
+    const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
     // Gerçek ivmeölçer hook
     const { isMonitoring, isTriggered, peakAcceleration, staLtaRatio, triggerTime } =
         useShakeDetector(location?.lat ?? null, location?.lng ?? null);
@@ -198,6 +206,7 @@ export default function SensorScreen() {
     useEffect(() => {
         return () => {
             if (simRatioTimerRef.current) clearTimeout(simRatioTimerRef.current);
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         };
     }, []);
 
@@ -310,6 +319,64 @@ export default function SensorScreen() {
         );
     }, [simulating, settings, showToast, pulseAnim]);
 
+    // ── Sensör testi (alarm + geri sayım 10..9..8 sonra SOS) ──────────────────
+    const handleSensorTestSimulation = useCallback(() => {
+        if (simulating || countdown !== null) return;
+
+        const run = async () => {
+            setSimulating(true);
+            setCountdownError(null);
+            setSimulatedRatio(8.5 + Math.random() * 2.0);
+
+            const alarmResult = await runAlarmOnlyWithoutSOS({
+                loudAlarmEnabled: settings.loudAlarmEnabled,
+                vibrationEnabled: settings.vibrationEnabled,
+                flashEnabled: settings.flashEnabled,
+            });
+            if (alarmResult.error) {
+                setCountdownError(alarmResult.error);
+            }
+
+            setCountdown(10);
+            let n = 10;
+            countdownIntervalRef.current = setInterval(() => {
+                n -= 1;
+                setCountdown(n);
+                if (n <= 0 && countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current);
+                    countdownIntervalRef.current = null;
+                    setCountdown(null);
+                    (async () => {
+                        try {
+                            const sosResult = await sendSOSAlert(
+                                "sensor",
+                                "Sensör simülasyon testi — gerçek acil durum değildir."
+                            );
+                            if (sosResult.success) {
+                                showToast(
+                                    `S.O.S gönderildi (${sosResult.notifiedContacts} kişi bildirildi)`,
+                                    "success"
+                                );
+                            } else {
+                                showToast(
+                                    sosResult.error ?? "S.O.S gönderilemedi",
+                                    "error"
+                                );
+                            }
+                        } catch (err) {
+                            showToast("S.O.S hatası: " + String(err), "error");
+                        } finally {
+                            setSimulating(false);
+                        }
+                        if (simRatioTimerRef.current) clearTimeout(simRatioTimerRef.current);
+                        simRatioTimerRef.current = setTimeout(() => setSimulatedRatio(null), 6000);
+                    })();
+                }
+            }, 1000);
+        };
+        run();
+    }, [simulating, countdown, settings, showToast]);
+
     // Render değerleri
     const color = ratioColor(displayRatio);
     const gaugeWidth = gaugeAnim.interpolate({
@@ -319,6 +386,21 @@ export default function SensorScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+
+            {/* Geri sayım overlay — Deprem Algılandı! S.O.S gönderiliyor: 10..9..8.. */}
+            <Modal visible={countdown !== null} transparent animationType="fade">
+                <View style={styles.countdownOverlay}>
+                    <View style={styles.countdownBox}>
+                        <MaterialCommunityIcons name="alert-octagon" size={48} color={Colors.danger} />
+                        <Text style={styles.countdownTitle}>Deprem Algılandı!</Text>
+                        <Text style={styles.countdownSubtitle}>S.O.S gönderiliyor:</Text>
+                        <Text style={styles.countdownNumber}>{countdown ?? 0}</Text>
+                        {countdownError ? (
+                            <Text style={styles.countdownError}>{countdownError}</Text>
+                        ) : null}
+                    </View>
+                </View>
+            </Modal>
 
             {/* Toast Bildirimi */}
             {toast && (
@@ -700,7 +782,7 @@ export default function SensorScreen() {
                         disabled={simulating}
                         activeOpacity={0.8}
                     >
-                        {simulating ? (
+                        {simulating && countdown === null ? (
                             <>
                                 <ActivityIndicator size="small" color="#fff" />
                                 <Text style={styles.simButtonText}>Simülasyon Çalışıyor...</Text>
@@ -709,6 +791,30 @@ export default function SensorScreen() {
                             <>
                                 <MaterialCommunityIcons name="play-circle" size={22} color="#fff" />
                                 <Text style={styles.simButtonText}>Simülasyonu Başlat</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+
+                    <Text style={styles.simSectionLabel}>Sensör testi (alarm + geri sayım + S.O.S)</Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.simButton,
+                            styles.simButtonSecondary,
+                            (simulating || countdown !== null) && styles.simButtonActive,
+                        ]}
+                        onPress={handleSensorTestSimulation}
+                        disabled={simulating || countdown !== null}
+                        activeOpacity={0.8}
+                    >
+                        {countdown !== null ? (
+                            <>
+                                <MaterialCommunityIcons name="timer-sand" size={22} color="#fff" />
+                                <Text style={styles.simButtonText}>S.O.S gönderiliyor: {countdown}...</Text>
+                            </>
+                        ) : (
+                            <>
+                                <MaterialCommunityIcons name="motion-sensor" size={22} color="#fff" />
+                                <Text style={styles.simButtonText}>Sensör Testini Başlat (Simülasyon)</Text>
                             </>
                         )}
                     </TouchableOpacity>
@@ -1066,8 +1172,52 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.md + 4,
         ...Shadows.glow(Colors.danger),
     },
-    simButtonActive: { backgroundColor: Colors.dangerDark },
+    simButtonActive: { opacity: 0.8 },
+    simButtonSecondary: { backgroundColor: Colors.accent },
     simButtonText: { color: "#fff", fontSize: Typography.sizes.md, fontWeight: "900", letterSpacing: 0.5 },
+    simSectionLabel: {
+        fontSize: Typography.sizes.xs,
+        color: Colors.text.muted,
+        fontWeight: "600",
+        marginTop: Spacing.md,
+        marginBottom: Spacing.sm,
+    },
+
+    // ── Geri sayım overlay ──
+    countdownOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.75)",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: Spacing.xl,
+    },
+    countdownBox: {
+        backgroundColor: Colors.background.surface,
+        borderRadius: BorderRadius.xxl,
+        padding: Spacing.xxxl,
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: Colors.danger,
+        minWidth: 260,
+    },
+    countdownTitle: {
+        fontSize: Typography.sizes.lg,
+        fontWeight: "800",
+        color: Colors.danger,
+        marginTop: Spacing.md,
+    },
+    countdownSubtitle: { fontSize: Typography.sizes.sm, color: Colors.text.muted, marginTop: Spacing.sm },
+    countdownNumber: {
+        fontSize: 72,
+        fontWeight: "900",
+        color: Colors.danger,
+        marginVertical: Spacing.md,
+    },
+    countdownError: {
+        fontSize: Typography.sizes.xs,
+        color: Colors.accent,
+        marginTop: Spacing.sm,
+    },
 
     // ── Info Cards ──
     infoCard: {

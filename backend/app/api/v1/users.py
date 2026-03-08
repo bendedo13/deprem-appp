@@ -422,29 +422,49 @@ async def i_am_safe(
     if body.include_location and body.latitude and body.longitude:
         message += f" Konum: https://maps.google.com/?q={body.latitude},{body.longitude}"
     
-    # Her acil kişiye SMS gönder
+    # Telefonu olan güvenilir kişilere SMS gönder (Twilio)
+    contacts_with_phone = [c for c in target_contacts if c.phone]
     sms_sent = 0
-    for contact in target_contacts:
-        if contact.phone:
+    try:
+        for contact in contacts_with_phone:
             try:
                 success = await twilio.send_sms(contact.phone, message)
                 if success:
                     sms_sent += 1
             except Exception as e:
-                logger.error(f"SMS gönderme hatası (contact_id={contact.id}): {e}")
-    
+                logger.error("SMS gönderme hatası (contact_id=%s): %s", contact.id, e)
+    except Exception as e:
+        logger.error("Twilio S.O.S hatası: %s", e)
+        return {
+            "status": "error",
+            "message": "SMS servisi şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
+            "notified_contacts": 0,
+            "total_contacts": len(contacts),
+            "sms_sent": 0,
+            "detail": str(e),
+        }
+
     logger.info(
-        "Ben İyiyim Mesajı: user_id=%d, msg=%s, location=%s, sms_sent=%d",
+        "Ben İyiyim: user_id=%d, location=%s, sms_sent=%d/%d",
         current_user.id,
-        body.custom_message,
-        "Var" if body.include_location else "Yok",
-        sms_sent
+        "Var" if body.include_location and body.latitude and body.longitude else "Yok",
+        sms_sent,
+        len(contacts_with_phone),
     )
-    
+
+    if not contacts_with_phone:
+        return {
+            "status": "ok",
+            "message": "Güvenilir kişi listesine telefon numarası ekleyin; S.O.S bu numaralara gönderilir.",
+            "notified_contacts": 0,
+            "total_contacts": len(contacts),
+            "sms_sent": 0,
+        }
+
     return {
         "status": "ok",
         "message": "Bildirim gönderildi.",
-        "notified_contacts": len(target_contacts),
+        "notified_contacts": sms_sent,
         "total_contacts": len(contacts),
         "sms_sent": sms_sent,
     }
