@@ -106,8 +106,16 @@ export default function RiskAnalysisScreen() {
                 soil_class: soilClass,
             });
             setResult(data);
-        } catch {
-            Alert.alert("Hata", "Risk analizi yapılamadı. Lütfen tekrar deneyin.");
+        } catch (err: unknown) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+            if (status === 401) {
+                Alert.alert("Oturum Gerekli", "Risk analizi için giriş yapmanız gerekiyor.");
+            } else if (detail) {
+                Alert.alert("Hata", String(detail));
+            } else {
+                Alert.alert("Sunucu Hatası", "Risk analizi sunucuya ulaşamadı. VPN veya internet bağlantınızı kontrol edin.");
+            }
         } finally {
             setLoading(false);
         }

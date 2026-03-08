@@ -8,7 +8,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -237,9 +237,18 @@ async def delete_account(
     response_model=List[EmergencyContactOut],
     summary="Acil iletişim kişilerini listele",
 )
-async def list_contacts(current_user: User = Depends(get_current_user)) -> List[EmergencyContactOut]:
+async def list_contacts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[EmergencyContactOut]:
     """Kullanıcının tüm acil iletişim kişilerini döner."""
-    return [EmergencyContactOut.model_validate(c) for c in current_user.emergency_contacts]
+    result = await db.execute(
+        select(EmergencyContact)
+        .where(EmergencyContact.user_id == current_user.id)
+        .order_by(EmergencyContact.priority)
+    )
+    contacts = result.scalars().all()
+    return [EmergencyContactOut.model_validate(c) for c in contacts]
 
 
 @router.post(
@@ -254,7 +263,11 @@ async def add_contact(
     db: AsyncSession = Depends(get_db),
 ) -> EmergencyContactOut:
     """Yeni acil iletişim kişisi ekler. Maksimum 5 kişi sınırı uygulanır."""
-    if len(current_user.emergency_contacts) >= _MAX_EMERGENCY_CONTACTS:
+    count_result = await db.execute(
+        select(func.count()).select_from(EmergencyContact).where(EmergencyContact.user_id == current_user.id)
+    )
+    contact_count = count_result.scalar_one()
+    if contact_count >= _MAX_EMERGENCY_CONTACTS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"En fazla {_MAX_EMERGENCY_CONTACTS} acil iletişim kişisi eklenebilir.",
@@ -383,10 +396,14 @@ async def i_am_safe(
     # TODO: Gerçek FCM servisi entegre edilecek.
     # Şimdilik dummy response.
 
-    contacts = current_user.emergency_contacts
-    
+    # Acil kişileri async ile yükle
+    contacts_result = await db.execute(
+        select(EmergencyContact).where(EmergencyContact.user_id == current_user.id)
+    )
+    contacts = contacts_result.scalars().all()
+
     # Filtreleme (belirli kişiler seçildiyse)
-    target_contacts = contacts
+    target_contacts = list(contacts)
     if body.contact_ids:
         target_contacts = [c for c in contacts if c.id in body.contact_ids]
 

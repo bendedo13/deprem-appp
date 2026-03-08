@@ -89,12 +89,12 @@ export async function sendSOSAlert(
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
             const { data } = await api.post<{ status: string; notified_contacts: number }>(
-                "/api/v1/users/me/safe",
+                "/api/v1/users/i-am-safe",
                 {
                     custom_message: message,
                     latitude: location?.latitude ?? null,
                     longitude: location?.longitude ?? null,
-                    sos_trigger: trigger,
+                    include_location: !!location,
                 },
                 { timeout: 15_000 }
             );

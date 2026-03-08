@@ -1,10 +1,12 @@
 /**
  * Deprem doğrulandığında FCM data payload ile tetiklenir.
- * Sesi %100 yapar ve Notifee ile tam ekran alarm (Full Screen Intent) gösterir.
+ * Sessiz modda da çalar — bypassDnd + playsInSilentModeIOS aktif.
+ * Android 13+ için POST_NOTIFICATIONS izni istenir.
  */
 
-import notifee, { AndroidImportance } from "@notifee/react-native";
+import notifee, { AndroidImportance, AndroidCategory, AndroidVisibility } from "@notifee/react-native";
 import { Platform } from "react-native";
+import { Audio } from "expo-av";
 
 const CHANNEL_ID = "earthquake_alarm";
 
@@ -17,51 +19,85 @@ export type EarthquakeConfirmedPayload = {
 };
 
 /**
- * Bildirim kanalını oluşturur (Android). Tam ekran ve yüksek öncelik.
+ * Android 13+ / iOS için bildirim iznini iste.
+ */
+export async function requestNotificationPermission(): Promise<boolean> {
+  try {
+    const settings = await notifee.requestPermission();
+    return settings.authorizationStatus >= 1;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Bildirim kanalı: HIGH importance + bypassDnd (DND modunu geç).
  */
 export async function ensureEarthquakeChannel(): Promise<void> {
   await notifee.createChannel({
     id: CHANNEL_ID,
     name: "Deprem Uyarısı",
+    description: "Deprem algılandığında tam ekran alarm gösterir",
     importance: AndroidImportance.HIGH,
     sound: "default",
     vibration: true,
+    vibrationPattern: [0, 300, 200, 300, 200, 600],
+    bypassDnd: true,
+    visibility: AndroidVisibility.PUBLIC,
   });
 }
 
 /**
- * Deprem doğrulandığında çağrılır: ses %100 + tam ekran bildirim.
- * FCM handler'dan veya doğrudan tetiklenebilir.
+ * Sessiz modu bypass et — iOS silent switch + Android tam ses.
+ */
+export async function playAlarmSound(): Promise<void> {
+  try {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: false,
+    });
+    console.log("[EarthquakeAlarm] Ses modu: sessiz bypass aktif");
+  } catch (err) {
+    console.warn("[EarthquakeAlarm] Ses modu ayarlanamadı:", err);
+  }
+}
+
+/**
+ * Deprem doğrulandığında: izin iste → ses bypass → tam ekran bildirim.
  */
 export async function showEarthquakeAlarm(payload: EarthquakeConfirmedPayload): Promise<void> {
+  await requestNotificationPermission();
+  await playAlarmSound();
   await ensureEarthquakeChannel();
 
   const lat = payload.latitude ?? "";
   const lon = payload.longitude ?? "";
-  const ts = payload.timestamp ?? new Date().toISOString();
-  const body = `Konum: ${lat}, ${lon} • ${ts}`;
+  const body = lat && lon
+    ? `Konum: ${lat}, ${lon}`
+    : "Cihaz sensörü deprem sinyali algıladı";
 
-  const notification: notifee.Notification = {
-    title: "⚠️ Deprem doğrulandı",
+  await notifee.displayNotification({
+    title: "⚠️ Deprem Uyarısı",
     body,
     android: {
       channelId: CHANNEL_ID,
       importance: AndroidImportance.HIGH,
+      category: AndroidCategory.ALARM,
+      visibility: AndroidVisibility.PUBLIC,
       fullScreenAction: {
+        id: "default",
         launchActivity: "default",
       },
       pressAction: { id: "default" },
-      smallIcon: "ic_notification",
+      autoCancel: false,
     },
-  };
-
-  await notifee.displayNotification(notification);
-
-  // Ses seviyesini %100 yap (sadece uyarı süresi için)
-  try {
-    const { setVolume } = await import("./volumeControl");
-    setVolume(1.0);
-  } catch {
-    // volumeControl modülü yoksa sessiz devam
-  }
+    ios: {
+      sound: "default",
+      critical: true,
+      criticalVolume: 1.0,
+    },
+  });
+  console.log("[EarthquakeAlarm] Tam ekran bildirim gönderildi");
 }

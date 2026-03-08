@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,13 +50,17 @@ async def score(
     Konum ve bina detaylarına göre gelişmiş risk analizi yapar. 
     Fay mesafesi, zemin türü ve bina yaşı faktörlerini birleştirir.
     """
-    calculator = RiskCalculator()
-    result: RiskResult = await calculator.calculate(
-        lat=body.latitude,
-        lon=body.longitude,
-        building_year=body.building_year,
-        soil_class=body.soil_class
-    )
+    try:
+        calculator = RiskCalculator()
+        result: RiskResult = await calculator.calculate(
+            lat=body.latitude,
+            lon=body.longitude,
+            building_year=body.building_year,
+            soil_class=body.soil_class
+        )
+    except Exception as exc:
+        logger.error("Risk skoru hesaplanamadı: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Risk analizi hesaplanamadı. Lütfen tekrar deneyin.")
 
     return RiskScoreOut(
         score=result.score,
