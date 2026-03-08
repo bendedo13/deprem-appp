@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
     Settings,
     Lock,
@@ -22,6 +22,29 @@ export default function AdminSettings() {
     });
     const [showPasswords, setShowPasswords] = useState(false);
     const [passwordLoading, setPasswordLoading] = useState(false);
+
+    // SOS Şablonları
+    const [sosSafeTemplate, setSosSafeTemplate] = useState('');
+    const [sosVoiceTemplate, setSosVoiceTemplate] = useState('');
+    const [templatesLoading, setTemplatesLoading] = useState(true);
+    const [templatesSaving, setTemplatesSaving] = useState(false);
+
+    useEffect(() => {
+        const fetchTemplates = async () => {
+            try {
+                const settings = await adminService.getSettings();
+                const safe = settings.find((s: any) => s.key === 'sos_safe_template');
+                const voice = settings.find((s: any) => s.key === 'sos_voice_template');
+                if (safe) setSosSafeTemplate(safe.value);
+                if (voice) setSosVoiceTemplate(voice.value);
+            } catch (err) {
+                console.error('SOS şablonları okunamadı:', err);
+            } finally {
+                setTemplatesLoading(false);
+            }
+        };
+        fetchTemplates();
+    }, []);
 
     const handlePasswordChange = async (e: FormEvent) => {
         e.preventDefault();
@@ -123,8 +146,80 @@ export default function AdminSettings() {
                     </form>
                 </div>
 
-                {/* System Info */}
+                {/* SOS Şablonları + System Info */}
                 <div className="space-y-6">
+                    {/* SOS Şablonları */}
+                    <div className="bg-dark-surface border border-dark-border rounded-2xl p-6">
+                        <h4 className="text-sm font-black text-white uppercase italic tracking-widest mb-6 flex items-center gap-2">
+                            <Settings size={16} className="text-primary" />
+                            S.O.S Mesaj Şablonları
+                        </h4>
+
+                        {templatesLoading ? (
+                            <div className="flex items-center justify-center h-24">
+                                <Loader2 className="animate-spin text-primary" size={20} />
+                            </div>
+                        ) : (
+                            <form
+                                className="space-y-5"
+                                onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    setTemplatesSaving(true);
+                                    try {
+                                        await Promise.all([
+                                            adminService.updateSetting('sos_safe_template', sosSafeTemplate),
+                                            adminService.updateSetting('sos_voice_template', sosVoiceTemplate),
+                                        ]);
+                                        toast.success('S.O.S şablonları güncellendi');
+                                    } catch (err: any) {
+                                        const detail = err?.response?.data?.detail || 'Şablonlar kaydedilemedi';
+                                        toast.error(detail);
+                                    } finally {
+                                        setTemplatesSaving(false);
+                                    }
+                                }}
+                            >
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                                        Ben İyiyim / SMS + WhatsApp Şablonu
+                                    </label>
+                                    <textarea
+                                        value={sosSafeTemplate}
+                                        onChange={(e) => setSosSafeTemplate(e.target.value)}
+                                        className="w-full bg-dark border border-dark-border rounded-xl px-4 py-3 text-white focus:border-primary outline-none font-mono text-xs min-h-[80px]"
+                                    />
+                                    <p className="text-[10px] text-slate-500 font-bold ml-1">
+                                        Değişkenler: {'{user_name}'}, {'{custom_message}'}, {'{maps_url}'}
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                                        Sesli S.O.S Şablonu
+                                    </label>
+                                    <textarea
+                                        value={sosVoiceTemplate}
+                                        onChange={(e) => setSosVoiceTemplate(e.target.value)}
+                                        className="w-full bg-dark border border-dark-border rounded-xl px-4 py-3 text-white focus:border-primary outline-none font-mono text-xs min-h-[100px]"
+                                    />
+                                    <p className="text-[10px] text-slate-500 font-bold ml-1">
+                                        Değişkenler: {'{durum}'}, {'{kisi_sayisi}'}, {'{aciliyet}'}, {'{lokasyon}'}, {'{audio_url}'}, {'{user_email}'}
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={templatesSaving}
+                                    className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white font-black py-3 px-5 rounded-xl transition-all text-xs uppercase tracking-widest"
+                                >
+                                    {templatesSaving ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                                    ŞABLONLARI KAYDET
+                                </button>
+                    </form>
+                        )}
+                    </div>
+
+                    {/* System Info */}
                     <div className="bg-dark-surface border border-dark-border rounded-2xl p-6">
                         <h4 className="text-sm font-black text-white uppercase italic tracking-widest mb-6 flex items-center gap-2">
                             <Server size={16} className="text-blue-500" />

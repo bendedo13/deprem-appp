@@ -410,16 +410,8 @@ async def i_am_safe(
     # FCM token'ı olan acil kişi token'larını topla (eğer acil kişi de app kullanıcısıysa)
     fcm_tokens: List[str] = []
     
-    # Hibrit SMS + Twilio WhatsApp gönderimi için servis
-    from app.services.sos_service import send_hybrid_via_twilio
-    
-    # Mesaj oluştur
-    user_name = current_user.name or current_user.email
-    message = f"{user_name} güvende: {body.custom_message or 'Ben iyiyim!'}"
-    
-    # Konum varsa ekle
-    if body.include_location and body.latitude and body.longitude:
-        message += f" Konum: https://maps.google.com/?q={body.latitude},{body.longitude}"
+    # Hibrit SMS + Twilio WhatsApp + şablon engine
+    from app.services.sos_service import send_hybrid_via_twilio, render_template_async
     
     # Telefonu olan güvenilir kişilere hibrit kanal ile gönderim
     contacts_with_phone = [c for c in target_contacts if c.phone]
@@ -437,6 +429,25 @@ async def i_am_safe(
 
     phone_numbers = [c.phone for c in contacts_with_phone if c.phone]
     channel = (body.channel or "hybrid").lower()
+
+    # Şablon için context hazırla
+    user_name = current_user.name or current_user.email
+    custom_message = body.custom_message or "Ben iyiyim!"
+    maps_url = ""
+    if body.include_location and body.latitude and body.longitude:
+        maps_url = f"https://maps.google.com/?q={body.latitude},{body.longitude}"
+
+    default_template = "{user_name} güvende: {custom_message}\nKonum: {maps_url}"
+    message = await render_template_async(
+        db,
+        key="sos_safe_template",
+        default=default_template,
+        context={
+            "user_name": user_name,
+            "custom_message": custom_message,
+            "maps_url": maps_url,
+        },
+    )
 
     try:
         result = await send_hybrid_via_twilio(phone_numbers, message, channel=channel)  # type: ignore[arg-type]

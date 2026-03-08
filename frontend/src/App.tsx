@@ -97,7 +97,8 @@ function App() {
           <Routes>
             {/* Public App Layout */}
             <Route path="/" element={<><Navbar /><Dashboard /></>} />
-            <Route path="/login" element={<><Navbar /><Login /></>} />
+          <Route path="/login" element={<><Navbar /><Login /></>} />
+          <Route path="/admin/login" element={<><Navbar /><Login /></>} />
             <Route path="/register" element={<><Navbar /><Register /></>} />
             <Route path="/map" element={<><Navbar /><MapPage /></>} />
             <Route path="/risk" element={<><Navbar /><RiskAnalysis /></>} />

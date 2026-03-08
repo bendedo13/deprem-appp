@@ -199,23 +199,31 @@ def _send_emergency_alerts(
             logger.warning("Emergency contacts bulunamadı: user_id=%d", user_id)
             return
 
-        # Format message
-        message = (
-            f"🚨 S.O.S Bildirimi\n"
-            f"Durum: {extracted_data['durum']}\n"
-            f"Kişi Sayısı: {extracted_data['kisi_sayisi']}\n"
-            f"Aciliyet: {extracted_data['aciliyet']}\n"
-            f"Konum: {extracted_data['lokasyon']}\n"
-            f"Ses Kaydı: {audio_url}\n"
-            f"Gönderen: {user.email}"
-        )
-
-        # Send SMS + Twilio WhatsApp hibrit
-        from app.services.sos_service import send_hybrid_via_twilio_sync
+        # Şablon context'i ve mesaj
+        from app.services.sos_service import send_hybrid_via_twilio_sync, render_template_sync
 
         phone_numbers = [c.phone for c in contacts if c.phone]
 
         if phone_numbers:
+            context = {
+                "durum": extracted_data["durum"],
+                "kisi_sayisi": extracted_data["kisi_sayisi"],
+                "aciliyet": extracted_data["aciliyet"],
+                "lokasyon": extracted_data["lokasyon"],
+                "audio_url": audio_url,
+                "user_email": user.email,
+            }
+            default_template = (
+                "🚨 S.O.S Bildirimi\n"
+                "Durum: {durum}\n"
+                "Kişi Sayısı: {kisi_sayisi}\n"
+                "Aciliyet: {aciliyet}\n"
+                "Konum: {lokasyon}\n"
+                "Ses Kaydı: {audio_url}\n"
+                "Gönderen: {user_email}"
+            )
+            message = render_template_sync(db, "sos_voice_template", default_template, context)
+
             result = send_hybrid_via_twilio_sync(phone_numbers, message, channel="hybrid")
             logger.info(
                 "SOS hibrit bildirim: sms=%d, whatsapp=%d, contacts=%d",

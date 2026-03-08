@@ -62,4 +62,14 @@ DEFAULT_SETTINGS = [
         "value": "true",
         "description": "Cihaz sensörü tabanlı erken uyarı sistemini etkinleştirir.",
     },
+    {
+        "key": "sos_safe_template",
+        "value": "{user_name} güvende: {custom_message}\\nKonum: {maps_url}",
+        "description": "Ben İyiyim / S.O.S mesajı şablonu. Değişkenler: {user_name}, {custom_message}, {maps_url}.",
+    },
+    {
+        "key": "sos_voice_template",
+        "value": "🚨 S.O.S Bildirimi\\nDurum: {durum}\\nKişi Sayısı: {kisi_sayisi}\\nAciliyet: {aciliyet}\\nKonum: {lokasyon}\\nSes Kaydı: {audio_url}\\nGönderen: {user_email}",
+        "description": "Sesli S.O.S için SMS/WhatsApp şablonu. Değişkenler: {durum}, {kisi_sayisi}, {aciliyet}, {lokasyon}, {audio_url}, {user_email}.",
+    },
 ]

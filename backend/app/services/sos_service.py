@@ -12,8 +12,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Iterable, List, Literal, TypedDict
+from typing import Iterable, List, Literal, TypedDict, Mapping, Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
+
+from app.models.app_settings import AppSettings
 from app.services.twilio_sms import get_twilio_service
 
 logger = logging.getLogger(__name__)
@@ -26,6 +30,37 @@ class SOSHybridResult(TypedDict):
     whatsapp_sent: int
     tried_sms: bool
     tried_whatsapp: bool
+
+
+class _SafeDict(dict):
+    """Template engine için eksik key'lerde boş string döndüren dict."""
+
+    def __missing__(self, key: str) -> str:  # type: ignore[override]
+        return ""
+
+
+def render_template_sync(
+    db: Session,
+    key: str,
+    default: str,
+    context: Mapping[str, Any],
+) -> str:
+    """Senkron ortamlar için şablon render fonksiyonu (Celery, script vb.)."""
+    setting = db.get(AppSettings, key)
+    template = setting.value if setting else default
+    return template.format_map(_SafeDict(context))
+
+
+async def render_template_async(
+    db: AsyncSession,
+    key: str,
+    default: str,
+    context: Mapping[str, Any],
+) -> str:
+    """Async ortamlar için şablon render fonksiyonu (FastAPI endpoint'leri)."""
+    setting = await db.get(AppSettings, key)
+    template = setting.value if setting else default
+    return template.format_map(_SafeDict(context))
 
 
 async def send_hybrid_via_twilio(

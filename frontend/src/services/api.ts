@@ -148,7 +148,15 @@ export const adminService = {
     changePassword: async (body: { current_password: string; new_password: string }) => {
         const { data } = await api.put('/admin/change-password', body);
         return data;
-    }
+    },
+    getSettings: async () => {
+        const { data } = await api.get('/admin/settings');
+        return data;
+    },
+    updateSetting: async (key: string, value: string) => {
+        const { data } = await api.put(`/admin/settings/${encodeURIComponent(key)}`, { value });
+        return data;
+    },
 };
 
 export const subscriptionService = {
