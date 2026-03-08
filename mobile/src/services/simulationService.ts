@@ -18,7 +18,18 @@
  */
 
 import { Vibration } from "react-native";
-import { Audio } from "expo-av";
+
+/** expo-av güvenli yükleme — undefined modül crash'ini önler */
+let AudioModule: typeof import("expo-av").Audio | null = null;
+try {
+    const expoAv = require("expo-av");
+    if (expoAv?.Audio && typeof expoAv.Audio.setAudioModeAsync === "function") {
+        AudioModule = expoAv.Audio;
+    }
+} catch {
+    console.warn("[Simulation] expo-av yüklenemedi, ses modu atlanacak");
+}
+
 import { showEarthquakeAlarm } from "./earthquakeAlarm";
 import { sendSOSAlert } from "./sosAlertService";
 
@@ -38,8 +49,12 @@ export interface SimulationResult {
  * Bu ayar ile telefon tamamen sessizde olsa bile bildirim sesi çalar.
  */
 async function configureSilentModeBypass(): Promise<boolean> {
+    if (!AudioModule || typeof AudioModule.setAudioModeAsync !== "function") {
+        console.warn("[Simulation] [1/5] ✗ expo-av Audio modülü yok, ses modu atlandı");
+        return false;
+    }
     try {
-        await Audio.setAudioModeAsync({
+        await AudioModule.setAudioModeAsync({
             allowsRecordingIOS: false,
             playsInSilentModeIOS: true,   // ← Ana özellik: sessiz modda çalar
             staysActiveInBackground: true, // ← Arka planda ses aktif kalır
@@ -65,7 +80,12 @@ async function configureSilentModeBypass(): Promise<boolean> {
  *  - Azalma: artçı sarsıntı
  */
 function triggerVibration(): void {
-    const pattern = [
+    try {
+        if (typeof Vibration?.vibrate !== "function") {
+            console.warn("[Simulation] [2/5] ✗ Vibration API yok");
+            return;
+        }
+        const pattern = [
         0,         // hemen başla
         150, 100,  // P-dalgası: hafif
         200, 80,   // P→S geçiş
@@ -78,6 +98,9 @@ function triggerVibration(): void {
     ];
     Vibration.vibrate(pattern, false);
     console.log("[Simulation] [2/5] ✓ Titreşim başlatıldı (sismik dalga paterni)");
+    } catch (err) {
+        console.warn("[Simulation] [2/5] ✗ Titreşim hatası:", err);
+    }
 }
 
 // ── Adım 3: Flaş ──────────────────────────────────────────────────────────────

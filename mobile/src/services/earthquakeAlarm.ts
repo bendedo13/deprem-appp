@@ -6,7 +6,17 @@
 
 import notifee, { AndroidImportance, AndroidCategory, AndroidVisibility } from "@notifee/react-native";
 import { Platform } from "react-native";
-import { Audio } from "expo-av";
+
+/** expo-av güvenli yükleme — Requiring unknown module "undefined" crash'ini önler */
+let AudioModule: typeof import("expo-av").Audio | null = null;
+try {
+    const expoAv = require("expo-av");
+    if (expoAv?.Audio && typeof expoAv.Audio.setAudioModeAsync === "function") {
+        AudioModule = expoAv.Audio;
+    }
+} catch {
+    console.warn("[EarthquakeAlarm] expo-av yüklenemedi");
+}
 
 const CHANNEL_ID = "earthquake_alarm";
 
@@ -51,11 +61,15 @@ export async function ensureEarthquakeChannel(): Promise<void> {
  * Sessiz modu bypass et — iOS silent switch + Android tam ses.
  * Gerçek alarm sesi çalar.
  */
-let alarmSoundObj: Audio.Sound | null = null;
+let alarmSoundObj: import("expo-av").Audio.Sound | null = null;
 
 export async function playAlarmSound(): Promise<void> {
-  try {
-    await Audio.setAudioModeAsync({
+    if (!AudioModule) {
+        console.warn("[EarthquakeAlarm] expo-av yok, alarm sesi atlandı");
+        return;
+    }
+    try {
+        await AudioModule.setAudioModeAsync({
       allowsRecordingIOS: false,
       playsInSilentModeIOS: true,
       staysActiveInBackground: true,
@@ -68,17 +82,16 @@ export async function playAlarmSound(): Promise<void> {
       alarmSoundObj = null;
     }
 
-    // Sistem uyarı sesi çal
-    let soundSource: any;
+    // Sistem uyarı sesi çal — require path sabit; undefined ile require çağrılmaz
+    let soundSource: number | null = null;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       soundSource = require("../../../assets/alarm.mp3");
     } catch {
-      soundSource = null;
+      // alarm.mp3 yoksa veya path hatalıysa sessiz devam
     }
 
-    if (soundSource) {
-      const { sound } = await Audio.Sound.createAsync(
+    if (soundSource != null) {
+      const { sound } = await AudioModule.Sound.createAsync(
         soundSource,
         { shouldPlay: true, isLooping: true, volume: 1.0 }
       );

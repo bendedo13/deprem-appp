@@ -1,5 +1,70 @@
 # 🚀 Final Deployment Commands
 
+## 📌 Tek Sayfa — VPS ve EAS Komutları (Kopyala-Yapıştır)
+
+Aşağıdaki komutları sırayla kullanın; her seferinde aynı liste yeterli.
+
+### VPS (Backend / Sunucu)
+
+```bash
+# 1. VPS'e bağlan
+ssh root@VPS_IP_ADRESINIZ
+
+# 2. Proje dizini
+cd /opt/deprem-appp/deploy
+
+# 3. Güncel kodu çek
+cd /opt/deprem-appp && git pull origin main
+
+# 4. Yeniden build ve başlat
+cd /opt/deprem-appp/deploy
+docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
+
+# 5. Veritabanı migration (gerekirse)
+docker exec deprem_backend alembic upgrade head
+
+# 6. Log kontrol
+docker logs -f deprem_backend
+docker logs -f deprem_celery
+docker ps -a
+```
+
+### EAS Build (Mobil APK)
+
+```bash
+# 1. Mobil proje dizini (yerelde)
+cd deprem-appp-1/mobile
+# veya: cd /path/to/deprem-appp-1/mobile
+
+# 2. Bağımlılık uyumluluğu kontrol (Expo SDK ile uyum)
+npx expo install --check
+
+# 3. EAS giriş
+eas whoami
+# Gerekirse: eas login
+
+# 4. Production APK build
+eas build --platform android --profile production
+
+# 5. Build listesi / indirme
+eas build:list
+eas build:view BUILD_ID
+eas build:download --id BUILD_ID
+```
+
+### Hızlı Referans (Tek Satır Özet)
+
+| Amaç | Komut |
+|------|--------|
+| VPS deploy | `ssh root@IP 'cd /opt/deprem-appp && git pull && cd deploy && docker compose -f docker-compose.prod.yml up -d --build'` |
+| Migration | `docker exec deprem_backend alembic upgrade head` |
+| Android APK | `cd mobile && eas build --platform android --profile production` |
+| Build cache temizle | `eas build:clear-cache` sonra `eas build --platform android --profile production --clear-cache` |
+
+---
+
 ## ✅ Production-Ready Status
 
 All issues have been fixed:

@@ -9,7 +9,6 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Accelerometer } from "expo-sensors";
 import { Platform } from "react-native";
 import {
     SAMPLE_RATE_HZ,
@@ -24,6 +23,17 @@ import {
 } from "../constants/seismic";
 import { highPassFilter, vectorMagnitude, computeStaLta } from "../utils/staLta";
 import { reportTrigger } from "../services/seismicService";
+
+/** expo-sensors güvenli yükleme — undefined modül crash'ini önler */
+let AccelerometerModule: typeof import("expo-sensors").Accelerometer | null = null;
+try {
+    const expoSensors = require("expo-sensors");
+    if (expoSensors?.Accelerometer && typeof expoSensors.Accelerometer.addListener === "function") {
+        AccelerometerModule = expoSensors.Accelerometer;
+    }
+} catch {
+    console.warn("[useShakeDetector] expo-sensors yüklenemedi");
+}
 
 export interface ShakeState {
     isMonitoring: boolean;
@@ -62,9 +72,14 @@ export function useShakeDetector(
     });
 
     useEffect(() => {
-        Accelerometer.setUpdateInterval(Math.floor(1000 / SAMPLE_RATE_HZ));
+        if (!AccelerometerModule || typeof AccelerometerModule.addListener !== "function") {
+            console.warn("[useShakeDetector] İvmeölçer kullanılamıyor (expo-sensors yok veya eksik)");
+            return;
+        }
 
-        const sub = Accelerometer.addListener(({ x, y, z }) => {
+        AccelerometerModule.setUpdateInterval(Math.floor(1000 / SAMPLE_RATE_HZ));
+
+        const sub = AccelerometerModule.addListener(({ x, y, z }) => {
             const now = Date.now();
             const raw = vectorMagnitude(x, y, z);
             const filtered = highPassFilter(raw, prevRaw.current, prevFiltered.current, HIGHPASS_ALPHA);

@@ -3,7 +3,15 @@
  * Ham ivmeyi filtreleyerek düşme (yüksek frekans) ile deprem sarsıntısını ayırt etmeye yardımcı olur.
  */
 
-import { Accelerometer } from "expo-sensors";
+let AccelerometerModule: typeof import("expo-sensors").Accelerometer | null = null;
+try {
+    const expoSensors = require("expo-sensors");
+    if (expoSensors?.Accelerometer && typeof expoSensors.Accelerometer.addListener === "function") {
+        AccelerometerModule = expoSensors.Accelerometer;
+    }
+} catch {
+    console.warn("[accelerometer] expo-sensors yüklenemedi");
+}
 import { LOW_PASS_ALPHA } from "../config/constants";
 
 export type AccelerometerData = { x: number; y: number; z: number };
@@ -37,8 +45,12 @@ export function subscribeAccelerometer(
   callback: (data: AccelerometerData) => void,
   intervalMs: number = 16
 ): () => void {
-  Accelerometer.setUpdateInterval(intervalMs);
-  const sub = Accelerometer.addListener((e) => {
+  if (!AccelerometerModule || typeof AccelerometerModule.addListener !== "function") {
+    console.warn("[accelerometer] İvmeölçer kullanılamıyor");
+    return () => {};
+  }
+  AccelerometerModule.setUpdateInterval(intervalMs);
+  const sub = AccelerometerModule.addListener((e) => {
     callback({ x: e.x, y: e.y, z: e.z });
   });
   return () => sub.remove();
