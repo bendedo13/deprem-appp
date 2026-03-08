@@ -30,9 +30,9 @@ export default function MenuScreen() {
             t("auth.logout_title") || "Çıkış Yap",
             t("auth.logout_confirm") || "Çıkış yapmak istediğinizden emin misiniz?",
             [
-                { text: t("map.close"), style: "cancel" },
+                { text: "İptal", style: "cancel" },
                 {
-                    text: t("auth.login_btn"),
+                    text: "Çıkış Yap",
                     style: "destructive",
                     onPress: async () => {
                         await logout();
@@ -121,8 +121,7 @@ export default function MenuScreen() {
                     title="Bildirim Tercihleri"
                     href="/more/notification_preferences"
                     color={Colors.accent}
-                    badge="Yeni"
-                />
+                                   />
                 <MenuItem icon="bell-outline" title={t("menu.notifications") || "Bildirim Ayarları"} href="/more/notifications" color={Colors.primary} />
                 <MenuItem icon="earth" title={t("menu.language") || "Dil Seçimi"} href="/more/language" />
             </View>
@@ -136,8 +135,7 @@ export default function MenuScreen() {
                     title="Güvenlik Ağım"
                     href="/more/family_safety"
                     color={Colors.danger}
-                    badge="Yeni"
-                />
+                                   />
             </View>
 
             {/* Hazırlık & Bilgi */}

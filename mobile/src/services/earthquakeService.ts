@@ -257,13 +257,26 @@ export interface FetchResult {
     failedSources: EarthquakeSource[];
 }
 
-export async function fetchAllEarthquakes(hours = 24): Promise<FetchResult> {
-    const fetchers: [EarthquakeSource, () => Promise<UnifiedEarthquake[]>][] = [
-        ["AFAD",   () => fetchAFAD(hours)],
-        ["USGS",   () => fetchUSGS(hours)],
-        ["EMSC",   () => fetchEMSC(hours)],
-        ["SUNUCU", () => fetchBackend()],
-    ];
+/**
+ * @param hours   — Kaç saatlik veri
+ * @param region  — "TR" ise yalnızca AFAD + Sunucu; "WORLD" veya undefined ise hepsi
+ */
+export async function fetchAllEarthquakes(
+    hours = 24,
+    region?: "TR" | "WORLD",
+): Promise<FetchResult> {
+    const fetchers: [EarthquakeSource, () => Promise<UnifiedEarthquake[]>][] =
+        region === "TR"
+            ? [
+                  ["AFAD",   () => fetchAFAD(hours)],
+                  ["SUNUCU", () => fetchBackend()],
+              ]
+            : [
+                  ["AFAD",   () => fetchAFAD(hours)],
+                  ["USGS",   () => fetchUSGS(hours)],
+                  ["EMSC",   () => fetchEMSC(hours)],
+                  ["SUNUCU", () => fetchBackend()],
+              ];
 
     const settled = await Promise.allSettled(fetchers.map(([, fn]) => fn()));
 

@@ -21,6 +21,7 @@ import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
+import { api } from "../../src/services/api";
 
 const STORAGE_KEY = "quakesense_health_card";
 
@@ -49,18 +50,60 @@ export default function HealthCardScreen() {
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
-        AsyncStorage.getItem(STORAGE_KEY)
-            .then((raw) => {
+        (async () => {
+            // Önce backend'den oku, başarısızsa yerel depolamadan oku
+            try {
+                const { data } = await api.get<{
+                    blood_type: string;
+                    allergies: string;
+                    medications: string;
+                    conditions: string;
+                    emergency_note: string;
+                }>("/api/v1/health-card");
+                if (data && data.blood_type) {
+                    const mapped: HealthCard = {
+                        bloodType: data.blood_type,
+                        allergies: data.allergies ?? "",
+                        medications: data.medications ?? "",
+                        conditions: data.conditions ?? "",
+                        emergencyNote: data.emergency_note ?? "",
+                    };
+                    setCard(mapped);
+                    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+                    setLoading(false);
+                    return;
+                }
+            } catch {
+                // Backend erişilemiyorsa yerel depoya düş
+            }
+            try {
+                const raw = await AsyncStorage.getItem(STORAGE_KEY);
                 if (raw) setCard(JSON.parse(raw));
-            })
-            .catch(() => {})
-            .finally(() => setLoading(false));
+            } catch { /* */ }
+            setLoading(false);
+        })();
     }, []);
 
     const handleSave = async () => {
         setSaving(true);
         try {
+            // Yerel kaydet
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(card));
+
+            // Backend'e senkronize et
+            try {
+                await api.put("/api/v1/health-card", {
+                    blood_type: card.bloodType,
+                    allergies: card.allergies,
+                    medications: card.medications,
+                    conditions: card.conditions,
+                    emergency_note: card.emergencyNote,
+                });
+            } catch {
+                // Backend erişilemiyorsa sadece yerel kaydedilir
+                console.warn("[HealthCard] Backend sync başarısız, sadece yerel kaydedildi.");
+            }
+
             setSaved(true);
             setTimeout(() => setSaved(false), 2500);
         } catch {
@@ -96,7 +139,7 @@ export default function HealthCardScreen() {
                 <View style={styles.infoBanner}>
                     <MaterialCommunityIcons name="shield-heart-outline" size={20} color={Colors.danger} />
                     <Text style={styles.infoBannerText}>
-                        Bu bilgiler yalnızca cihazınızda saklanır ve acil durum personeline iletmek için kullanılır.
+                        Bilgileriniz cihazınızda ve güvenli sunucumuzda saklanır. Acil durumda kurtarma ekiplerine iletilebilir.
                     </Text>
                 </View>
 

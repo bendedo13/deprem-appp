@@ -91,7 +91,7 @@ export async function playAlarmSound(): Promise<void> {
     try {
       const { sound } = await Audio.Sound.createAsync(
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        require("../../assets/sounds/alarm.mp3"),
+        require("../../assets/sounds/alarm.wav"),
         { shouldPlay: true, isLooping: false, volume: 1.0, isMuted: false }
       );
       _alarmSound = sound;

@@ -34,7 +34,9 @@ export interface UseLiveEarthquakesResult {
     refresh: () => Promise<void>;
 }
 
-export function useLiveEarthquakes(): UseLiveEarthquakesResult {
+export function useLiveEarthquakes(
+    region?: "TR" | "WORLD",
+): UseLiveEarthquakesResult {
     const [earthquakes, setEarthquakes] = useState<UnifiedEarthquake[]>(_cache);
     const [loading, setLoading] = useState(_cache.length === 0);
     const [error, setError] = useState<string | null>(null);
@@ -49,12 +51,12 @@ export function useLiveEarthquakes(): UseLiveEarthquakesResult {
     const { isConnected, lastEvent } = useWebSocket();
 
     const doFetch = useCallback(async (silent: boolean) => {
-        if (fetchingRef.current) return; // Prevent concurrent fetches
+        if (fetchingRef.current) return;
         fetchingRef.current = true;
         if (!silent) setLoading(true);
 
         try {
-            const result = await fetchAllEarthquakes(24);
+            const result = await fetchAllEarthquakes(24, region);
             _cache = result.earthquakes;
             setEarthquakes(result.earthquakes);
             setActiveSources(result.activeSources);
@@ -75,9 +77,9 @@ export function useLiveEarthquakes(): UseLiveEarthquakesResult {
             fetchingRef.current = false;
             if (!silent) setLoading(false);
         }
-    }, []);
+    }, [region]);
 
-    // Initial fetch
+    // Initial fetch + re-fetch on region change
     useEffect(() => {
         doFetch(false);
     }, [doFetch]);

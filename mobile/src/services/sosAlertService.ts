@@ -88,7 +88,12 @@ export async function sendSOSAlert(
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
-            const { data } = await api.post<{ status: string; notified_contacts: number }>(
+            const { data } = await api.post<{
+                status: string;
+                notified_contacts: number;
+                sms_sent: number;
+                total_contacts: number;
+            }>(
                 "/api/v1/users/i-am-safe",
                 {
                     custom_message: message,
@@ -99,9 +104,11 @@ export async function sendSOSAlert(
                 { timeout: 15_000 }
             );
 
+            // sms_sent > 0 ise SMS gönderildi; değilse tüm kontaklar hedeflendi
+            const notified = data.sms_sent > 0 ? data.sms_sent : data.notified_contacts;
             return {
                 success: true,
-                notifiedContacts: data.notified_contacts ?? 0,
+                notifiedContacts: notified ?? 0,
                 location,
             };
         } catch (err: unknown) {

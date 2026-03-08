@@ -45,9 +45,9 @@ function magnitudeColor(m: number): string {
 
 function timeAgo(date: Date): string {
     const d = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (d < 60) return `${d}s`;
-    if (d < 3600) return `${Math.floor(d / 60)}d`;
-    if (d < 86400) return `${Math.floor(d / 3600)}s`;
+    if (d < 60) return `${d}sn`;
+    if (d < 3600) return `${Math.floor(d / 60)}dk`;
+    if (d < 86400) return `${Math.floor(d / 3600)}sa`;
     return `${Math.floor(d / 86400)}g`;
 }
 

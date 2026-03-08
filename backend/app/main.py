@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.redis import get_redis, close_redis
-from app.api.v1 import earthquakes, users, notifications, analytics, risk, seismic, admin, sos, support, community
+from app.api.v1 import earthquakes, users, notifications, analytics, risk, seismic, admin, sos, support, community, health_card
 from app.api.websocket import websocket_router
 from app.tasks.fetch_earthquakes import start_periodic_fetch
 
@@ -48,15 +48,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — wildcard + credentials birlikte kullanılamaz (HTTP spec).
-# DEBUG modunda localhost origin'leri, production'da ALLOWED_ORIGINS_LIST kullanılır.
+# CORS — Mobil uygulama (React Native) CORS'u tarayıcı gibi uygulamaz,
+# ama Expo Go dev sunucusu ve admin paneli için izin gerekir.
+# Production: wildcard origin (mobil uyumluluk). DEBUG: belirli origin'ler.
 _debug_origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_debug_origins if settings.DEBUG else settings.ALLOWED_ORIGINS_LIST,
-    allow_credentials=True,
+    allow_origins=["*"] if not settings.DEBUG else _debug_origins,
+    allow_credentials=False if not settings.DEBUG else True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -80,6 +81,7 @@ app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 app.include_router(sos.router, prefix="/api/v1/sos", tags=["S.O.S"])
 app.include_router(support.router, prefix="/api/v1/support", tags=["Destek"])
 app.include_router(community.router, prefix="/api/v1/community", tags=["Topluluk"])
+app.include_router(health_card.router, prefix="/api/v1/health-card", tags=["Sağlık Kartı"])
 app.include_router(websocket_router, tags=["WebSocket"])
 
 
