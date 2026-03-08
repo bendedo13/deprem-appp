@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { useLocalSearchParams } from "expo-router";
 import { useLiveEarthquakes } from "../../src/hooks/useLiveEarthquakes";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 import type { UnifiedEarthquake, EarthquakeSource } from "../../src/types/earthquake";
@@ -111,9 +112,12 @@ function SkeletonGridCard() {
 
 export default function MapScreen() {
     const { t, i18n } = useTranslation();
+    const params = useLocalSearchParams<{ focusLat?: string; focusLon?: string; focusId?: string }>();
     const [selected, setSelected] = useState<UnifiedEarthquake | null>(null);
     const [activeFilter, setActiveFilter] = useState<FilterOption>("ALL");
     const [regionFilter, setRegionFilter] = useState<"ALL" | "TR">("ALL");
+    const [highlightId, setHighlightId] = useState<string | null>(null);
+    const scrollRef = useRef<ScrollView>(null);
 
     const {
         earthquakes,
@@ -123,6 +127,43 @@ export default function MapScreen() {
         activeSources,
         refresh,
     } = useLiveEarthquakes();
+
+    // Haritaya yönlendirme parametresi geldiğinde ilgili depremi öne çıkar
+    useEffect(() => {
+        if (params.focusLat && params.focusLon) {
+            const lat = parseFloat(params.focusLat);
+            const lon = parseFloat(params.focusLon);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                // Koordinata en yakın depremi bul
+                const target = earthquakes.find((eq) => {
+                    if (params.focusId && eq.id === params.focusId) return true;
+                    const dLat = Math.abs(eq.coordinates.latitude - lat);
+                    const dLon = Math.abs(eq.coordinates.longitude - lon);
+                    return dLat < 0.05 && dLon < 0.05;
+                });
+                if (target) {
+                    setSelected(target);
+                    setHighlightId(target.id);
+                    // 5 saniye sonra highlight'ı kaldır
+                    setTimeout(() => setHighlightId(null), 5000);
+                } else {
+                    // Deprem listede yoksa koordinat bilgisiyle sahte detay göster
+                    setSelected({
+                        id: `focus_${lat}_${lon}`,
+                        magnitude: 0,
+                        depth: 0,
+                        coordinates: { latitude: lat, longitude: lon },
+                        title: "Yönlendirilen Konum",
+                        date: new Date(),
+                        source: "AFAD",
+                        magType: "ML",
+                    });
+                }
+                // Scroll en başa
+                scrollRef.current?.scrollTo({ y: 0, animated: true });
+            }
+        }
+    }, [params.focusLat, params.focusLon, earthquakes.length]);
 
     // Apply source + region filter
     const filtered = earthquakes.filter((q) => {
@@ -207,7 +248,7 @@ export default function MapScreen() {
             </View>
 
             {/* Grid */}
-            <ScrollView contentContainerStyle={styles.grid}>
+            <ScrollView ref={scrollRef} contentContainerStyle={styles.grid}>
                 {loading ? (
                     [1, 2, 3, 4, 5, 6].map((k) => <SkeletonGridCard key={k} />)
                 ) : filtered.length === 0 ? (
@@ -222,7 +263,11 @@ export default function MapScreen() {
                     filtered.map((eq) => (
                         <TouchableOpacity
                             key={eq.id}
-                            style={[styles.card, { borderColor: magnitudeColor(eq.magnitude) + "35" }]}
+                            style={[
+                                styles.card,
+                                { borderColor: magnitudeColor(eq.magnitude) + "35" },
+                                highlightId === eq.id && styles.cardHighlight,
+                            ]}
                             onPress={() => setSelected(eq)}
                             activeOpacity={0.8}
                         >
@@ -413,6 +458,17 @@ const styles = StyleSheet.create({
     },
     badgeDot: { width: 4, height: 4, borderRadius: 2 },
     badgeText: { fontSize: 8, fontWeight: "800", letterSpacing: 0.3 },
+
+    // Highlight (navigasyondan gelen deprem)
+    cardHighlight: {
+        borderColor: Colors.accent,
+        borderWidth: 2.5,
+        shadowColor: Colors.accent,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 8,
+        elevation: 8,
+    },
 
     // Skeleton
     skeletonCard: { borderColor: Colors.border.glass },

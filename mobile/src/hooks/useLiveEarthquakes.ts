@@ -15,6 +15,7 @@ import { useWebSocket } from "./useWebSocket";
 import type { EarthquakeSource, UnifiedEarthquake } from "../types/earthquake";
 
 const POLL_INTERVAL_MS = 60_000;
+const FAST_POLL_INTERVAL_MS = 15_000; // WS kopukken daha sık poll et
 
 /** In-memory cache — survives component unmount/remount during the app session */
 let _cache: UnifiedEarthquake[] = [];
@@ -82,13 +83,15 @@ export function useLiveEarthquakes(): UseLiveEarthquakesResult {
         doFetch(false);
     }, [doFetch]);
 
-    // Background polling
+    // Background polling — WS kopukken daha sık poll et
     useEffect(() => {
-        timerRef.current = setInterval(() => doFetch(true), POLL_INTERVAL_MS);
+        const interval = isConnected ? POLL_INTERVAL_MS : FAST_POLL_INTERVAL_MS;
+        if (timerRef.current) clearInterval(timerRef.current);
+        timerRef.current = setInterval(() => doFetch(true), interval);
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [doFetch]);
+    }, [doFetch, isConnected]);
 
     // Real-time WebSocket event injection
     useEffect(() => {

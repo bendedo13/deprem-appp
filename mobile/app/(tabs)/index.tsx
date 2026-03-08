@@ -214,10 +214,21 @@ export default function DashboardScreen() {
 
     // ── Earthquake card ──────────────────────────────────────────────────────
 
+    const handleCardPress = useCallback((item: UnifiedEarthquake) => {
+        router.push({
+            pathname: "/(tabs)/map",
+            params: {
+                focusLat: item.coordinates.latitude.toString(),
+                focusLon: item.coordinates.longitude.toString(),
+                focusId: item.id,
+            },
+        });
+    }, []);
+
     const renderItem = useCallback(({ item }: { item: UnifiedEarthquake }) => {
         const color = magnitudeColor(item.magnitude);
         return (
-            <TouchableOpacity style={styles.card} activeOpacity={0.75}>
+            <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => handleCardPress(item)}>
                 <View style={[styles.magBadge, { backgroundColor: color }]}>
                     <Text style={styles.magText}>{item.magnitude.toFixed(1)}</Text>
                     <Text style={styles.magUnit}>{item.magType}</Text>
