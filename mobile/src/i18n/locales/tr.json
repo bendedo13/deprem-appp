@@ -83,6 +83,7 @@
         "apple_signin": "Apple ile Giriş",
         "error_login": "Giriş Hatası",
         "error_register": "Kayıt Hatası",
+        "logout": "Çıkış Yap",
         "logout_title": "Çıkış Yap",
         "logout_confirm": "Hesabınızdan çıkış yapmak istediğinize emin misiniz?",
         "logout_cancel": "Vazgeç",
