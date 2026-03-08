@@ -45,16 +45,24 @@ export default function LoginScreen() {
         setLoading(true);
         try {
             await firebaseLogin(email.trim().toLowerCase(), password);
-            try {
-                const idToken = await getIdToken();
-                if (idToken) await syncFirebaseToken(idToken);
-            } catch (syncErr) {
-                console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
+
+            const idToken = await getIdToken();
+            if (!idToken) {
+                throw new Error("Firebase ID token alınamadı.");
             }
+
+            await syncFirebaseToken(idToken);
             router.replace("/(tabs)");
         } catch (err: unknown) {
-            const errorKey = getFirebaseAuthErrorKey(err);
-            Alert.alert(t("auth.error_login"), t(errorKey));
+            const maybeAxios = err as { response?: { data?: { detail?: string } } };
+            const backendDetail = maybeAxios.response?.data?.detail;
+
+            if (typeof backendDetail === "string" && backendDetail.length > 0) {
+                Alert.alert(t("auth.error_login"), backendDetail);
+            } else {
+                const errorKey = getFirebaseAuthErrorKey(err);
+                Alert.alert(t("auth.error_login"), t(errorKey));
+            }
         } finally {
             setLoading(false);
         }
@@ -63,14 +71,27 @@ export default function LoginScreen() {
     async function handleGoogleSignIn() {
         setGoogleLoading(true);
         try {
+            // 1) Google ile native oturum aç
             await googleSignIn();
+
+            // 2) Firebase ID token al ve backend'e senkronize et
             try {
                 const idToken = await getIdToken();
-                if (idToken) await syncFirebaseToken(idToken);
-            } catch (syncErr) {
-                console.warn("[Auth] Backend sync hatası (önemsiz):", syncErr);
+                if (!idToken) {
+                    throw new Error("Firebase ID token alınamadı.");
+                }
+                await syncFirebaseToken(idToken);
+                router.replace("/(tabs)");
+            } catch (syncErr: unknown) {
+                const maybeAxios = syncErr as { response?: { data?: { detail?: string } } };
+                const backendDetail = maybeAxios.response?.data?.detail;
+
+                if (typeof backendDetail === "string" && backendDetail.length > 0) {
+                    Alert.alert(t("auth.error_login"), backendDetail);
+                } else {
+                    Alert.alert(t("auth.error_login"), t("auth.error_google_signin"));
+                }
             }
-            router.replace("/(tabs)");
         } catch (err: unknown) {
             const code = (err as { code?: string })?.code;
             const message = (err as { message?: string })?.message ?? "";
@@ -80,7 +101,7 @@ export default function LoginScreen() {
             if (message.includes("DEVELOPER_ERROR") || code === "10") {
                 Alert.alert(
                     "Google ile Giriş Yapılamadı",
-                    "Firebase yapılandırması eksik. Lütfen e-posta ve şifre ile giriş yapın."
+                    "Firebase yapılandırması eksik veya SHA-1 hatalı. Lütfen e-posta ve şifre ile giriş yapın."
                 );
                 return;
             }

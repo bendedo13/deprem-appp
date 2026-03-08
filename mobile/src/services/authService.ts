@@ -56,10 +56,24 @@ export async function updateProfile(params: {
 }
 
 /** "Ben İyiyim" — acil kişilere bildirim gönder. */
-export async function iAmSafe(): Promise<{ status: string; notified_contacts: number }> {
-    const { data } = await api.post("/api/v1/users/i-am-safe", {
-        include_location: true,
-    });
+export async function iAmSafe(params?: {
+    includeLocation?: boolean;
+    latitude?: number | null;
+    longitude?: number | null;
+    customMessage?: string | null;
+    contactIds?: number[] | null;
+}): Promise<{ status: string; notified_contacts: number }> {
+    const includeLocation = params?.includeLocation ?? true;
+
+    const payload = {
+        include_location: includeLocation,
+        custom_message: params?.customMessage ?? null,
+        contact_ids: params?.contactIds ?? null,
+        latitude: includeLocation && params?.latitude != null ? params.latitude : null,
+        longitude: includeLocation && params?.longitude != null ? params.longitude : null,
+    };
+
+    const { data } = await api.post("/api/v1/users/i-am-safe", payload);
     return data;
 }
 
@@ -85,3 +99,4 @@ export async function syncFirebaseToken(firebaseIdToken: string): Promise<UserOu
     await SecureStore.setItemAsync(TOKEN_KEY, data.access_token);
     return data.user;
 }
+

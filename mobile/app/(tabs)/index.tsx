@@ -196,7 +196,11 @@ export default function DashboardScreen() {
     async function handleSafe() {
         setSafeLoading(true);
         try {
-            const res = await iAmSafe();
+            const res = await iAmSafe({
+                includeLocation: !!location,
+                latitude: location?.lat ?? null,
+                longitude: location?.lng ?? null,
+            });
             Alert.alert(t("safe.sent_title"), t("safe.sent_body", { count: res.notified_contacts }));
         } catch {
             Alert.alert(t("safe.error"));

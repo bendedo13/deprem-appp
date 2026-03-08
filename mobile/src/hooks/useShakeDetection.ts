@@ -59,11 +59,11 @@ export function useShakeDetection(options: ShakeDetectionOptions = {}) {
     onShakeReported?.(result.confirmed);
   }, [onShakeReported]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!enabled) return;
 
     (async () => {
-      const id = await Device.getDeviceName?.() ?? Device.modelName ?? "unknown";
+      const id = Device.deviceName ?? Device.modelName ?? "unknown";
       deviceIdRef.current = id;
     })();
 

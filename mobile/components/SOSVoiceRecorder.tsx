@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Location from 'expo-location';
-import { uploadSOSRecording, pollSOSStatus, SOSStatusResponse } from '../services/sosService';
+import { uploadSOSRecording, pollSOSStatus, SOSStatusResponse } from '../src/services/sosService';
 
 interface SOSVoiceRecorderProps {
   onSuccess?: (data: SOSStatusResponse) => void;
