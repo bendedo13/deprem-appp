@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # ── Shake / deprem algılama sabitleri (EARTHQUAKE_DETECTION_ALGORITHM.md) ──
     SHAKE_WINDOW_SECONDS: int = 5
     SHAKE_WINDOW_TTL_SECONDS: int = 10
-    SHAKE_MIN_DEVICES_TO_CONFIRM: int = 10
+    SHAKE_MIN_DEVICES_TO_CONFIRM: int = 15  # 10+ → 15: az kullanıcıda yanlış alarmı azaltır
     SHAKE_CLUSTER_RADIUS_KM: float = 10.0
     SHAKE_GEOHASH_PRECISION: int = 5
     SHAKE_RATE_LIMIT_PER_DEVICE_SECONDS: int = 30

@@ -16,7 +16,7 @@ class EmergencyContactIn(BaseModel):
     email: Optional[EmailStr] = None
     relation: str = Field(..., description="Yakınlık derecesi (Aile, Eş, Arkadaş vb.)")
     methods: List[Literal["whatsapp", "sms", "email"]] = Field(
-        default=["sms"], description="Bildirim yöntemleri"
+        default=["push"], description="Bildirim yöntemleri"
     )
     priority: int = Field(default=1, ge=1, le=5, description="Öncelik sırası (1=En yüksek)")
 

@@ -65,13 +65,22 @@ export async function updateProfileName(name: string): Promise<UserOut> {
 }
 
 /** "Ben İyiyim" — acil kişilere bildirim gönder. */
+export interface IAmSafeResponse {
+    status: string;
+    message?: string;
+    notified_contacts: number;
+    total_contacts?: number;
+    sms_sent?: number;
+    whatsapp_sent?: number;
+    channel_used?: string;
+}
 export async function iAmSafe(params?: {
     includeLocation?: boolean;
     latitude?: number | null;
     longitude?: number | null;
     customMessage?: string | null;
     contactIds?: number[] | null;
-}): Promise<{ status: string; notified_contacts: number }> {
+}): Promise<IAmSafeResponse> {
     const includeLocation = params?.includeLocation ?? true;
 
     const payload = {

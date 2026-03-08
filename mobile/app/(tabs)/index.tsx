@@ -18,6 +18,7 @@ import {
     Platform,
     Animated,
     InteractionManager,
+    Image,
 } from "react-native";
 import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
@@ -26,7 +27,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 import { getBannerId } from "../../src/services/adService";
-import { iAmSafe } from "../../src/services/authService";
+import { iAmSafe, getMe, type IAmSafeResponse } from "../../src/services/authService";
+import { addChatMessage } from "../../src/services/chatService";
 import { useShakeDetector } from "../../src/hooks/useShakeDetector";
 import { useLiveEarthquakes } from "../../src/hooks/useLiveEarthquakes";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
@@ -195,15 +197,53 @@ export default function DashboardScreen() {
 
     async function handleSafe() {
         setSafeLoading(true);
+        const userName = await getMe().then((u) => u?.name?.trim() || u?.email?.split("@")[0] || "Kullanıcı").catch(() => "Kullanıcı");
+        let locationStr = "";
+        if (location?.lat != null && location?.lng != null) {
+            try {
+                const [place] = await Location.reverseGeocodeAsync({ latitude: location.lat, longitude: location.lng });
+                if (place) {
+                    const parts = [place.street, place.district, place.city].filter(Boolean);
+                    locationStr = parts.length > 0 ? parts.join(", ") : `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
+                } else {
+                    locationStr = `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
+                }
+            } catch {
+                locationStr = `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
+            }
+        }
+        const chatMessage = locationStr
+            ? `${userName} — ${locationStr} — Şuan burada deprem oldu ama ben iyiyim.`
+            : `${userName} — Şuan burada deprem oldu ama ben iyiyim.`;
+
         try {
             const res = await iAmSafe({
                 includeLocation: !!location,
                 latitude: location?.lat ?? null,
                 longitude: location?.lng ?? null,
+                customMessage: "Şuan burada deprem oldu ama ben iyiyim.",
             });
-            Alert.alert(t("safe.sent_title"), t("safe.sent_body", { count: res.notified_contacts }));
+            await addChatMessage({ text: chatMessage, userName, type: "impact_report" });
+            const r = res as IAmSafeResponse;
+            if (r.status === "error") {
+                Alert.alert(
+                    "Bilgi",
+                    `${r.message || t("safe.error")} Mesajınız sohbet odasına eklendi; güvenilir kişilerinize ulaşmak için Menü → Acil Kişiler'den telefon numaralarını ekleyin.`
+                );
+            } else if ((r.notified_contacts ?? 0) > 0) {
+                Alert.alert(t("safe.sent_title"), t("safe.sent_body", { count: r.notified_contacts }));
+            } else {
+                Alert.alert(
+                    "Mesaj Kaydedildi",
+                    "Mesajınız sohbet odasına eklendi. Güvenilir kişilerinize SMS/WhatsApp ile ulaşmak için Menü → Acil Kişiler'den en az bir kişi ekleyin."
+                );
+            }
         } catch {
-            Alert.alert(t("safe.error"));
+            await addChatMessage({ text: chatMessage, userName, type: "impact_report" }).catch(() => {});
+            Alert.alert(
+                "Bağlantı Hatası",
+                "Sunucuya ulaşılamadı. Mesajınız sohbet odasına eklendi; internet bağlantınız düzeldiğinde tekrar deneyin veya Menü → Acil Kişiler'den güvenilir kişi ekleyin."
+            );
         } finally {
             setSafeLoading(false);
         }
@@ -406,11 +446,15 @@ export default function DashboardScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* App Header */}
+            {/* App Header — profesyonel ikon + marka */}
             <View style={styles.header}>
                 <View style={styles.brandContainer}>
                     <View style={styles.logoBox}>
-                        <MaterialCommunityIcons name="shield-check" size={18} color="#fff" />
+                        <Image
+                            source={require("../../assets/icon.png")}
+                            style={styles.logoImage}
+                            resizeMode="contain"
+                        />
                     </View>
                     <View>
                         <Text style={styles.brandTitle}>QuakeSense</Text>
@@ -499,10 +543,18 @@ const styles = StyleSheet.create({
     },
     brandContainer: { flexDirection: "row", alignItems: "center", gap: 10 },
     logoBox: {
-        backgroundColor: Colors.primary,
-        padding: 8,
-        borderRadius: BorderRadius.lg,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: Colors.background.surface,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: Colors.border.glass,
         ...Shadows.sm,
+    },
+    logoImage: {
+        width: "100%",
+        height: "100%",
     },
     brandTitle: { color: Colors.text.dark, fontSize: Typography.sizes.lg, fontWeight: "800", letterSpacing: -0.5 },
     brandSub: { color: Colors.text.muted, fontSize: Typography.sizes.xs, fontWeight: "600", marginTop: 1 },

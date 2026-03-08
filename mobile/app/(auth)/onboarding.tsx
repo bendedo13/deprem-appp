@@ -61,10 +61,10 @@ const PERMISSION_SLIDES: PermissionSlide[] = [
         icon: "battery-charging",
         iconColor: "#F59E0B",
         iconBg: "rgba(245, 158, 11, 0.12)",
-        badge: "Android",
+        badge: "Tam Yetki",
         title: "Pil Optimizasyonunu\nDevre Dışı Bırak",
         description:
-            "Uygulamanın uyutulmaması için pil optimizasyonundan QuakeSense'i çıkarın. Deprem anında kesintisiz uyarı alırsınız.",
+            "Uygulamanın arka planda kısıtlama olmadan çalışması için pil optimizasyonundan QuakeSense'i çıkarın. Deprem anında kesintisiz uyarı alırsınız. Tüm izinleri vererek tam yetki sağlayın.",
         buttonText: "Ayarları Aç",
         metric: { value: "7/24", label: "Kesintisiz koruma" },
     },
@@ -106,7 +106,7 @@ const WELCOME_SLIDES = [
         badge: "Yapay Zeka Destekli",
         title: "QuakeSense'e\nHoş Geldiniz",
         description:
-            "Türkiye'nin deprem erken uyarı sistemi. Hayatınızı ve sevdiklerinizi korumak için 4 kritik izni verin.",
+            "Türkiye'nin deprem erken uyarı sistemi. Hayatınızı ve sevdiklerinizi korumak için aşağıdaki 4 kritik izni verin; uygulama arka planda kısıtlama olmadan çalışsın.",
         buttonText: "Başla",
         skipText: "Atla",
         stats: [
