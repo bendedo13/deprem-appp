@@ -113,14 +113,22 @@ export default function LoginScreen() {
             }
         } catch (err: unknown) {
             const code = (err as { code?: string })?.code;
-            const message = (err as { message?: string })?.message ?? "";
+            const message = String((err as { message?: string })?.message ?? "");
             // Kullanıcı iptal ettiyse sessizce geç
             if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
-            // SHA-1 / yapılandırma hatası
+            // Web Client ID eksik (Expo Go / yapılandırma)
+            if (message.includes("yapılandırılmamış")) {
+                Alert.alert(
+                    "Google ile Giriş Yapılamadı",
+                    "Google Sign-In yapılandırılmamış. Lütfen uygulamayı yeniden derleyin veya e-posta ve şifre ile giriş yapın."
+                );
+                return;
+            }
+            // SHA-1 / OAuth yapılandırma hatası (Android)
             if (message.includes("DEVELOPER_ERROR") || code === "10") {
                 Alert.alert(
                     "Google ile Giriş Yapılamadı",
-                    "Firebase yapılandırması eksik veya SHA-1 hatalı. Lütfen e-posta ve şifre ile giriş yapın."
+                    "Firebase/Google OAuth yapılandırması eksik veya SHA-1 eşleşmiyor. Lütfen e-posta ve şifre ile giriş yapın."
                 );
                 return;
             }

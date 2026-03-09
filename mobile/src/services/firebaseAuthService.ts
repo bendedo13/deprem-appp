@@ -5,20 +5,22 @@
  */
 
 import auth, { FirebaseAuthTypes } from "@react-native-firebase/auth";
-import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import Constants from "expo-constants";
 
-// Google Sign-In yapılandırması
-// webClientId: Firebase Console → Authentication → Sign-in method → Google → Web client ID
+// Google Sign-In: Web Client ID (Firebase Console → Authentication → Google → Web client ID)
+// Önce app.json extra'dan alınır; Expo Go veya bazı build'lerde extra boş gelebilir, bu yüzden yedek değer kullanılır.
+const FALLBACK_WEB_CLIENT_ID = "775124568904-flr9bo452no12v9giofdlb743m8gvqk4.apps.googleusercontent.com";
 const WEB_CLIENT_ID =
-    (Constants.expoConfig?.extra?.googleWebClientId as string | undefined) ?? "";
+    (Constants.expoConfig?.extra?.googleWebClientId as string | undefined)?.trim() ||
+    FALLBACK_WEB_CLIENT_ID;
 
 let googleConfigured = false;
 
 function ensureGoogleConfigured() {
     if (googleConfigured) return;
     if (!WEB_CLIENT_ID) {
-        console.warn("Google Web Client ID yapılandırılmamış. app.json extra.googleWebClientId'yi ayarlayın.");
+        console.warn("[Firebase Auth] Google Web Client ID yok. app.json extra.googleWebClientId ayarlayın.");
         return;
     }
     GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: true });
@@ -78,21 +80,23 @@ export async function googleSignIn(): Promise<FirebaseAuthTypes.User> {
     ensureGoogleConfigured();
 
     if (!WEB_CLIENT_ID) {
-        throw new Error("Google Sign-In yapılandırılmamış.");
+        throw new Error("Google Sign-In yapılandırılmamış. Lütfen app.json içinde extra.googleWebClientId tanımlayın.");
     }
 
-    // Google Play Services kontrolü
+    // Google Play Services kontrolü (Android)
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
-    // Google Sign-In
     const response = await GoogleSignin.signIn();
 
-    const idToken = response.data?.idToken;
+    // v12: idToken bazen response.data içinde, bazen doğrudan response'ta
+    const idToken =
+        (response as { data?: { idToken?: string }; idToken?: string }).data?.idToken ??
+        (response as { idToken?: string }).idToken;
+
     if (!idToken) {
         throw new Error("Google'dan ID token alınamadı.");
     }
 
-    // Firebase credential oluştur ve giriş yap
     const googleCredential = auth.GoogleAuthProvider.credential(idToken);
     const firebaseResult = await auth().signInWithCredential(googleCredential);
 
