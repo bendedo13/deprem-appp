@@ -32,6 +32,7 @@ try {
 
 import { showEarthquakeAlarm } from "./earthquakeAlarm";
 import { sendSOSAlert } from "./sosAlertService";
+import { startCriticalAlarm, stopCriticalAlarm } from "./criticalAlarmService";
 
 export interface SimulationResult {
     notificationSent: boolean;
@@ -71,6 +72,19 @@ async function configureSilentModeBypass(): Promise<boolean> {
 }
 
 // ── Adım 2: Titreşim ──────────────────────────────────────────────────────────
+
+/**
+ * Maksimum güçte kesintisiz titreşim — nükleer alarm için.
+ */
+export function triggerMaxVibration(): void {
+    try {
+        if (typeof Vibration?.vibrate === "function") {
+            Vibration.vibrate([0, 500, 200, 500, 200, 500], true);
+        }
+    } catch {
+        /* ignore */
+    }
+}
 
 /**
  * Sismik P-dalgası + S-dalgası paternini taklit eden titreşim.
@@ -388,4 +402,73 @@ export async function startEarthquakeSimulation(options: {
     console.log("[Simulation] Backend logları için: docker compose logs -f backend\n");
 
     return result;
+}
+
+// ── 15 Saniyelik "Nasıl Çalışır?" Simülasyonu ───────────────────────────────────
+
+export type Phase15 = "idle" | "detecting" | "alarm" | "sending" | "done";
+
+export interface Run15SecondResult {
+    phase: Phase15;
+    sosSent: boolean;
+    notifiedContacts: number;
+    error?: string;
+}
+
+/**
+ * 15 saniyelik test akışı:
+ *  5sn algılama simülasyonu → 5sn tam ekran alarm + yüksek ses → 5sn "BU BİR TESTTİR" Twilio
+ *
+ * @param onPhaseChange - Her faz değişiminde çağrılır (UI güncellemesi için)
+ * @param abortRef - { current: true } yapılırsa simülasyon anında durur
+ * @param options - Ses, titreşim ayarları
+ */
+export async function run15SecondTest(
+    onPhaseChange: (phase: Phase15) => void,
+    abortRef: { current: boolean },
+    options: { loudAlarmEnabled: boolean; vibrationEnabled: boolean }
+): Promise<Run15SecondResult> {
+    const result: Run15SecondResult = { phase: "idle", sosSent: false, notifiedContacts: 0 };
+
+    const sleep = (ms: number) =>
+        new Promise<void>((resolve) => {
+            const start = Date.now();
+            const check = () => {
+                if (abortRef.current) return resolve();
+                if (Date.now() - start >= ms) return resolve();
+                setTimeout(check, 100);
+            };
+            check();
+        });
+
+    try {
+        onPhaseChange("detecting");
+        await sleep(5000);
+        if (abortRef.current) return result;
+
+        onPhaseChange("alarm");
+        if (options.loudAlarmEnabled) await configureSilentModeBypass();
+        if (options.vibrationEnabled) triggerMaxVibration();
+        await startCriticalAlarm("41.0082", "28.9784");
+        await sleep(5000);
+        if (abortRef.current) {
+            await stopCriticalAlarm();
+            return result;
+        }
+        await stopCriticalAlarm();
+
+        onPhaseChange("sending");
+        const sosResult = await sendSOSAlert("sensor", "BU BİR TESTTİR");
+        result.sosSent = sosResult.success;
+        result.notifiedContacts = sosResult.notifiedContacts ?? 0;
+        if (sosResult.error) result.error = sosResult.error;
+        await sleep(5000);
+
+        onPhaseChange("done");
+        return result;
+    } catch (err) {
+        result.error = (err as Error).message;
+        onPhaseChange("done");
+        return result;
+    }
 }

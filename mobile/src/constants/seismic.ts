@@ -1,13 +1,7 @@
 /**
- * Sismik sensör sabitleri — gelişmiş yanlış alarm önleme.
- * STA/LTA: Short-Term Average / Long-Term Average.
- *
- * DEĞİŞTİRİLEN DEĞERLER (false alarm azaltma):
- *  - TRIGGER_RATIO: 3.0 → 5.0 (daha yüksek eşik = daha az yanlış alarm)
- *  - MIN_REPORT_ACCELERATION: 0.5 → 1.0 (düşme/masaya vurma filtrele)
- *  - MIN_TRIGGER_DURATION_MS: YENİ — 1.5 saniye sürekli tetik gerekli
- *  - COOLDOWN_AFTER_TRIGGER_MS: YENİ — tetik sonrası 45 sn bekleme
- *  - HIGHPASS_ALPHA: 0.9 → 0.94 (daha güçlü düşük frekans filtresi)
+ * Sismik sensör sabitleri — STA/LTA + Band-pass (0.5–10 Hz).
+ * P ve S dalgaları: 0.5–10 Hz bandında.
+ * Yürüme/araç/masa: <0.5 Hz veya >10 Hz → filtrelenir.
  */
 
 /** Accelerometer örnekleme frekansı (Hz) */
@@ -20,55 +14,39 @@ export const STA_WINDOW = SAMPLE_RATE_HZ * 1;
 export const LTA_WINDOW = SAMPLE_RATE_HZ * 10;
 
 /**
- * STA/LTA oranı bu eşiği geçince OLASI tetikleme başlar.
- * 3.0 → 5.0: Yürüme, araç titreşimi gibi false alarmları önler.
- * Gerçek P-dalgası: >6.0 tipik değer.
+ * STA/LTA oranı bu eşiği geçince tetikleme başlar.
+ * 5.0: Yürüme, araç titreşimi elenir. Gerçek P-dalgası: >6.0 tipik.
  */
 export const TRIGGER_RATIO = 5.0;
 
-/**
- * STA/LTA oranı bu değerin altına düşünce tetiklenme biter.
- * TRIGGER_RATIO'dan düşük olmalı — hysteresis sağlar.
- */
+/** STA/LTA oranı bu değerin altına düşünce tetiklenme biter (hysteresis). */
 export const DETRIGGER_RATIO = 2.0;
 
-/**
- * Yüksek geçişli IIR filtre alfa katsayısı.
- * 0.94: Yürüme (<2 Hz) ve araç titreşimini eler, P-dalgası (1-10 Hz) geçirir.
- */
+/** Band-pass: High-pass alfa (0.5 Hz kesim) */
+export const BANDPASS_HP_ALPHA = 0.94;
+
+/** Band-pass: Low-pass alfa (10 Hz kesim) */
+export const BANDPASS_LP_ALPHA = 0.73;
+
+/** Eski high-pass (geri uyumluluk) */
 export const HIGHPASS_ALPHA = 0.94;
 
-/**
- * Backend'e rapor için minimum tepe ivme (m/s²).
- * 1.0: Telefon düşürme ve masa vurmasını (anlık spike) filtreler.
- * Gerçek sismik: genellikle >2.0 m/s².
- */
+/** Backend rapor için minimum tepe ivme (m/s²) */
 export const MIN_REPORT_ACCELERATION = 1.0;
 
-/**
- * Tetiklemenin SÜRDÜRÜLMESI gereken minimum süre (ms).
- * 1500ms: Tek vuruş/düşme anında tetiklenmeyi önler.
- * Depremler >2s sürer; tek darbe <100ms'dir.
- */
+/** Tetiklemenin sürdürülmesi gereken minimum süre (ms) */
 export const MIN_TRIGGER_DURATION_MS = 1500;
 
-/**
- * Tetiklemeden sonra yeni tetikleme için bekleme süresi (ms).
- * 45 saniye: Tek deprem için birden fazla alarm çıkmaz.
- */
+/** Tetiklemeden sonra yeni tetikleme için bekleme (ms) */
 export const COOLDOWN_AFTER_TRIGGER_MS = 45_000;
 
-/** Cluster yarıçapı (km) */
-export const CLUSTER_RADIUS_KM = 50;
-
-/** Nükleer alarm: bu ivme (G) aşılırsa tam ekran alarm + maksimum ses. 1.8G ≈ ciddi sarsıntı. */
+/** Nükleer alarm: bu ivme (G) aşılırsa tam ekran alarm */
 export const CRITICAL_ACCELERATION_G = 1.8;
-
-/** 1.8G m/s² cinsinden (g = 9.80665) */
 export const CRITICAL_ACCELERATION_MS2 = CRITICAL_ACCELERATION_G * 9.80665;
 
-/** Cluster zaman penceresi (saniye) */
-export const CLUSTER_WINDOW_SEC = 60;
+/** Nükleer alarm tetiklemesi için minimum aralık (ms) */
+export const CRITICAL_TRIGGER_COOLDOWN_MS = 60_000;
 
-/** Deprem için minimum cluster büyüklüğü */
-export const MIN_CLUSTER_SIZE = 3;
+/** Gece modu varsayılan: 23:00 - 07:00 */
+export const NIGHT_MODE_START = "23:00";
+export const NIGHT_MODE_END = "07:00";

@@ -43,13 +43,18 @@ import {
     saveSensorSettings,
     SensorAlarmSettings,
     DEFAULT_SETTINGS,
+    isSensorActive,
+    type SensorMode,
 } from "../../src/services/sensorSettings";
 import {
     startEarthquakeSimulation,
     runAlarmOnlyWithoutSOS,
     runHybridSensorTest,
+    run15SecondTest,
+    stopCriticalAlarm,
     SimulationResult,
     type HybridTestResult,
+    type Phase15,
 } from "../../src/services/simulationService";
 import { sendSOSAlert } from "../../src/services/sosAlertService";
 import { startCriticalAlarm } from "../../src/services/criticalAlarmService";
@@ -143,6 +148,10 @@ export default function SensorScreen() {
     const [hybridTestResult, setHybridTestResult] = useState<HybridTestResult | null>(null);
     const [hybridTestLoading, setHybridTestLoading] = useState(false);
 
+    const [phase15, setPhase15] = useState<Phase15>("idle");
+    const [result15, setResult15] = useState<{ sosSent: boolean; notifiedContacts: number; error?: string } | null>(null);
+    const abort15Ref = useRef(false);
+
     // Gerçek ivmeölçer hook — 1.8G+ nükleer alarm tetiklemesi
     const handleCriticalTrigger = useCallback((lat: number | null, lng: number | null) => {
         startCriticalAlarm(
@@ -150,8 +159,9 @@ export default function SensorScreen() {
             lng != null ? String(lng) : undefined
         );
     }, []);
+    const sensorActive = isSensorActive(settings);
     const { isMonitoring, isTriggered, peakAcceleration, staLtaRatio, triggerTime } =
-        useShakeDetector(location?.lat ?? null, location?.lng ?? null, handleCriticalTrigger);
+        useShakeDetector(location?.lat ?? null, location?.lng ?? null, handleCriticalTrigger, sensorActive);
 
     // Animasyon referansları
     const gaugeAnim = useRef(new Animated.Value(0)).current;
@@ -419,6 +429,36 @@ export default function SensorScreen() {
         }
     }, [simulating, hybridTestLoading, countdown, settings, showToast]);
 
+    const handle15SecondTest = useCallback(async () => {
+        if (phase15 !== "idle") return;
+        setPhase15("detecting");
+        setResult15(null);
+        abort15Ref.current = false;
+        try {
+            const res = await run15SecondTest(
+                setPhase15,
+                abort15Ref,
+                { loudAlarmEnabled: settings.loudAlarmEnabled, vibrationEnabled: settings.vibrationEnabled }
+            );
+            setResult15({ sosSent: res.sosSent, notifiedContacts: res.notifiedContacts, error: res.error });
+            if (res.sosSent) {
+                showToast(`Test tamamlandı — ${res.notifiedContacts} kişiye "BU BİR TESTTİR" gönderildi`, "success");
+            } else if (res.error) {
+                showToast(res.error, "error");
+            }
+        } catch (err) {
+            showToast("Test hatası: " + String(err), "error");
+        } finally {
+            setPhase15("idle");
+        }
+    }, [phase15, settings, showToast]);
+
+    const handleStop15Test = useCallback(() => {
+        abort15Ref.current = true;
+        stopCriticalAlarm();
+        setPhase15("idle");
+    }, []);
+
     // Render değerleri
     const color = ratioColor(displayRatio);
     const gaugeWidth = gaugeAnim.interpolate({
@@ -510,13 +550,19 @@ export default function SensorScreen() {
                                 {
                                     color: simulating
                                         ? Colors.danger
-                                        : isMonitoring
+                                        : sensorActive && isMonitoring
                                         ? Colors.primary
                                         : Colors.text.muted,
                                 },
                             ]}
                         >
-                            {simulating ? "Simülasyon" : isMonitoring ? "Aktif" : "Pasif"}
+                            {simulating
+                                ? "Simülasyon"
+                                : sensorActive && isMonitoring
+                                ? "QuakeSense Sizi Koruyor"
+                                : sensorActive
+                                ? "Aktif"
+                                : "Pasif (Gece dışı)"}
                         </Text>
                     </View>
                 </View>
@@ -589,14 +635,59 @@ export default function SensorScreen() {
                         )}
                     </View>
 
-                    {/* Çalışma Saatleri */}
+                    {/* 7/24 vs Gece Modu */}
                     <View style={styles.settingBlock}>
                         <View style={styles.settingLabelRow}>
-                            <MaterialCommunityIcons name="clock-outline" size={20} color={Colors.text.muted} />
+                            <MaterialCommunityIcons name="shield-clock" size={20} color={Colors.text.muted} />
                             <View style={styles.settingInfo}>
-                                <Text style={styles.settingLabel}>Çalışma Saatleri</Text>
-                                <Text style={styles.settingDesc}>Alarm bu saatler arasında aktif olur</Text>
+                                <Text style={styles.settingLabel}>Çalışma Modu</Text>
+                                <Text style={styles.settingDesc}>
+                                    7/24: Her zaman aktif. Gece: Sadece 23:00-07:00 (pil tasarrufu)
+                                </Text>
                             </View>
+                        </View>
+                        <View style={styles.modeRow}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.modeChip,
+                                    settings.mode === "24_7" && styles.modeChipActive,
+                                ]}
+                                onPress={() =>
+                                    setSettings((s) => ({ ...s, mode: "24_7" as SensorMode }))
+                                }
+                            >
+                                <Text
+                                    style={[
+                                        styles.modeChipText,
+                                        settings.mode === "24_7" && styles.modeChipTextActive,
+                                    ]}
+                                >
+                                    7/24 Koruma
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.modeChip,
+                                    settings.mode === "night" && styles.modeChipActive,
+                                ]}
+                                onPress={() =>
+                                    setSettings((s) => ({
+                                        ...s,
+                                        mode: "night" as SensorMode,
+                                        workStart: "23:00",
+                                        workEnd: "07:00",
+                                    }))
+                                }
+                            >
+                                <Text
+                                    style={[
+                                        styles.modeChipText,
+                                        settings.mode === "night" && styles.modeChipTextActive,
+                                    ]}
+                                >
+                                    Gece Modu (23-07)
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                         <View style={styles.timeRow}>
                             <TextInput
@@ -860,6 +951,50 @@ export default function SensorScreen() {
                             </>
                         )}
                     </TouchableOpacity>
+
+                    <Text style={styles.simSectionLabel}>
+                        Nasıl Çalışır? — 15 sn: 5sn algılama → 5sn alarm → 5sn "BU BİR TESTTİR" Twilio
+                    </Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.simButton,
+                            styles.simButtonSecondary,
+                            phase15 !== "idle" && styles.simButtonActive,
+                        ]}
+                        onPress={phase15 !== "idle" ? handleStop15Test : handle15SecondTest}
+                        activeOpacity={0.8}
+                    >
+                        {phase15 !== "idle" ? (
+                            <>
+                                <MaterialCommunityIcons name="stop" size={22} color="#fff" />
+                                <Text style={styles.simButtonText}>
+                                    Simülasyonu Durdur
+                                    {phase15 === "detecting" && " (Algılama...)"}
+                                    {phase15 === "alarm" && " (Alarm çalıyor)"}
+                                    {phase15 === "sending" && " (Twilio gönderiliyor)"}
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <MaterialCommunityIcons name="play-circle" size={22} color="#fff" />
+                                <Text style={styles.simButtonText}>Test Başlat</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                    {result15 && (
+                        <View style={styles.simResultBox}>
+                            <Text style={styles.simResultTitle}>15sn Test Sonucu</Text>
+                            <SimResultRow
+                                icon="message-alert"
+                                label={`"BU BİR TESTTİR" gönderildi (${result15.notifiedContacts} kişi)`}
+                                ok={result15.sosSent}
+                                warn={!result15.sosSent}
+                            />
+                            {result15.error && (
+                                <Text style={styles.simError}>{result15.error}</Text>
+                            )}
+                        </View>
+                    )}
 
                     <Text style={styles.simSectionLabel}>Hibrit test (alarm + gerçek TEST MESAJI + Twilio raporu)</Text>
                     <TouchableOpacity
@@ -1135,6 +1270,22 @@ const styles = StyleSheet.create({
     },
     timeInputError: { borderColor: Colors.danger + "80" },
     timeSeparator: { fontSize: Typography.sizes.lg, color: Colors.text.muted, fontWeight: "700" },
+    modeRow: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.sm },
+    modeChip: {
+        flex: 1,
+        paddingVertical: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        borderColor: Colors.border.dark,
+        backgroundColor: Colors.background.elevated,
+        alignItems: "center",
+    },
+    modeChipActive: {
+        borderColor: Colors.primary,
+        backgroundColor: Colors.primary + "15",
+    },
+    modeChipText: { fontSize: Typography.sizes.sm, fontWeight: "700", color: Colors.text.muted },
+    modeChipTextActive: { color: Colors.primary },
     saveButton: {
         flexDirection: "row",
         alignItems: "center",

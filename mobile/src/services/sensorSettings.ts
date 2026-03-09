@@ -13,10 +13,15 @@ import * as SecureStore from "expo-secure-store";
 
 const SETTINGS_KEY = "sensor_alarm_settings_v1";
 
+/** 7/24: Her zaman aktif. Gece: Sadece 23:00-07:00 arası (pil tasarrufu) */
+export type SensorMode = "24_7" | "night";
+
 export interface SensorAlarmSettings {
-    /** Çalışma başlangıç saati (HH:MM formatı, ör: "00:00") */
+    /** 7/24 Koruma veya Gece Modu (23:00-07:00) */
+    mode: SensorMode;
+    /** Çalışma başlangıç saati (HH:MM) — Gece modunda 23:00 */
     workStart: string;
-    /** Çalışma bitiş saati (HH:MM formatı, ör: "08:00") */
+    /** Çalışma bitiş saati (HH:MM) — Gece modunda 07:00 */
     workEnd: string;
     /** Deprem algılandığında kamera flaşı yanıp sönsün mü */
     flashEnabled: boolean;
@@ -27,6 +32,7 @@ export interface SensorAlarmSettings {
 }
 
 export const DEFAULT_SETTINGS: SensorAlarmSettings = {
+    mode: "24_7",
     workStart: "00:00",
     workEnd: "08:00",
     flashEnabled: true,
@@ -51,6 +57,7 @@ export async function loadSensorSettings(): Promise<SensorAlarmSettings> {
 
         // Eksik alanları varsayılan değerlerle doldur (güvenli merge)
         return {
+            mode: parsed.mode ?? DEFAULT_SETTINGS.mode,
             workStart: parsed.workStart ?? DEFAULT_SETTINGS.workStart,
             workEnd: parsed.workEnd ?? DEFAULT_SETTINGS.workEnd,
             flashEnabled: parsed.flashEnabled ?? DEFAULT_SETTINGS.flashEnabled,
@@ -69,6 +76,27 @@ export async function loadSensorSettings(): Promise<SensorAlarmSettings> {
  *
  * @throws SecureStore yazma hatası (depolama dolu, izin yok vb.)
  */
+/** Şu anki saat çalışma penceresinde mi? */
+export function isWithinWorkHours(workStart: string, workEnd: string): boolean {
+    const now = new Date();
+    const [sh, sm] = workStart.split(":").map(Number);
+    const [eh, em] = workEnd.split(":").map(Number);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    let startMin = sh * 60 + sm;
+    let endMin = eh * 60 + em;
+    if (startMin > endMin) {
+        // Gece modu: 23:00-07:00 → 23:00'dan sonra veya 07:00'dan önce
+        return nowMin >= startMin || nowMin < endMin;
+    }
+    return nowMin >= startMin && nowMin < endMin;
+}
+
+/** Sensör şu an aktif mi? (mode + work hours) */
+export function isSensorActive(settings: SensorAlarmSettings): boolean {
+    if (settings.mode === "24_7") return true;
+    return isWithinWorkHours(settings.workStart, settings.workEnd);
+}
+
 export async function saveSensorSettings(settings: SensorAlarmSettings): Promise<void> {
     const json = JSON.stringify(settings);
     await SecureStore.setItemAsync(SETTINGS_KEY, json);

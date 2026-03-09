@@ -16,13 +16,14 @@ import {
     LTA_WINDOW,
     TRIGGER_RATIO,
     DETRIGGER_RATIO,
-    HIGHPASS_ALPHA,
+    BANDPASS_HP_ALPHA,
+    BANDPASS_LP_ALPHA,
     MIN_REPORT_ACCELERATION,
     MIN_TRIGGER_DURATION_MS,
     COOLDOWN_AFTER_TRIGGER_MS,
     CRITICAL_ACCELERATION_MS2,
 } from "../constants/seismic";
-import { highPassFilter, vectorMagnitude, computeStaLta } from "../utils/staLta";
+import { bandPassFilter, vectorMagnitude, computeStaLta } from "../utils/staLta";
 import { reportTrigger } from "../services/seismicService";
 
 /** expo-sensors güvenli yükleme — undefined modül crash'ini önler */
@@ -56,11 +57,11 @@ const CRITICAL_TRIGGER_COOLDOWN_MS = 60_000;
 export function useShakeDetector(
     latitude: number | null,
     longitude: number | null,
-    onCriticalTrigger?: (lat: number | null, lng: number | null) => void
+    onCriticalTrigger?: (lat: number | null, lng: number | null) => void,
+    sensorActive: boolean = true
 ): ShakeState {
     const samples = useRef<number[]>([]);
-    const prevRaw = useRef(0);
-    const prevFiltered = useRef(0);
+    const bandPassState = useRef({ prevRaw: 0, hpOut: 0, lpOut: 0 });
     const triggeredRef = useRef(false);
     const triggerStartRef = useRef<number | null>(null);
     const peakRef = useRef(0);
@@ -88,12 +89,23 @@ export function useShakeDetector(
         const sub = AccelerometerModule.addListener(({ x, y, z }) => {
             const now = Date.now();
             const raw = vectorMagnitude(x, y, z);
-            const filtered = highPassFilter(raw, prevRaw.current, prevFiltered.current, HIGHPASS_ALPHA);
-            prevRaw.current = raw;
-            prevFiltered.current = filtered;
+            const filtered = bandPassFilter(
+                raw,
+                bandPassState.current,
+                BANDPASS_HP_ALPHA,
+                BANDPASS_LP_ALPHA
+            );
 
             samples.current.push(filtered);
             if (samples.current.length > LTA_WINDOW) samples.current.shift();
+
+            if (!sensorActive) {
+                if (now - lastUiUpdateRef.current >= UI_THROTTLE_MS) {
+                    lastUiUpdateRef.current = now;
+                    setState((s) => ({ ...s, staLtaRatio: 0, isMonitoring: true }));
+                }
+                return;
+            }
 
             const ratio = computeStaLta(samples.current, STA_WINDOW, LTA_WINDOW);
             const inCooldown = now < cooldownUntilRef.current;
@@ -158,7 +170,7 @@ export function useShakeDetector(
             sub.remove();
             setState((s) => ({ ...s, isMonitoring: false, isTriggered: false }));
         };
-    }, [latitude, longitude, onCriticalTrigger]);
+    }, [latitude, longitude, onCriticalTrigger, sensorActive]);
 
     return state;
 }
