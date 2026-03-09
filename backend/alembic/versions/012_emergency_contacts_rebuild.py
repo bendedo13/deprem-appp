@@ -19,6 +19,23 @@ depends_on = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    tables = sa.inspect(conn).get_table_names()
+
+    # Idempotent: Zaten migrate edilmişse atla (emergency_contacts.phone_number var)
+    if "emergency_contacts" in tables:
+        cols = [c["name"] for c in sa.inspect(conn).get_columns("emergency_contacts")]
+        if "phone_number" in cols:
+            return
+
+    # Yarım kalan işlem: emergency_contacts silindi, emergency_contacts_new var → sadece rename
+    if "emergency_contacts" not in tables and "emergency_contacts_new" in tables:
+        op.rename_table("emergency_contacts_new", "emergency_contacts")
+        return
+
+    # Yarım kalan işlemden kalan tabloyu temizle (create_table sonrası kesinti)
+    op.execute(sa.text("DROP TABLE IF EXISTS emergency_contacts_new CASCADE"))
+
     # Yeni tablo oluştur
     op.create_table(
         "emergency_contacts_new",
@@ -31,11 +48,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_emergency_contacts_user_id", "emergency_contacts_new", ["user_id"], unique=False)
+    # Idempotent: Index varsa hata vermez
+    op.execute(sa.text(
+        "CREATE INDEX IF NOT EXISTS ix_emergency_contacts_user_id ON emergency_contacts_new (user_id)"
+    ))
 
     # Veri taşı (phone -> phone_number, relation -> relationship)
-    conn = op.get_bind()
-    # relation sütunu 005 migration ile eklenmiş olabilir
     try:
         conn.execute(sa.text("""
             INSERT INTO emergency_contacts_new (user_id, name, phone_number, relationship, is_active)
