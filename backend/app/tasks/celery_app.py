@@ -13,6 +13,7 @@ celery_app = Celery(
         "app.tasks.notify_emergency_contacts",
         "app.tasks.fetch_earthquakes",
         "app.tasks.process_sos",
+        "app.tasks.send_emergency_twilio",
     ],
 )
 celery_app.conf.update(

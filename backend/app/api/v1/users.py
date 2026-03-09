@@ -224,7 +224,7 @@ async def list_contacts(
     result = await db.execute(
         select(EmergencyContact)
         .where(EmergencyContact.user_id == current_user.id)
-        .order_by(EmergencyContact.priority)
+        .order_by(EmergencyContact.id)
     )
     contacts = result.scalars().all()
     return [EmergencyContactOut.model_validate(c) for c in contacts]
@@ -255,11 +255,9 @@ async def add_contact(
     contact = EmergencyContact(
         user_id=current_user.id,
         name=body.name,
-        phone=body.phone,
-        email=body.email,
-        relation=body.relation,
-        methods=body.methods,
-        priority=body.priority
+        phone_number=body.phone_number,
+        relationship=body.relationship,
+        is_active=True,
     )
     db.add(contact)
     await db.commit()
@@ -375,9 +373,12 @@ async def i_am_safe(
     # TODO: Gerçek FCM servisi entegre edilecek.
     # Şimdilik dummy response.
 
-    # Acil kişileri async ile yükle
+    # Acil kişileri async ile yükle (sadece aktif olanlar)
     contacts_result = await db.execute(
-        select(EmergencyContact).where(EmergencyContact.user_id == current_user.id)
+        select(EmergencyContact).where(
+            EmergencyContact.user_id == current_user.id,
+            EmergencyContact.is_active == True,
+        )
     )
     contacts = contacts_result.scalars().all()
 
@@ -386,14 +387,11 @@ async def i_am_safe(
     if body.contact_ids:
         target_contacts = [c for c in contacts if c.id in body.contact_ids]
 
-    # FCM token'ı olan acil kişi token'larını topla (eğer acil kişi de app kullanıcısıysa)
-    fcm_tokens: List[str] = []
-    
     # Hibrit SMS + Twilio WhatsApp + şablon engine
     from app.services.sos_service import send_hybrid_via_twilio, render_template_async
-    
-    # Telefonu olan güvenilir kişilere hibrit kanal ile gönderim
-    contacts_with_phone = [c for c in target_contacts if c.phone]
+
+    # Telefonu olan aktif güvenilir kişilere hibrit kanal ile gönderim
+    contacts_with_phone = [c for c in target_contacts if c.phone_number]
 
     if not contacts_with_phone:
         return {
@@ -406,7 +404,7 @@ async def i_am_safe(
             "channel_used": "none",
         }
 
-    phone_numbers = [c.phone for c in contacts_with_phone if c.phone]
+    phone_numbers = [c.phone_number for c in contacts_with_phone]
     channel = (body.channel or "hybrid").lower()
 
     # Şablon için context hazırla

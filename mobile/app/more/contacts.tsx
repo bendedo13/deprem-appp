@@ -1,4 +1,9 @@
-import { useState, useEffect } from "react";
+/**
+ * Acil Kişiler — Sıfırdan yeniden inşa.
+ * CRUD: Ekle, Listele, Sil. Toast ile hata yönetimi.
+ */
+
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     View,
     Text,
@@ -6,80 +11,75 @@ import {
     TouchableOpacity,
     ScrollView,
     TextInput,
-    Alert,
     ActivityIndicator,
     KeyboardAvoidingView,
-    Platform
+    Platform,
+    Animated,
 } from "react-native";
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useTranslation } from "react-i18next";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 import { api } from "../../src/services/api";
 
-// Backend EmergencyContactOut şeması ile eşleşir
 interface Contact {
     id: number;
     name: string;
-    phone: string;
-    email?: string;
-    relation: string;
-    methods: string[];
+    phone_number: string;
+    relationship: string;
+    is_active: boolean;
 }
 
-const RELATION_OPTIONS = [
-    "Aile", "Eş", "Arkadaş", "Komşu", "İş Arkadaşı", "Diğer"
-];
-
-// Backend kabul ettiği method değerleri: "whatsapp" | "sms" | "email"
-type NotifyMethod = "sms" | "whatsapp" | "email";
+const RELATION_OPTIONS = ["Aile", "Eş", "Arkadaş", "Komşu", "İş Arkadaşı", "Diğer"];
+const MAX_CONTACTS = 5;
 
 export default function ContactsScreen() {
-    const { t } = useTranslation();
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [loading, setLoading] = useState(true);
-    const [adding, setAdding] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    // Form state
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
-    const [email, setEmail] = useState("");
     const [relation, setRelation] = useState("Aile");
-    const [methods, setMethods] = useState<NotifyMethod[]>(["sms"]);
+    const [adding, setAdding] = useState(false);
 
-    const fetchContacts = async () => {
+    const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+    const toastAnim = useRef(new Animated.Value(0)).current;
+
+    const showToast = useCallback(
+        (message: string, type: "success" | "error") => {
+            setToast({ message, type });
+            toastAnim.setValue(0);
+            Animated.sequence([
+                Animated.timing(toastAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+                Animated.delay(2500),
+                Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+            ]).start(() => setToast(null));
+        },
+        [toastAnim]
+    );
+
+    const fetchContacts = useCallback(async () => {
         try {
             const { data } = await api.get<Contact[]>("/api/v1/users/me/contacts");
             setContacts(Array.isArray(data) ? data : []);
         } catch (error) {
-            console.warn("[Contacts] Fetch hatası:", error);
+            showToast("Liste yüklenemedi.", "error");
         } finally {
             setLoading(false);
         }
-    };
+    }, [showToast]);
 
     useEffect(() => {
         fetchContacts();
-    }, []);
-
-    const toggleMethod = (m: NotifyMethod) => {
-        setMethods((prev) =>
-            prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
-        );
-    };
+    }, [fetchContacts]);
 
     const handleAdd = async () => {
         if (!name.trim()) {
-            Alert.alert("Hata", "İsim soyisim zorunludur.");
+            showToast("İsim soyisim zorunludur.", "error");
             return;
         }
         if (!phone.trim()) {
-            Alert.alert("Hata", "Telefon numarası zorunludur.");
-            return;
-        }
-        if (methods.length === 0) {
-            Alert.alert("Hata", "En az bir bildirim kanalı seçin.");
+            showToast("Telefon numarası zorunludur.", "error");
             return;
         }
 
@@ -87,49 +87,50 @@ export default function ContactsScreen() {
         try {
             await api.post("/api/v1/users/me/contacts", {
                 name: name.trim(),
-                phone: phone.trim(),
-                email: email.trim() || undefined,
-                relation,
-                methods,   // ["sms"], ["whatsapp"], ["sms", "whatsapp"] vb.
-                priority: 1,
+                phone_number: phone.trim(),
+                relationship: relation,
             });
-            Alert.alert("Başarılı", `${name} acil kişiler listesine eklendi.`);
+            showToast(`${name} acil kişiler listesine eklendi.`, "success");
             setName("");
             setPhone("");
-            setEmail("");
             setRelation("Aile");
-            setMethods(["sms"]);
             setAdding(false);
             fetchContacts();
         } catch (error: unknown) {
-            const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-            const msg = Array.isArray(detail)
-                ? detail.map((d: { msg?: string }) => d.msg).join(", ")
-                : (detail as string) ?? "Kişi eklenemedi. Bilgileri kontrol edin.";
-            Alert.alert("Hata", msg);
+            const res = error as { response?: { data?: { detail?: string | { msg?: string }[] } } };
+            const detail = res?.response?.data?.detail;
+            let msg = "Kişi eklenemedi. Bilgileri kontrol edin.";
+            if (typeof detail === "string") {
+                msg = detail;
+            } else if (Array.isArray(detail)) {
+                msg = detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(", ") || msg;
+            }
+            showToast(msg, "error");
         } finally {
             setSaving(false);
         }
     };
 
-    const handleDelete = (id: number) => {
+    const handleDelete = (id: number, contactName: string) => {
+        setSaving(true);
+        api
+            .delete(`/api/v1/users/me/contacts/${id}`)
+            .then(() => {
+                showToast(`${contactName} listeden silindi.`, "success");
+                fetchContacts();
+            })
+            .catch(() => showToast("Silme işlemi başarısız.", "error"))
+            .finally(() => setSaving(false));
+    };
+
+    const confirmDelete = (c: Contact) => {
+        const { Alert } = require("react-native");
         Alert.alert(
             "Sil",
-            "Bu kişiyi silmek istediğinize emin misiniz?",
+            `${c.name} kişisini silmek istediğinize emin misiniz?`,
             [
                 { text: "Vazgeç", style: "cancel" },
-                {
-                    text: "Sil",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            await api.delete(`/api/v1/users/me/contacts/${id}`);
-                            fetchContacts();
-                        } catch {
-                            Alert.alert("Hata", "Silme işlemi başarısız.");
-                        }
-                    }
-                }
+                { text: "Sil", style: "destructive", onPress: () => handleDelete(c.id, c.name) },
             ]
         );
     };
@@ -140,14 +141,15 @@ export default function ContactsScreen() {
             style={{ flex: 1 }}
         >
             <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.text.dark} />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.title}>Acil Kişiler</Text>
-                        <Text style={styles.subtitle}>Deprem sonrası "Güvendeyim" mesajı gidecek kişiler.</Text>
+                        <Text style={styles.subtitle}>
+                            S.O.S veya "Ben İyiyim" mesajı gidecek kişiler. En fazla {MAX_CONTACTS} kişi.
+                        </Text>
                     </View>
                 </View>
 
@@ -159,20 +161,23 @@ export default function ContactsScreen() {
                             <View key={contact.id} style={styles.contactCard}>
                                 <View style={styles.contactInfo}>
                                     <Text style={styles.contactName}>{contact.name}</Text>
-                                    <Text style={styles.contactPhone}>{contact.phone}</Text>
+                                    <Text style={styles.contactPhone}>{contact.phone_number}</Text>
                                     <View style={styles.badgeRow}>
                                         <View style={styles.channelBadge}>
-                                            <MaterialCommunityIcons name="account-heart-outline" size={11} color={Colors.primary} />
-                                            <Text style={styles.channelText}>{contact.relation}</Text>
+                                            <MaterialCommunityIcons
+                                                name="account-heart-outline"
+                                                size={11}
+                                                color={Colors.primary}
+                                            />
+                                            <Text style={styles.channelText}>{contact.relationship}</Text>
                                         </View>
-                                        {(contact.methods ?? []).map((m) => (
-                                            <View key={m} style={styles.channelBadge}>
-                                                <Text style={styles.channelText}>{m.toUpperCase()}</Text>
-                                            </View>
-                                        ))}
                                     </View>
                                 </View>
-                                <TouchableOpacity onPress={() => handleDelete(contact.id)} style={styles.deleteBtn}>
+                                <TouchableOpacity
+                                    onPress={() => confirmDelete(contact)}
+                                    style={styles.deleteBtn}
+                                    disabled={saving}
+                                >
                                     <MaterialCommunityIcons name="trash-can-outline" size={24} color="#ef4444" />
                                 </TouchableOpacity>
                             </View>
@@ -180,18 +185,19 @@ export default function ContactsScreen() {
 
                         {contacts.length === 0 && !adding && (
                             <View style={styles.emptyState}>
-                                <MaterialCommunityIcons name="account-multiple-plus-outline" size={64} color={Colors.border.dark} />
+                                <MaterialCommunityIcons
+                                    name="account-multiple-plus-outline"
+                                    size={64}
+                                    color={Colors.border.dark}
+                                />
                                 <Text style={styles.emptyText}>Henüz acil durum kişisi eklemediniz.</Text>
                             </View>
                         )}
                     </View>
                 )}
 
-                {!adding && contacts.length < 5 && (
-                    <TouchableOpacity
-                        style={styles.addTrigger}
-                        onPress={() => setAdding(true)}
-                    >
+                {!adding && contacts.length < MAX_CONTACTS && (
+                    <TouchableOpacity style={styles.addTrigger} onPress={() => setAdding(true)}>
                         <MaterialCommunityIcons name="plus" size={24} color="#fff" />
                         <Text style={styles.addTriggerText}>YENİ KİŞİ EKLE</Text>
                     </TouchableOpacity>
@@ -200,54 +206,37 @@ export default function ContactsScreen() {
                 {adding && (
                     <View style={styles.formCard}>
                         <View style={styles.formHeader}>
-                            <Text style={styles.formTitle}>Yeni Acil Durum Kişisi</Text>
-                            <TouchableOpacity onPress={() => setAdding(false)}>
+                            <Text style={styles.formTitle}>Yeni Acil Kişi</Text>
+                            <TouchableOpacity onPress={() => setAdding(false)} disabled={saving}>
                                 <MaterialCommunityIcons name="close" size={20} color={Colors.text.muted} />
                             </TouchableOpacity>
                         </View>
 
-                        {/* İsim */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>İsim Soyisim *</Text>
                             <TextInput
                                 style={styles.input}
                                 value={name}
                                 onChangeText={setName}
-                                placeholder="Örn: Ahmet Yılmaz"
+                                placeholder="Örn: Alan İnal"
                                 placeholderTextColor={Colors.text.muted}
                             />
                         </View>
 
-                        {/* Telefon */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Telefon Numarası *</Text>
                             <TextInput
                                 style={styles.input}
                                 value={phone}
                                 onChangeText={setPhone}
-                                placeholder="+905xxxxxxxxx veya 05xx xxx xx xx"
+                                placeholder="05513521373 veya +905513521373"
                                 placeholderTextColor={Colors.text.muted}
                                 keyboardType="phone-pad"
                             />
                         </View>
 
-                        {/* E-Posta */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>E-Posta (Opsiyonel)</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={email}
-                                onChangeText={setEmail}
-                                placeholder="E-posta ile de bildirim alabilir"
-                                placeholderTextColor={Colors.text.muted}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
-                        </View>
-
-                        {/* Yakınlık Derecesi — ZORUNLU */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Yakınlık Derecesi *</Text>
+                            <Text style={styles.label}>Yakınlık</Text>
                             <View style={styles.chipRow}>
                                 {RELATION_OPTIONS.map((r) => (
                                     <TouchableOpacity
@@ -255,29 +244,8 @@ export default function ContactsScreen() {
                                         style={[styles.chip, relation === r && styles.chipActive]}
                                         onPress={() => setRelation(r)}
                                     >
-                                        <Text style={[styles.chipText, relation === r && styles.chipTextActive]}>{r}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-
-                        {/* Bildirim Kanalı — çoklu seçim */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Bildirim Kanalı * (çoklu seçim)</Text>
-                            <View style={styles.channelRow}>
-                                {(["sms", "whatsapp", "email"] as NotifyMethod[]).map((m) => (
-                                    <TouchableOpacity
-                                        key={m}
-                                        style={[styles.channelChip, methods.includes(m) && styles.channelChipActive]}
-                                        onPress={() => toggleMethod(m)}
-                                    >
-                                        <MaterialCommunityIcons
-                                            name={m === "whatsapp" ? "whatsapp" : m === "email" ? "email-outline" : "message-text-outline"}
-                                            size={14}
-                                            color={methods.includes(m) ? Colors.primary : Colors.text.muted}
-                                        />
-                                        <Text style={[styles.channelChipText, methods.includes(m) && styles.channelChipTextActive]}>
-                                            {m.toUpperCase()}
+                                        <Text style={[styles.chipText, relation === r && styles.chipTextActive]}>
+                                            {r}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -301,10 +269,39 @@ export default function ContactsScreen() {
                 <View style={styles.infoBox}>
                     <MaterialCommunityIcons name="information-outline" size={20} color={Colors.primary} />
                     <Text style={styles.infoText}>
-                        "Ben İyiyim" butonuna bastığınızda, bu listedeki kişilere SMS/WhatsApp ile konumunuz iletilir. En fazla 5 kişi ekleyebilirsiniz.
+                        S.O.S veya "Ben İyiyim" tetiklendiğinde bu kişilere Twilio üzerinden SMS ve WhatsApp mesajı
+                        gönderilir. Telefon numarası +90 veya 05xx formatında olmalıdır.
                     </Text>
                 </View>
             </ScrollView>
+
+            {toast && (
+                <Animated.View
+                    style={[
+                        styles.toast,
+                        toast.type === "success" ? styles.toastSuccess : styles.toastError,
+                        {
+                            opacity: toastAnim,
+                            transform: [
+                                {
+                                    translateY: toastAnim.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [50, 0],
+                                    }),
+                                },
+                            ],
+                        },
+                    ]}
+                    pointerEvents="none"
+                >
+                    <MaterialCommunityIcons
+                        name={toast.type === "success" ? "check-circle" : "alert-circle"}
+                        size={20}
+                        color="#fff"
+                    />
+                    <Text style={styles.toastText}>{toast.message}</Text>
+                </Animated.View>
+            )}
         </KeyboardAvoidingView>
     );
 }
@@ -413,22 +410,6 @@ const styles = StyleSheet.create({
     chipActive: { backgroundColor: Colors.primary + "15", borderColor: Colors.primary },
     chipText: { fontSize: Typography.sizes.xs, fontWeight: "700", color: Colors.text.muted },
     chipTextActive: { color: Colors.primary },
-    channelRow: { flexDirection: "row", gap: 8 },
-    channelChip: {
-        flex: 1,
-        flexDirection: "row",
-        gap: 4,
-        paddingVertical: 10,
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: BorderRadius.md,
-        backgroundColor: Colors.background.dark,
-        borderWidth: 1,
-        borderColor: Colors.border.dark,
-    },
-    channelChipActive: { backgroundColor: Colors.primary + "15", borderColor: Colors.primary },
-    channelChipText: { fontSize: 11, fontWeight: "800", color: Colors.text.muted },
-    channelChipTextActive: { color: Colors.primary },
     saveBtn: {
         backgroundColor: Colors.primary,
         padding: Spacing.lg,
@@ -448,4 +429,19 @@ const styles = StyleSheet.create({
         borderColor: Colors.primary + "15",
     },
     infoText: { flex: 1, fontSize: 11, color: Colors.text.muted, lineHeight: 16, fontWeight: "600" },
+    toast: {
+        position: "absolute",
+        bottom: Spacing.xl,
+        left: Spacing.lg,
+        right: Spacing.lg,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.sm,
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.lg,
+        ...Platform.select({ ios: { shadowRadius: 8, shadowOpacity: 0.3 }, android: { elevation: 8 } }),
+    },
+    toastSuccess: { backgroundColor: Colors.semantic?.toastSuccess ?? "#065f46" },
+    toastError: { backgroundColor: Colors.semantic?.toastError ?? Colors.danger },
+    toastText: { color: "#fff", fontSize: Typography.sizes.sm, fontWeight: "700", flex: 1 },
 });

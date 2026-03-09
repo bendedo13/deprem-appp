@@ -17,7 +17,6 @@ from app.models.emergency_contact import EmergencyContact
 from app.services.whisper_service import get_whisper_service, WhisperServiceError
 from app.services.llm_extractor import get_llm_extractor, LLMExtractorError
 from app.services.audio_storage import get_audio_storage, AudioStorageError
-from app.services.twilio_sms import get_twilio_service
 from app.services.fcm import send_i_am_safe
 
 logger = logging.getLogger(__name__)
@@ -56,7 +55,6 @@ def process_sos_audio_task(
     whisper = get_whisper_service()
     llm = get_llm_extractor()
     storage = get_audio_storage()
-    twilio = get_twilio_service()
 
     audio_url = ""
     audio_filename = ""
@@ -192,17 +190,19 @@ def _send_emergency_alerts(
             return
 
         contacts = db.query(EmergencyContact).filter(
-            EmergencyContact.user_id == user_id
+            EmergencyContact.user_id == user_id,
+            EmergencyContact.is_active == True,
         ).all()
 
         if not contacts:
             logger.warning("Emergency contacts bulunamadı: user_id=%d", user_id)
             return
 
-        # Şablon context'i ve mesaj
-        from app.services.sos_service import send_hybrid_via_twilio_sync, render_template_sync
+        # Şablon context'i ve mesaj — Celery task ile kuyruğa at
+        from app.services.sos_service import render_template_sync
+        from app.tasks.send_emergency_twilio import send_emergency_alerts
 
-        phone_numbers = [c.phone for c in contacts if c.phone]
+        phone_numbers = [c.phone_number for c in contacts if c.phone_number]
 
         if phone_numbers:
             context = {
@@ -226,12 +226,10 @@ def _send_emergency_alerts(
             )
             message = render_template_sync(db, "sos_voice_template", default_template, context)
 
-            result = send_hybrid_via_twilio_sync(phone_numbers, message, channel="hybrid")
-            logger.info(
-                "SOS hibrit bildirim: sms=%d, whatsapp=%d, contacts=%d",
-                result["sms_sent"],
-                result["whatsapp_sent"],
-                len(phone_numbers),
+            send_emergency_alerts.apply_async(
+                args=[phone_numbers, message],
+                kwargs={"channel": "hybrid"},
+                queue="default",
             )
 
         logger.info("Emergency alerts gönderildi: user_id=%d, contacts=%d", user_id, len(contacts))
@@ -381,7 +379,8 @@ def _send_fallback_alert(
             return
 
         contacts = db.query(EmergencyContact).filter(
-            EmergencyContact.user_id == user_id
+            EmergencyContact.user_id == user_id,
+            EmergencyContact.is_active == True,
         ).all()
 
         if not contacts:
@@ -404,13 +403,15 @@ def _send_fallback_alert(
                 f"Gönderen: {user.email}"
             )
 
-        # Send SMS
-        twilio = get_twilio_service()
-        phone_numbers = [c.phone for c in contacts if c.phone and c.channel in ["sms", "whatsapp"]]
-
+        # Send via Celery task (SMS + WhatsApp hybrid)
+        phone_numbers = [c.phone_number for c in contacts if c.phone_number]
         if phone_numbers:
-            import asyncio
-            asyncio.run(twilio.send_emergency_alert(phone_numbers, message, use_whatsapp=False))
+            from app.tasks.send_emergency_twilio import send_emergency_alerts
+            send_emergency_alerts.apply_async(
+                args=[phone_numbers, message],
+                kwargs={"channel": "hybrid"},
+                queue="default",
+            )
 
         logger.info("Fallback alert gönderildi: user_id=%d", user_id)
 

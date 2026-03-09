@@ -5,7 +5,7 @@ FCM data payload (EARTHQUAKE_CONFIRMED) da bu task içinde bölge kullanıcılar
 """
 
 import logging
-from typing import List, Tuple
+from typing import List
 
 from sqlalchemy.orm import Session
 
@@ -58,8 +58,9 @@ def handle_confirmed_earthquake(
 
             for user in users:
                 _send_fcm_earthquake_confirmed(user, latitude, longitude, timestamp_iso, device_count)
-                for contact in user.emergency_contacts:
-                    _notify_emergency_contact(contact, user, latitude, longitude, timestamp_iso)
+                active_contacts = [c for c in user.emergency_contacts if c.is_active and c.phone_number]
+                if active_contacts:
+                    _notify_emergency_contacts(active_contacts, user, latitude, longitude, timestamp_iso)
         except Exception as e:
             logger.exception("handle_confirmed_earthquake hatası: %s", e)
             raise
@@ -108,49 +109,28 @@ def _send_fcm_earthquake_confirmed(
         logger.error("FCM gönderme hatası: %s", e)
 
 
-def _notify_emergency_contact(
-    contact: EmergencyContact,
+def _notify_emergency_contacts(
+    contacts: List[EmergencyContact],
     user: User,
     latitude: float,
     longitude: float,
     timestamp_iso: str,
 ) -> None:
-    """Acil kişiye 'Kullanıcı X şu konumda depreme yakalandı' mesajı iletir."""
+    """Acil kişilere Twilio SMS+WhatsApp ile 'depreme yakalandım' mesajı iletir."""
     message = (
         f"{user.email} şu konumda depreme yakalandı: "
         f"https://maps.google.com/?q={latitude},{longitude} ({timestamp_iso})"
     )
+    phone_numbers = [c.phone_number for c in contacts if c.phone_number]
+    if not phone_numbers:
+        return
     try:
-        if contact.channel == "sms" and contact.phone:
-            _send_sms(contact.phone, message)
-        elif contact.channel == "email" and contact.email:
-            _send_email(contact.email, "Deprem bildirimi", message)
-        else:
-            # Push veya varsayılan: e-posta
-            if contact.email:
-                _send_email(contact.email, "Deprem bildirimi", message)
+        from app.tasks.send_emergency_twilio import send_emergency_alerts
+        send_emergency_alerts.apply_async(
+            args=[phone_numbers, message],
+            kwargs={"channel": "hybrid"},
+            queue="default",
+        )
+        logger.info("Erken uyarı Twilio kuyruğa atıldı: user_id=%s contacts=%d", user.id, len(phone_numbers))
     except Exception as e:
-        logger.error("Acil kişi bildirimi hatası (contact_id=%s): %s", contact.id, e)
-
-
-def _send_sms(phone: str, body: str) -> None:
-    """SMS gönderimi (Twilio entegrasyonu)."""
-    try:
-        from app.services.twilio_sms import get_twilio_service
-        import asyncio
-        
-        twilio = get_twilio_service()
-        # Celery task sync olduğu için asyncio.run kullanıyoruz
-        success = asyncio.run(twilio.send_sms(phone, body))
-        
-        if success:
-            logger.info("SMS gönderildi -> %s: %s", phone[:6], body[:80])
-        else:
-            logger.warning("SMS gönderilemedi -> %s", phone[:6])
-    except Exception as e:
-        logger.error("SMS gönderme hatası: %s", e)
-
-
-def _send_email(to: str, subject: str, body: str) -> None:
-    """E-posta gönderimi (SMTP). Şimdilik log."""
-    logger.info("Email (stub) -> %s: %s", to, subject)
+        logger.error("Acil kişi bildirimi hatası: %s", e)
