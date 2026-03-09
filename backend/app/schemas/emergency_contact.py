@@ -68,7 +68,7 @@ class EmergencyContactOut(BaseModel):
     id: int
     name: str
     phone_number: str
-    relationship: str
+    relation_type: str = Field(serialization_alias="relationship")
     is_active: bool
 
     model_config = {"from_attributes": True}

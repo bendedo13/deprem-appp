@@ -23,7 +23,7 @@ class EmergencyContact(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone_number: Mapped[str] = mapped_column(String(32), nullable=False)
-    relationship: Mapped[str] = mapped_column(String(50), default="Diğer", nullable=False)
+    relation_type: Mapped[str] = mapped_column("relationship", String(50), default="Diğer", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="emergency_contacts")

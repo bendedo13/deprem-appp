@@ -256,7 +256,7 @@ async def add_contact(
         user_id=current_user.id,
         name=body.name,
         phone_number=body.phone_number,
-        relationship=body.relationship,
+        relation_type=body.relationship,
         is_active=True,
     )
     db.add(contact)
