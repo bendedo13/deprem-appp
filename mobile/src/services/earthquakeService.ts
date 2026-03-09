@@ -1,24 +1,16 @@
 /**
- * EarthquakeService — Professional multi-source earthquake data aggregator.
- *
- * Sources:
- *  1. AFAD  (Türkiye — POST endpoint, best for regional data)
- *  2. USGS  (Global — FDSN/GeoJSON, very reliable)
- *  3. EMSC  (Europe/Mediterranean — FDSN JSON)
- *  4. Sunucu (Our own backend — authenticated, always tried first)
- *
- * Uses Promise.allSettled so a failed source never crashes the pipeline.
- * Deduplicates overlapping events by proximity in time + space.
+ * EarthquakeService — 4 kaynak: AFAD, Kandilli, EMSC, USGS.
+ * Her kaynak için en güncel 20 depremi getirir.
  */
 
 import axios from "axios";
-import { api } from "./api";
 import type { EarthquakeSource, UnifiedEarthquake } from "../types/earthquake";
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
+const LIMIT_PER_SOURCE = 20;
+const HOURS = 24;
 
 function toIsoNoMs(d: Date): string {
-    return d.toISOString().slice(0, 19); // "YYYY-MM-DDTHH:MM:SS"
+    return d.toISOString().slice(0, 19);
 }
 
 function toAfadDate(d: Date): string {
@@ -26,7 +18,6 @@ function toAfadDate(d: Date): string {
 }
 
 function parseAfadDate(s: string): Date {
-    // Handles "YYYY.MM.DD HH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
     const normalized = s.replace(/\./g, "-").replace(" ", "T") + "Z";
     const parsed = new Date(normalized);
     return isNaN(parsed.getTime()) ? new Date() : parsed;
@@ -45,9 +36,9 @@ interface AfadEvent {
     location?: string;
 }
 
-async function fetchAFAD(hours: number): Promise<UnifiedEarthquake[]> {
+async function fetchAFAD(): Promise<UnifiedEarthquake[]> {
     const end = new Date();
-    const start = new Date(end.getTime() - hours * 3600 * 1000);
+    const start = new Date(end.getTime() - HOURS * 3600 * 1000);
 
     const { data } = await axios.post<AfadEvent[]>(
         "https://deprem.afad.gov.tr/apiv2/event/filter",
@@ -63,13 +54,10 @@ async function fetchAFAD(hours: number): Promise<UnifiedEarthquake[]> {
             minMag: 1,
             maxMag: 10,
             orderby: "timedesc",
-            limit: 100,
+            limit: LIMIT_PER_SOURCE,
             skip: 0,
         },
-        {
-            timeout: 12000,
-            headers: { "Content-Type": "application/json" },
-        }
+        { timeout: 12000, headers: { "Content-Type": "application/json" } }
     );
 
     const list: AfadEvent[] = Array.isArray(data) ? data : [];
@@ -88,22 +76,59 @@ async function fetchAFAD(hours: number): Promise<UnifiedEarthquake[]> {
     }));
 }
 
+// ─── Kandilli ──────────────────────────────────────────────────────────────────
+
+interface KandilliResult {
+    earthquake_id: string;
+    title: string;
+    mag: number;
+    depth: number;
+    geojson: { coordinates: [number, number] }; // [lon, lat]
+    date_time: string;
+}
+
+async function fetchKandilli(): Promise<UnifiedEarthquake[]> {
+    const { data } = await axios.get<{ result?: KandilliResult[] }>(
+        "https://api.orhanaydogdu.com.tr/deprem/kandilli/live",
+        { timeout: 12000 }
+    );
+
+    const list: KandilliResult[] = data?.result ?? [];
+    const seen = new Set<string>();
+    return list
+        .filter((e) => {
+            const key = `${e.geojson.coordinates[0]}:${e.geojson.coordinates[1]}:${e.date_time}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .slice(0, LIMIT_PER_SOURCE)
+        .map((e): UnifiedEarthquake => ({
+            id: `kandilli_${e.earthquake_id}`,
+            magnitude: e.mag ?? 0,
+            depth: e.depth ?? 0,
+            coordinates: {
+                latitude: e.geojson.coordinates[1],
+                longitude: e.geojson.coordinates[0],
+            },
+            title: e.title ?? "Bilinmiyor",
+            date: e.date_time ? new Date(e.date_time.replace(" ", "T") + "Z") : new Date(),
+            source: "KANDILLI",
+            magType: "ML",
+        }));
+}
+
 // ─── USGS ─────────────────────────────────────────────────────────────────────
 
 interface UsgsFeature {
     id: string;
     geometry: { coordinates: [number, number, number] };
-    properties: {
-        mag: number;
-        place: string;
-        time: number;   // ms since epoch
-        magType: string;
-    };
+    properties: { mag: number; place: string; time: number; magType: string };
 }
 
-async function fetchUSGS(hours: number): Promise<UnifiedEarthquake[]> {
+async function fetchUSGS(): Promise<UnifiedEarthquake[]> {
     const end = new Date();
-    const start = new Date(end.getTime() - hours * 3600 * 1000);
+    const start = new Date(end.getTime() - HOURS * 3600 * 1000);
 
     const url =
         `https://earthquake.usgs.gov/fdsnws/event/1/query` +
@@ -112,7 +137,7 @@ async function fetchUSGS(hours: number): Promise<UnifiedEarthquake[]> {
         `&endtime=${toIsoNoMs(end)}` +
         `&minmagnitude=1` +
         `&orderby=time` +
-        `&limit=100`;
+        `&limit=${LIMIT_PER_SOURCE}`;
 
     const { data } = await axios.get<{ features: UsgsFeature[] }>(url, { timeout: 12000 });
 
@@ -147,14 +172,14 @@ interface EmscFeature {
     };
 }
 
-async function fetchEMSC(hours: number): Promise<UnifiedEarthquake[]> {
+async function fetchEMSC(): Promise<UnifiedEarthquake[]> {
     const end = new Date();
-    const start = new Date(end.getTime() - hours * 3600 * 1000);
+    const start = new Date(end.getTime() - HOURS * 3600 * 1000);
 
     const url =
         `https://www.seismicportal.eu/fdsnws/event/1/query` +
         `?format=json` +
-        `&limit=100` +
+        `&limit=${LIMIT_PER_SOURCE}` +
         `&minmagnitude=1` +
         `&orderby=time` +
         `&starttime=${toIsoNoMs(start)}` +
@@ -180,45 +205,8 @@ async function fetchEMSC(hours: number): Promise<UnifiedEarthquake[]> {
     });
 }
 
-// ─── Backend ──────────────────────────────────────────────────────────────────
-
-interface BackendEq {
-    id: string;
-    source?: string;
-    magnitude: number;
-    depth: number;
-    latitude: number;
-    longitude: number;
-    location?: string;
-    occurred_at: string;
-}
-
-async function fetchBackend(): Promise<UnifiedEarthquake[]> {
-    const { data } = await api.get<{ items?: BackendEq[] } | BackendEq[]>(
-        "/api/v1/earthquakes?page_size=100&hours=24"
-    );
-    const list: BackendEq[] = Array.isArray(data)
-        ? data
-        : (data as { items?: BackendEq[] }).items ?? [];
-
-    return list.map((e): UnifiedEarthquake => ({
-        id: `backend_${e.id}`,
-        magnitude: e.magnitude,
-        depth: e.depth,
-        coordinates: { latitude: e.latitude, longitude: e.longitude },
-        title: e.location ?? "Bilinmiyor",
-        date: new Date(e.occurred_at),
-        source: "SUNUCU",
-        magType: e.source?.toUpperCase() === "AFAD" ? "Mw" : "ML",
-    }));
-}
-
 // ─── Deduplication ────────────────────────────────────────────────────────────
 
-/**
- * Removes earthquakes that are very close in time and space.
- * Priority order (AFAD → USGS → EMSC → SUNUCU) is already baked in via sort order.
- */
 function deduplicate(sorted: UnifiedEarthquake[]): UnifiedEarthquake[] {
     const result: UnifiedEarthquake[] = [];
     for (const eq of sorted) {
@@ -235,32 +223,30 @@ function deduplicate(sorted: UnifiedEarthquake[]): UnifiedEarthquake[] {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-const PRIORITY: EarthquakeSource[] = ["AFAD", "USGS", "EMSC", "SUNUCU"];
+const FETCHERS: Record<EarthquakeSource, () => Promise<UnifiedEarthquake[]>> = {
+    AFAD: fetchAFAD,
+    KANDILLI: fetchKandilli,
+    USGS: fetchUSGS,
+    EMSC: fetchEMSC,
+};
 
 export interface FetchResult {
     earthquakes: UnifiedEarthquake[];
-    /** Sources that returned data successfully */
     activeSources: EarthquakeSource[];
-    /** Sources that failed (for debugging) */
     failedSources: EarthquakeSource[];
 }
 
-export async function fetchAllEarthquakes(hours = 24): Promise<FetchResult> {
-    const fetchers: [EarthquakeSource, () => Promise<UnifiedEarthquake[]>][] = [
-        ["AFAD",   () => fetchAFAD(hours)],
-        ["USGS",   () => fetchUSGS(hours)],
-        ["EMSC",   () => fetchEMSC(hours)],
-        ["SUNUCU", () => fetchBackend()],
-    ];
-
-    const settled = await Promise.allSettled(fetchers.map(([, fn]) => fn()));
+export async function fetchEarthquakes(sources: EarthquakeSource[]): Promise<FetchResult> {
+    const settled = await Promise.allSettled(
+        sources.map((s) => FETCHERS[s]?.() ?? Promise.resolve([]))
+    );
 
     const all: UnifiedEarthquake[] = [];
     const activeSources: EarthquakeSource[] = [];
     const failedSources: EarthquakeSource[] = [];
 
     settled.forEach((result, idx) => {
-        const source = fetchers[idx][0];
+        const source = sources[idx];
         if (result.status === "fulfilled" && result.value.length > 0) {
             all.push(...result.value);
             activeSources.push(source);
@@ -272,17 +258,15 @@ export async function fetchAllEarthquakes(hours = 24): Promise<FetchResult> {
         }
     });
 
-    // Sort by priority first so deduplication keeps higher-priority sources
+    const priority: EarthquakeSource[] = ["AFAD", "KANDILLI", "EMSC", "USGS"];
     all.sort((a, b) => {
-        const pa = PRIORITY.indexOf(a.source);
-        const pb = PRIORITY.indexOf(b.source);
+        const pa = priority.indexOf(a.source);
+        const pb = priority.indexOf(b.source);
         if (pa !== pb) return pa - pb;
         return b.date.getTime() - a.date.getTime();
     });
 
     const deduped = deduplicate(all);
-
-    // Final sort: newest first
     deduped.sort((a, b) => b.date.getTime() - a.date.getTime());
 
     return { earthquakes: deduped, activeSources, failedSources };

@@ -1,34 +1,30 @@
 /**
  * Unified Earthquake Data Model
- * Normalizes data from AFAD, USGS, EMSC and our own backend into a single format.
+ * AFAD, Kandilli, EMSC, USGS — 4 kaynak.
  */
 
-export type EarthquakeSource = "AFAD" | "USGS" | "EMSC" | "SUNUCU";
+export type EarthquakeSource = "AFAD" | "KANDILLI" | "EMSC" | "USGS";
 
 export interface UnifiedEarthquake {
-    /** Prefixed unique ID: "afad_xxx", "usgs_xxx", "emsc_xxx", "backend_xxx" */
     id: string;
     magnitude: number;
-    /** Depth in km */
     depth: number;
-    coordinates: {
-        latitude: number;
-        longitude: number;
-    };
-    /** Human-readable location title */
+    coordinates: { latitude: number; longitude: number };
     title: string;
-    /** Event date/time */
     date: Date;
-    /** Data source institution */
     source: EarthquakeSource;
-    /** Magnitude type: Mw, ML, mb, etc. */
     magType: string;
 }
 
-/** Visual config per source (color, label) */
 export const SOURCE_META: Record<EarthquakeSource, { color: string; label: string; bg: string }> = {
-    AFAD:   { color: "#dc2626", label: "AFAD",    bg: "#dc262620" },
-    USGS:   { color: "#3b82f6", label: "USGS",    bg: "#3b82f620" },
-    EMSC:   { color: "#f97316", label: "EMSC",    bg: "#f9731620" },
-    SUNUCU: { color: "#10b981", label: "Sunucu",  bg: "#10b98120" },
+    AFAD:    { color: "#dc2626", label: "AFAD",    bg: "#dc262620" },
+    KANDILLI: { color: "#8b5cf6", label: "Kandilli", bg: "#8b5cf620" },
+    USGS:    { color: "#3b82f6", label: "USGS",    bg: "#3b82f620" },
+    EMSC:    { color: "#f97316", label: "EMSC",    bg: "#f9731620" },
 };
+
+export function magnitudeColor(mag: number): string {
+    if (mag >= 6) return "#DC2626";  // kırmızı
+    if (mag >= 4) return "#F97316";  // turuncu
+    return "#10B981";                 // yeşil (<4)
+}
