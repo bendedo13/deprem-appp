@@ -73,7 +73,7 @@ function buildMapsLink(lat: number, lng: number): string {
  * SOS mesajını backend'e gönderir — retry logic ile.
  *
  * @param trigger - "sensor" (otomatik deprem algılama) veya "manual" (kullanıcı butonu)
- * @param customMessage - İsteğe bağlı ek mesaj
+ * @param customMessage - İsteğe bağlı ek mesaj (örn: "BU BİR TESTTİR")
  */
 export async function sendSOSAlert(
     trigger: "sensor" | "manual",
