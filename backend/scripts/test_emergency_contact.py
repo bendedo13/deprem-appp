@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_phone_validation():
     """phonenumbers ile TR formatı doğrulama."""
-    from app.schemas.emergency_contact import _normalize_phone_tr, EmergencyContactIn
+    from app.schemas.emergency_contact import _normalize_phone_to_e164, EmergencyContactIn
 
     # Alan İnal 05513521373
     tests = [
@@ -25,16 +25,20 @@ def test_phone_validation():
     ]
     for inp, expected in tests:
         try:
-            out = _normalize_phone_tr(inp)
+            out = _normalize_phone_to_e164(inp)
             ok = out == expected
             print(f"  {inp!r} -> {out!r} {'✓' if ok else '✗ (expected ' + expected + ')'}")
         except Exception as e:
             print(f"  {inp!r} -> ERROR: {e}")
 
-    # Schema validation
+    # Schema validation (API accepts "relationship", schema maps to relation_type)
     try:
-        c = EmergencyContactIn(name="Alan İnal", phone_number="05513521373", relationship="Arkadaş")
-        print(f"  Schema OK: name={c.name} phone_number={c.phone_number}")
+        c = EmergencyContactIn.model_validate({
+            "name": "Alan İnal",
+            "phone_number": "05513521373",
+            "relationship": "Arkadaş",
+        })
+        print(f"  Schema OK: name={c.name} phone_number={c.phone_number} relation_type={c.relation_type}")
     except Exception as e:
         print(f"  Schema ERROR: {e}")
 

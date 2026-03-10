@@ -15,12 +15,14 @@ import {
     KeyboardAvoidingView,
     Platform,
     Animated,
+    Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 import { api } from "../../src/services/api";
 
+/** Backend EmergencyContactOut: id, name, phone_number, relationship (alias), is_active */
 interface Contact {
     id: number;
     name: string;
@@ -28,6 +30,13 @@ interface Contact {
     relationship: string;
     is_active: boolean;
 }
+
+/** API payload - backend EmergencyContactIn kabul eder: relationship veya relation_type */
+const buildContactPayload = (name: string, phone: string, relation: string) => ({
+    name: name.trim(),
+    phone_number: phone.trim(),
+    relationship: relation,
+});
 
 const RELATION_OPTIONS = ["Aile", "Eş", "Arkadaş", "Komşu", "İş Arkadaşı", "Diğer"];
 const MAX_CONTACTS = 5;
@@ -73,39 +82,40 @@ export default function ContactsScreen() {
         fetchContacts();
     }, [fetchContacts]);
 
+    const extractErrorMessage = (error: unknown): string => {
+        const res = error as { response?: { data?: { detail?: string | { msg?: string }[] } } };
+        const detail = res?.response?.data?.detail;
+        if (typeof detail === "string") return detail;
+        if (Array.isArray(detail)) {
+            const msgs = detail.map((d: { msg?: string }) => d?.msg).filter(Boolean);
+            return msgs.length ? msgs.join("\n") : "Kişi eklenemedi. Bilgileri kontrol edin.";
+        }
+        return "Kişi eklenemedi. Bağlantıyı kontrol edip tekrar deneyin.";
+    };
+
     const handleAdd = async () => {
         if (!name.trim()) {
-            showToast("İsim soyisim zorunludur.", "error");
+            Alert.alert("Hata", "İsim soyisim zorunludur.");
             return;
         }
         if (!phone.trim()) {
-            showToast("Telefon numarası zorunludur.", "error");
+            Alert.alert("Hata", "Telefon numarası zorunludur.");
             return;
         }
 
         setSaving(true);
         try {
-            await api.post("/api/v1/users/me/contacts", {
-                name: name.trim(),
-                phone_number: phone.trim(),
-                relationship: relation,
-            });
-            showToast(`${name} acil kişiler listesine eklendi.`, "success");
+            const payload = buildContactPayload(name, phone, relation);
+            const { data } = await api.post<Contact>("/api/v1/users/me/contacts", payload);
+            showToast(`${data.name} acil kişiler listesine eklendi.`, "success");
             setName("");
             setPhone("");
             setRelation("Aile");
             setAdding(false);
-            fetchContacts();
+            await fetchContacts();
         } catch (error: unknown) {
-            const res = error as { response?: { data?: { detail?: string | { msg?: string }[] } } };
-            const detail = res?.response?.data?.detail;
-            let msg = "Kişi eklenemedi. Bilgileri kontrol edin.";
-            if (typeof detail === "string") {
-                msg = detail;
-            } else if (Array.isArray(detail)) {
-                msg = detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(", ") || msg;
-            }
-            showToast(msg, "error");
+            const msg = extractErrorMessage(error);
+            Alert.alert("Kişi Eklenemedi", msg);
         } finally {
             setSaving(false);
         }
@@ -115,11 +125,13 @@ export default function ContactsScreen() {
         setSaving(true);
         api
             .delete(`/api/v1/users/me/contacts/${id}`)
-            .then(() => {
+            .then(async () => {
                 showToast(`${contactName} listeden silindi.`, "success");
-                fetchContacts();
+                await fetchContacts();
             })
-            .catch(() => showToast("Silme işlemi başarısız.", "error"))
+            .catch((err) => {
+                Alert.alert("Silme Hatası", extractErrorMessage(err));
+            })
             .finally(() => setSaving(false));
     };
 

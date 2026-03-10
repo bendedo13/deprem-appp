@@ -8,6 +8,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -241,27 +242,46 @@ async def add_contact(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> EmergencyContactOut:
-    """Yeni acil iletişim kişisi ekler. Maksimum 5 kişi sınırı uygulanır."""
+    """Yeni acil iletişim kişisi ekler. JWT'den user_id alınır. Maksimum 5 kişi."""
     count_result = await db.execute(
         select(func.count()).select_from(EmergencyContact).where(EmergencyContact.user_id == current_user.id)
     )
-    contact_count = count_result.scalar_one()
-    if contact_count >= _MAX_EMERGENCY_CONTACTS:
+    if count_result.scalar_one() >= _MAX_EMERGENCY_CONTACTS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"En fazla {_MAX_EMERGENCY_CONTACTS} acil iletişim kişisi eklenebilir.",
+        )
+
+    dup = await db.execute(
+        select(EmergencyContact).where(
+            EmergencyContact.user_id == current_user.id,
+            EmergencyContact.phone_number == body.phone_number,
+        )
+    )
+    if dup.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bu telefon numarası zaten acil kişiler listesinde.",
         )
 
     contact = EmergencyContact(
         user_id=current_user.id,
         name=body.name,
         phone_number=body.phone_number,
-        relation_type=body.relationship,
+        relation_type=body.relation_type,
         is_active=True,
     )
-    db.add(contact)
-    await db.commit()
-    await db.refresh(contact)
+    try:
+        db.add(contact)
+        await db.commit()
+        await db.refresh(contact)
+    except IntegrityError as e:
+        await db.rollback()
+        logger.warning("Acil kişi ekleme IntegrityError: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Veritabanı hatası. Lütfen bilgileri kontrol edip tekrar deneyin.",
+        )
     logger.info("Acil kişi eklendi: user_id=%d contact_id=%d", current_user.id, contact.id)
     return EmergencyContactOut.model_validate(contact)
 
