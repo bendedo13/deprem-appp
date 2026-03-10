@@ -47,16 +47,13 @@ import {
     type SensorMode,
 } from "../../src/services/sensorSettings";
 import {
-    startEarthquakeSimulation,
-    runAlarmOnlyWithoutSOS,
-    runHybridSensorTest,
-    run15SecondTest,
-    stopCriticalAlarm,
-    SimulationResult,
-    type HybridTestResult,
-    type Phase15,
-} from "../../src/services/simulationService";
-import { sendSOSAlert } from "../../src/services/sosAlertService";
+    startTestAlarmSound,
+    stopTestAlarmSound,
+    startTestVibration,
+    stopTestVibration,
+    sendTestSOS,
+    stopTestCompletely,
+} from "../../src/services/testSimulationService";
 import { startCriticalAlarm } from "../../src/services/criticalAlarmService";
 
 // ─── Yardımcı Fonksiyonlar ────────────────────────────────────────────────────
@@ -85,35 +82,6 @@ function isValidTime(t: string): boolean {
     return /^([01]\d|2[0-3]):([0-5]\d)$/.test(t);
 }
 
-// ─── Simülasyon Sonuç Satırı Bileşeni ─────────────────────────────────────────
-
-function SimResultRow({
-    icon,
-    label,
-    ok,
-    warn,
-}: {
-    icon: string;
-    label: string;
-    ok: boolean;
-    warn?: boolean;
-}) {
-    const color = ok ? Colors.primary : warn ? Colors.accent : Colors.text.muted;
-    const statusIcon = ok ? "check-circle" : warn ? "alert-circle" : "minus-circle";
-    return (
-        <View style={simResultStyles.row}>
-            <MaterialCommunityIcons name={icon as any} size={16} color={color} />
-            <Text style={[simResultStyles.label, { color }]}>{label}</Text>
-            <MaterialCommunityIcons name={statusIcon as any} size={16} color={color} />
-        </View>
-    );
-}
-
-const simResultStyles = StyleSheet.create({
-    row: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 3 },
-    label: { flex: 1, fontSize: Typography.sizes.sm, fontWeight: "600" },
-});
-
 // ─── Ana Ekran ────────────────────────────────────────────────────────────────
 
 export default function SensorScreen() {
@@ -134,23 +102,10 @@ export default function SensorScreen() {
     const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
     const toastAnim = useRef(new Animated.Value(0)).current;
 
-    // Simülasyon durumu
+    // Simülasyon durumu (tek test butonu)
     const [simulating, setSimulating] = useState(false);
-    const [simResult, setSimResult] = useState<SimulationResult | null>(null);
     const [simulatedRatio, setSimulatedRatio] = useState<number | null>(null);
-
-    // Sensör testi: alarm + geri sayım (10..9..8) sonra SOS
-    const [countdown, setCountdown] = useState<number | null>(null);
-    const [countdownError, setCountdownError] = useState<string | null>(null);
-    const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // Hibrit test: tek tıkla alarm + gerçek TEST MESAJI + Twilio raporu
-    const [hybridTestResult, setHybridTestResult] = useState<HybridTestResult | null>(null);
-    const [hybridTestLoading, setHybridTestLoading] = useState(false);
-
-    const [phase15, setPhase15] = useState<Phase15>("idle");
-    const [result15, setResult15] = useState<{ sosSent: boolean; notifiedContacts: number; error?: string } | null>(null);
-    const abort15Ref = useRef(false);
+    const [testSosResult, setTestSosResult] = useState<{ success: boolean; notifiedContacts: number; error?: string } | null>(null);
 
     // Gerçek ivmeölçer hook — 1.8G+ nükleer alarm tetiklemesi
     const handleCriticalTrigger = useCallback((lat: number | null, lng: number | null) => {
@@ -167,7 +122,6 @@ export default function SensorScreen() {
     const gaugeAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const prevTriggered = useRef(false);
-    const simRatioTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Ekranda gösterilecek değerler (simülasyon varsa override)
     const displayRatio = simulatedRatio ?? staLtaRatio;
@@ -225,13 +179,6 @@ export default function SensorScreen() {
         prevTriggered.current = isTriggered;
     }, [isTriggered, triggerTime]);
 
-    // ── Cleanup ──────────────────────────────────────────────────────────────
-    useEffect(() => {
-        return () => {
-            if (simRatioTimerRef.current) clearTimeout(simRatioTimerRef.current);
-            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-        };
-    }, []);
 
     // ── Toast göster ─────────────────────────────────────────────────────────
     const showToast = useCallback(
@@ -265,198 +212,41 @@ export default function SensorScreen() {
         }
     }, [settings, showToast]);
 
-    // ── Simülasyonu başlat ───────────────────────────────────────────────────
-    const handleSimulation = useCallback(() => {
+    // ── Sistemi Test Et (Simülasyon) — Tek buton, 15 sn akış ─────────────────
+    const handleTestStart = useCallback(async () => {
         if (simulating) return;
+        setSimulating(true);
+        setTestSosResult(null);
+        setSimulatedRatio(8.5);
 
-        Alert.alert(
-            "Deprem Simülasyonu",
-            "M6.0 büyüklüğünde sahte bir deprem sinyali oluşturulacak.\n\n" +
-                "• Ses modu: sessiz modda da çalar\n" +
-                "• Titreşim motoru çalışacak\n" +
-                "• 'DEPREM ALGILANDI!' bildirimi düşecek\n" +
-                "• Otomatik SOS gönderilecek\n\n" +
-                "Devam edilsin mi?",
-            [
-                { text: "İptal", style: "cancel" },
-                {
-                    text: "Simülasyonu Başlat",
-                    style: "destructive",
-                    onPress: async () => {
-                        setSimulating(true);
-                        setSimResult(null);
-
-                        // Gauge'ü simüle et (M6.0 → STA/LTA ~8.5)
-                        const ratio = 8.5 + Math.random() * 2.0;
-                        setSimulatedRatio(ratio);
-
-                        // Pulse animasyonu
-                        Animated.loop(
-                            Animated.sequence([
-                                Animated.timing(pulseAnim, {
-                                    toValue: 1.08,
-                                    duration: 400,
-                                    useNativeDriver: true,
-                                }),
-                                Animated.timing(pulseAnim, {
-                                    toValue: 1,
-                                    duration: 400,
-                                    useNativeDriver: true,
-                                }),
-                            ]),
-                            { iterations: 12 }
-                        ).start();
-
-                        try {
-                            const result = await startEarthquakeSimulation({
-                                flashEnabled: settings.flashEnabled,
-                                loudAlarmEnabled: settings.loudAlarmEnabled,
-                                vibrationEnabled: settings.vibrationEnabled,
-                                sendSOS: true,
-                            });
-
-                            setSimResult(result);
-
-                            // Simülasyon trigger'ını tarihçeye ekle
-                            setLastTriggerHistory((prev) =>
-                                [{ time: new Date(), peak: 4.2, ratio }, ...prev].slice(0, 5)
-                            );
-
-                            if (result.notificationSent) {
-                                showToast("✓ Simülasyon tamamlandı!", "success");
-                            } else {
-                                showToast("Simülasyon bitti (bildirim hatası — log kontrol edin)", "error");
-                            }
-                        } catch (err) {
-                            console.error("[Simulation] Beklenmeyen hata:", err);
-                            showToast("Simülasyon hatası: " + String(err), "error");
-                        } finally {
-                            setSimulating(false);
-                            // 6 saniye sonra gauge'ü sıfırla
-                            if (simRatioTimerRef.current) clearTimeout(simRatioTimerRef.current);
-                            simRatioTimerRef.current = setTimeout(() => setSimulatedRatio(null), 6000);
-                        }
-                    },
-                },
-            ]
-        );
-    }, [simulating, settings, showToast, pulseAnim]);
-
-    // ── Sensör testi (alarm + geri sayım 10..9..8 sonra SOS) ──────────────────
-    const handleSensorTestSimulation = useCallback(() => {
-        if (simulating || countdown !== null) return;
-
-        const run = async () => {
-            setSimulating(true);
-            setCountdownError(null);
-            setSimulatedRatio(8.5 + Math.random() * 2.0);
-
-            const alarmResult = await runAlarmOnlyWithoutSOS({
-                loudAlarmEnabled: settings.loudAlarmEnabled,
-                vibrationEnabled: settings.vibrationEnabled,
-                flashEnabled: settings.flashEnabled,
-            });
-            if (alarmResult.error) {
-                setCountdownError(alarmResult.error);
-            }
-
-            setCountdown(10);
-            let n = 10;
-            countdownIntervalRef.current = setInterval(() => {
-                n -= 1;
-                setCountdown(n);
-                if (n <= 0 && countdownIntervalRef.current) {
-                    clearInterval(countdownIntervalRef.current);
-                    countdownIntervalRef.current = null;
-                    setCountdown(null);
-                    (async () => {
-                        try {
-                            const sosResult = await sendSOSAlert(
-                                "sensor",
-                                "Sensör simülasyon testi — gerçek acil durum değildir."
-                            );
-                            if (sosResult.success) {
-                                showToast(
-                                    `S.O.S gönderildi (${sosResult.notifiedContacts} kişi bildirildi)`,
-                                    "success"
-                                );
-                            } else {
-                                showToast(
-                                    sosResult.error ?? "S.O.S gönderilemedi",
-                                    "error"
-                                );
-                            }
-                        } catch (err) {
-                            showToast("S.O.S hatası: " + String(err), "error");
-                        } finally {
-                            setSimulating(false);
-                        }
-                        if (simRatioTimerRef.current) clearTimeout(simRatioTimerRef.current);
-                        simRatioTimerRef.current = setTimeout(() => setSimulatedRatio(null), 6000);
-                    })();
-                }
-            }, 1000);
-        };
-        run();
-    }, [simulating, countdown, settings, showToast]);
-
-    // ── Hibrit sensör testi: ivme simülasyonu + gerçek TEST MESAJI (Konum + "Bu bir testtir") + Twilio raporu ──
-    const handleHybridSensorTest = useCallback(async () => {
-        if (simulating || hybridTestLoading || countdown !== null) return;
-        setHybridTestLoading(true);
-        setHybridTestResult(null);
-        setSimulatedRatio(8.5 + Math.random() * 2.0);
         try {
-            const result = await runHybridSensorTest({
-                loudAlarmEnabled: settings.loudAlarmEnabled,
-                vibrationEnabled: settings.vibrationEnabled,
-                flashEnabled: settings.flashEnabled,
-            });
-            setHybridTestResult(result);
-            if (result.sosSent) {
-                showToast(
-                    `Hibrit test tamamlandı — ${result.notifiedContacts} kişi (SMS: ${result.smsSent}, WP: ${result.whatsappSent})`,
-                    "success"
-                );
-            } else if (result.error) {
-                showToast(result.error, "error");
-            }
-        } catch (err) {
-            showToast("Hibrit test hatası: " + String(err), "error");
-        } finally {
-            setHybridTestLoading(false);
-            setTimeout(() => setSimulatedRatio(null), 6000);
-        }
-    }, [simulating, hybridTestLoading, countdown, settings, showToast]);
+            if (settings.loudAlarmEnabled) await startTestAlarmSound();
+            if (settings.vibrationEnabled) startTestVibration();
 
-    const handle15SecondTest = useCallback(async () => {
-        if (phase15 !== "idle") return;
-        setPhase15("detecting");
-        setResult15(null);
-        abort15Ref.current = false;
+            sendTestSOS()
+                .then((res) => {
+                    setTestSosResult(res);
+                    if (res.success) {
+                        showToast(`${res.notifiedContacts} kişiye test mesajı gönderildi`, "success");
+                    } else if (res.error) {
+                        Alert.alert("Test SMS'i gönderilemedi", res.error);
+                    }
+                })
+                .catch(() => {
+                    Alert.alert("Test SMS'i gönderilemedi", "Bağlantı hatası. Lütfen tekrar deneyin.");
+                });
+        } catch (err) {
+            Alert.alert("Test hatası", err instanceof Error ? err.message : String(err));
+        }
+    }, [simulating, settings, showToast]);
+
+    const handleTestStop = useCallback(async () => {
         try {
-            const res = await run15SecondTest(
-                setPhase15,
-                abort15Ref,
-                { loudAlarmEnabled: settings.loudAlarmEnabled, vibrationEnabled: settings.vibrationEnabled }
-            );
-            setResult15({ sosSent: res.sosSent, notifiedContacts: res.notifiedContacts, error: res.error });
-            if (res.sosSent) {
-                showToast(`Test tamamlandı — ${res.notifiedContacts} kişiye "BU BİR TESTTİR" gönderildi`, "success");
-            } else if (res.error) {
-                showToast(res.error, "error");
-            }
-        } catch (err) {
-            showToast("Test hatası: " + String(err), "error");
-        } finally {
-            setPhase15("idle");
-        }
-    }, [phase15, settings, showToast]);
-
-    const handleStop15Test = useCallback(() => {
-        abort15Ref.current = true;
-        stopCriticalAlarm();
-        setPhase15("idle");
+            await stopTestCompletely();
+        } catch { /* ignore */ }
+        setSimulating(false);
+        setSimulatedRatio(null);
+        setTimeout(() => setTestSosResult(null), 3000);
     }, []);
 
     // Render değerleri
@@ -469,17 +259,30 @@ export default function SensorScreen() {
     return (
         <SafeAreaView style={styles.container}>
 
-            {/* Geri sayım overlay — Deprem Algılandı! S.O.S gönderiliyor: 10..9..8.. */}
-            <Modal visible={countdown !== null} transparent animationType="fade">
-                <View style={styles.countdownOverlay}>
-                    <View style={styles.countdownBox}>
-                        <MaterialCommunityIcons name="alert-octagon" size={48} color={Colors.danger} />
-                        <Text style={styles.countdownTitle}>Deprem Algılandı!</Text>
-                        <Text style={styles.countdownSubtitle}>S.O.S gönderiliyor:</Text>
-                        <Text style={styles.countdownNumber}>{countdown ?? 0}</Text>
-                        {countdownError ? (
-                            <Text style={styles.countdownError}>{countdownError}</Text>
-                        ) : null}
+            {/* Test Simülasyonu — Kırmızı tam ekran overlay */}
+            <Modal visible={simulating} transparent animationType="fade">
+                <View style={styles.testOverlay}>
+                    <View style={styles.testOverlayContent}>
+                        <MaterialCommunityIcons name="alert-octagon" size={64} color="#fff" />
+                        <Text style={styles.testOverlayTitle}>SİSTEM TESTİ</Text>
+                        <Text style={styles.testOverlaySubtitle}>
+                            Alarm · Titreşim · Twilio (SMS/WhatsApp)
+                        </Text>
+                        {testSosResult && (
+                            <Text style={styles.testOverlayResult}>
+                                {testSosResult.success
+                                    ? `${testSosResult.notifiedContacts} kişiye mesaj gönderildi`
+                                    : testSosResult.error ?? "SMS gönderilemedi"}
+                            </Text>
+                        )}
+                        <TouchableOpacity
+                            style={styles.testStopButton}
+                            onPress={handleTestStop}
+                            activeOpacity={0.8}
+                        >
+                            <MaterialCommunityIcons name="stop" size={24} color="#fff" />
+                            <Text style={styles.testStopButtonText}>Testi Sonlandır / Sesi Kapat</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -862,198 +665,38 @@ export default function SensorScreen() {
                     )}
                 </View>
 
-                {/* ── Deprem Simülasyonu ── */}
+                {/* ── Sistemi Test Et (Simülasyon) ── */}
                 <View style={styles.simCard}>
                     <View style={styles.simHeader}>
                         <MaterialCommunityIcons name="lightning-bolt" size={20} color={Colors.danger} />
-                        <Text style={styles.simTitle}>Deprem Simülasyonu</Text>
+                        <Text style={styles.simTitle}>Sistemi Test Et</Text>
                         <View style={styles.simBadge}>
                             <Text style={styles.simBadgeText}>TEST</Text>
                         </View>
                     </View>
 
                     <Text style={styles.simDesc}>
-                        M6.0 büyüklüğünde sahte bir deprem sinyali oluşturur.{"\n"}
-                        Ses · Titreşim · Bildirim · Otomatik SOS pipeline'ını test eder.{"\n"}
-                        Tüm adımlar konsol loglarında görünür.
+                        Bu buton; yüksek sesli alarmı, kilit ekranı bildirimini ve Acil Kişilerinize giden Twilio (SMS/WP) altyapısını test eder.
                     </Text>
 
-                    {/* Simülasyon Sonuçları */}
-                    {simResult && (
-                        <View style={styles.simResultBox}>
-                            <Text style={styles.simResultTitle}>Son Simülasyon Sonucu</Text>
-                            <SimResultRow
-                                icon="volume-high"
-                                label="Ses Modu (sessiz bypass)"
-                                ok={simResult.soundPlayed}
-                            />
-                            <SimResultRow
-                                icon="vibrate"
-                                label="Titreşim Motoru"
-                                ok={simResult.vibrated}
-                            />
-                            <SimResultRow
-                                icon="bell-ring"
-                                label="Full-Screen Bildirim"
-                                ok={simResult.notificationSent}
-                            />
-                            <SimResultRow
-                                icon="message-alert"
-                                label={`Otomatik SOS (${simResult.sosContacts} kişi bildirildi)`}
-                                ok={simResult.sosSent}
-                                warn={!simResult.sosSent}
-                            />
-                            {simResult.error && (
-                                <Text style={styles.simError}>Hata: {simResult.error}</Text>
-                            )}
-                        </View>
-                    )}
-
                     <TouchableOpacity
-                        style={[styles.simButton, simulating && styles.simButtonActive]}
-                        onPress={handleSimulation}
+                        style={[styles.simButton, styles.simButtonLarge, simulating && styles.simButtonActive]}
+                        onPress={handleTestStart}
                         disabled={simulating}
                         activeOpacity={0.8}
                     >
-                        {simulating && countdown === null ? (
+                        {simulating ? (
                             <>
                                 <ActivityIndicator size="small" color="#fff" />
-                                <Text style={styles.simButtonText}>Simülasyon Çalışıyor...</Text>
+                                <Text style={styles.simButtonText}>Test Çalışıyor...</Text>
                             </>
                         ) : (
                             <>
-                                <MaterialCommunityIcons name="play-circle" size={22} color="#fff" />
-                                <Text style={styles.simButtonText}>Simülasyonu Başlat</Text>
+                                <MaterialCommunityIcons name="play-circle" size={28} color="#fff" />
+                                <Text style={styles.simButtonText}>Sistemi Test Et (Simülasyon)</Text>
                             </>
                         )}
                     </TouchableOpacity>
-
-                    <Text style={styles.simSectionLabel}>Sensör testi (alarm + geri sayım + S.O.S)</Text>
-                    <TouchableOpacity
-                        style={[
-                            styles.simButton,
-                            styles.simButtonSecondary,
-                            (simulating || countdown !== null) && styles.simButtonActive,
-                        ]}
-                        onPress={handleSensorTestSimulation}
-                        disabled={simulating || countdown !== null}
-                        activeOpacity={0.8}
-                    >
-                        {countdown !== null ? (
-                            <>
-                                <MaterialCommunityIcons name="timer-sand" size={22} color="#fff" />
-                                <Text style={styles.simButtonText}>S.O.S gönderiliyor: {countdown}...</Text>
-                            </>
-                        ) : (
-                            <>
-                                <MaterialCommunityIcons name="motion-sensor" size={22} color="#fff" />
-                                <Text style={styles.simButtonText}>Sensör Testini Başlat (Simülasyon)</Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
-
-                    <Text style={styles.simSectionLabel}>
-                        Nasıl Çalışır? — 15 sn: 5sn algılama → 5sn alarm → 5sn "BU BİR TESTTİR" Twilio
-                    </Text>
-                    <TouchableOpacity
-                        style={[
-                            styles.simButton,
-                            styles.simButtonSecondary,
-                            phase15 !== "idle" && styles.simButtonActive,
-                        ]}
-                        onPress={phase15 !== "idle" ? handleStop15Test : handle15SecondTest}
-                        activeOpacity={0.8}
-                    >
-                        {phase15 !== "idle" ? (
-                            <>
-                                <MaterialCommunityIcons name="stop" size={22} color="#fff" />
-                                <Text style={styles.simButtonText}>
-                                    Simülasyonu Durdur
-                                    {phase15 === "detecting" && " (Algılama...)"}
-                                    {phase15 === "alarm" && " (Alarm çalıyor)"}
-                                    {phase15 === "sending" && " (Twilio gönderiliyor)"}
-                                </Text>
-                            </>
-                        ) : (
-                            <>
-                                <MaterialCommunityIcons name="play-circle" size={22} color="#fff" />
-                                <Text style={styles.simButtonText}>Test Başlat</Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
-                    {result15 && (
-                        <View style={styles.simResultBox}>
-                            <Text style={styles.simResultTitle}>15sn Test Sonucu</Text>
-                            <SimResultRow
-                                icon="message-alert"
-                                label={`"BU BİR TESTTİR" gönderildi (${result15.notifiedContacts} kişi)`}
-                                ok={result15.sosSent}
-                                warn={!result15.sosSent}
-                            />
-                            {result15.error && (
-                                <Text style={styles.simError}>{result15.error}</Text>
-                            )}
-                        </View>
-                    )}
-
-                    <Text style={styles.simSectionLabel}>Hibrit test (alarm + gerçek TEST MESAJI + Twilio raporu)</Text>
-                    <TouchableOpacity
-                        style={[
-                            styles.simButton,
-                            styles.simButtonSecondary,
-                            (simulating || hybridTestLoading) && styles.simButtonActive,
-                        ]}
-                        onPress={handleHybridSensorTest}
-                        disabled={simulating || hybridTestLoading}
-                        activeOpacity={0.8}
-                    >
-                        {hybridTestLoading ? (
-                            <>
-                                <ActivityIndicator size="small" color="#fff" />
-                                <Text style={styles.simButtonText}>Hibrit test çalışıyor...</Text>
-                            </>
-                        ) : (
-                            <>
-                                <MaterialCommunityIcons name="test-tube" size={22} color="#fff" />
-                                <Text style={styles.simButtonText}>Hibrit Sensör Testini Başlat</Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
-
-                    {hybridTestResult && (
-                        <View style={styles.simResultBox}>
-                            <Text style={styles.simResultTitle}>Hibrit Test Raporu</Text>
-                            <SimResultRow icon="volume-high" label="Ses (sessiz bypass)" ok={hybridTestResult.soundPlayed} />
-                            <SimResultRow icon="vibrate" label="Titreşim" ok={hybridTestResult.vibrated} />
-                            <SimResultRow icon="bell-ring" label="Full-screen bildirim" ok={hybridTestResult.notificationSent} />
-                            <SimResultRow
-                                icon="message-alert"
-                                label={`S.O.S test mesajı (${hybridTestResult.notifiedContacts} kişi)`}
-                                ok={hybridTestResult.sosSent}
-                                warn={!hybridTestResult.sosSent}
-                            />
-                            <View style={simResultStyles.row}>
-                                <MaterialCommunityIcons name="message-text" size={16} color={Colors.text.muted} />
-                                <Text style={simResultStyles.label}>SMS gönderilen: {hybridTestResult.smsSent}</Text>
-                            </View>
-                            <View style={simResultStyles.row}>
-                                <MaterialCommunityIcons name="whatsapp" size={16} color={Colors.text.muted} />
-                                <Text style={simResultStyles.label}>WhatsApp gönderilen: {hybridTestResult.whatsappSent}</Text>
-                            </View>
-                            <View style={simResultStyles.row}>
-                                <MaterialCommunityIcons name="lan-connect" size={16} color={Colors.text.muted} />
-                                <Text style={simResultStyles.label}>Kanal: {hybridTestResult.channelUsed}</Text>
-                            </View>
-                            {hybridTestResult.location && (
-                                <Text style={styles.simError}>
-                                    Konum: {hybridTestResult.location.latitude.toFixed(4)}, {hybridTestResult.location.longitude.toFixed(4)}
-                                </Text>
-                            )}
-                            {hybridTestResult.error && (
-                                <Text style={styles.simError}>Hata: {hybridTestResult.error}</Text>
-                            )}
-                        </View>
-                    )}
                 </View>
 
                 {/* ── Arka Plan Koruması ── */}
@@ -1424,51 +1067,67 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.md + 4,
         ...Shadows.glow(Colors.danger),
     },
+    simButtonLarge: { paddingVertical: Spacing.lg, minHeight: 56 },
     simButtonActive: { opacity: 0.8 },
     simButtonSecondary: { backgroundColor: Colors.accent },
     simButtonText: { color: "#fff", fontSize: Typography.sizes.md, fontWeight: "900", letterSpacing: 0.5 },
+
+    // ── Test overlay (kırmızı tam ekran) ──
+    testOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(220, 38, 38, 0.95)",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: Spacing.xl,
+    },
+    testOverlayContent: {
+        alignItems: "center",
+        maxWidth: 320,
+    },
+    testOverlayTitle: {
+        fontSize: Typography.sizes.xxl,
+        fontWeight: "900",
+        color: "#fff",
+        marginTop: Spacing.md,
+        letterSpacing: 1,
+    },
+    testOverlaySubtitle: {
+        fontSize: Typography.sizes.sm,
+        color: "rgba(255,255,255,0.9)",
+        marginTop: Spacing.sm,
+        textAlign: "center",
+    },
+    testOverlayResult: {
+        fontSize: Typography.sizes.sm,
+        color: "#fff",
+        marginTop: Spacing.lg,
+        fontWeight: "700",
+        textAlign: "center",
+    },
+    testStopButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: Spacing.sm,
+        backgroundColor: "rgba(0,0,0,0.4)",
+        paddingVertical: Spacing.lg,
+        paddingHorizontal: Spacing.xl,
+        borderRadius: BorderRadius.xl,
+        marginTop: Spacing.xxl,
+        borderWidth: 2,
+        borderColor: "#fff",
+    },
+    testStopButtonText: {
+        color: "#fff",
+        fontSize: Typography.sizes.md,
+        fontWeight: "800",
+    },
     simSectionLabel: {
         fontSize: Typography.sizes.xs,
         color: Colors.text.muted,
         fontWeight: "600",
         marginTop: Spacing.md,
         marginBottom: Spacing.sm,
-    },
-
-    // ── Geri sayım overlay ──
-    countdownOverlay: {
-        flex: 1,
-        backgroundColor: "rgba(0,0,0,0.75)",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: Spacing.xl,
-    },
-    countdownBox: {
-        backgroundColor: Colors.background.surface,
-        borderRadius: BorderRadius.xxl,
-        padding: Spacing.xxxl,
-        alignItems: "center",
-        borderWidth: 2,
-        borderColor: Colors.danger,
-        minWidth: 260,
-    },
-    countdownTitle: {
-        fontSize: Typography.sizes.lg,
-        fontWeight: "800",
-        color: Colors.danger,
-        marginTop: Spacing.md,
-    },
-    countdownSubtitle: { fontSize: Typography.sizes.sm, color: Colors.text.muted, marginTop: Spacing.sm },
-    countdownNumber: {
-        fontSize: 72,
-        fontWeight: "900",
-        color: Colors.danger,
-        marginVertical: Spacing.md,
-    },
-    countdownError: {
-        fontSize: Typography.sizes.xs,
-        color: Colors.accent,
-        marginTop: Spacing.sm,
     },
 
     // ── Info Cards ──
