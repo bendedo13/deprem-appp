@@ -56,9 +56,13 @@ export async function startTestAlarmSound(): Promise<boolean> {
         }
         let soundSource: number | null = null;
         try {
-            soundSource = require("../../assets/alarm.mp3");
+            soundSource = require("../../../assets/alarm.mp3");
         } catch {
-            /* alarm.mp3 yoksa atla */
+            try {
+                soundSource = require("../../assets/alarm.mp3");
+            } catch {
+                /* alarm.mp3 yoksa atla */
+            }
         }
         if (soundSource != null) {
             const { sound } = await AudioModule.Sound.createAsync(soundSource, {
