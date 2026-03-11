@@ -40,7 +40,12 @@
         "i_am_safe": "✅ Ben İyiyim",
         "vibration_title": "⚠️ Titreşim Algılandı",
         "vibration_body": "Oran: {{ratio}} | Tepe: {{peak}} m/s²\nRapor sunucuya gönderildi.",
-        "error_load": "Deprem verileri alınamadı."
+        "error_load": "Deprem verileri alınamadı.",
+        "no_data": "Henüz deprem verisi yok.",
+        "ago_sec": "{{n}}sn önce",
+        "ago_min": "{{n}}dk önce",
+        "ago_hour": "{{n}}sa önce",
+        "ago_day": "{{n}}g önce"
     },
     "about": {
         "title": "Hakkımızda",
@@ -113,5 +118,59 @@
         "time": "Zaman",
         "close": "Kapat",
         "no_data": "Henüz deprem verisi yok."
+    },
+    "onboarding": {
+        "skip": "Atla",
+        "next": "İleri",
+        "allow": "İzin Ver",
+        "open_settings": "Ayarları Aç",
+        "check_again": "Tekrar Kontrol Et",
+        "finish": "Bitir",
+        "granted": "✓ Verildi",
+        "not_granted": "Verilmedi",
+        "missing_title": "Önerilen İzinler",
+        "missing_body": "Bazı izinler henüz verilmedi. Yine de devam edilsin mi?",
+        "proceed": "Yine de Devam Et",
+        "go_settings": "Ayarlara Git",
+        "welcome": {
+            "badge": "Yapay Zeka Destekli Erken Uyarı",
+            "title": "QuakeSense'e\nHoş Geldiniz",
+            "subtitle": "Türkiye'nin deprem erken uyarı sistemi. Aşağıdaki kritik izinleri vererek tam korumayı aktive edin.",
+            "stat_speed": "Uyarı Hızı",
+            "stat_perms": "Kritik İzin",
+            "stat_accuracy": "Doğruluk",
+            "start": "Başla"
+        },
+        "location": {
+            "badge": "Kritik İzin",
+            "title": "Sismik Radar\n(Her Zaman Konum)",
+            "description": "Deprem dalgalarının size ulaşma süresini milisaniyelik hassasiyetle hesaplamak için konumunuza ihtiyacımız var. Konumunuz asla paylaşılmaz.",
+            "metric_value": "Arka Plan",
+            "metric_label": "Sürekli Konum",
+            "button": "Konum İzni Ver"
+        },
+        "notification": {
+            "badge": "Nükleer Uyarı",
+            "title": "Sessiz Modu Del\n(Rahatsız Etmeyin)",
+            "description": "Telefonunuz gece sessizde veya 'Rahatsız Etmeyin' modunda olsa bile hayat kurtaran alarmı tam ses seviyesinde çalabilmemiz için bu yetki hayati önem taşır.",
+            "metric_value": "DND Bypass",
+            "metric_label": "Tam Ses Alarm",
+            "button": "Bildirimlere İzin Ver",
+            "button_dnd": "DND Ayarları"
+        },
+        "battery": {
+            "badge": "Kesintisiz Koruma",
+            "title": "Pil Optimizasyonunu\nDevre Dışı Bırak",
+            "description": "Siz uyurken ivmeölçerin kapanmaması ve sürekli tetikte kalması için uygulamanın pil kısıtlamalarından çıkarılması gerekir.",
+            "metric_value": "7/24",
+            "metric_label": "Kesintisiz Koruma",
+            "button": "Pil Ayarlarını Aç"
+        },
+        "complete": {
+            "badge": "Tüm İzinler Hazır",
+            "title": "Korunma\nAltındasınız!",
+            "description": "Sismik radarınız aktif. Deprem anında anında hayat kurtaran uyarı alacaksınız.",
+            "button": "Hesap Oluştur"
+        }
     }
 }

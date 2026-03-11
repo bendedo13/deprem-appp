@@ -1,19 +1,24 @@
 /**
  * İzin Yönetimi Servisi — Onboarding ve ayar yönlendirmeleri.
- * Clean Architecture: tek sorumluluk, try-catch ile graceful fail.
+ * Her izin tipi için: önce sistem popup'ı ile iste,
+ * reddedilirse veya popup açılamazsa ilgili Ayarlar sayfasına yönlendir.
  */
 
 import { Platform, Linking } from "react-native";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 
-export type PermissionId = "location_always" | "battery_optimization" | "sensor_activity" | "critical_notification";
+export type PermissionId =
+    | "location_always"
+    | "battery_optimization"
+    | "sensor_activity"
+    | "critical_notification"
+    | "dnd_access";
 
 export interface PermissionStatus {
     locationForeground: "granted" | "denied" | "undetermined";
     locationBackground: "granted" | "denied" | "undetermined";
     notifications: "granted" | "denied" | "undetermined";
-    /** Android: pil optimizasyonu kapalı mı (requestIgnoreBatteryOptimizations) — bilinmiyorsa null */
     batteryOptimizationDisabled: boolean | null;
 }
 
@@ -30,11 +35,13 @@ export async function getPermissionStatus(): Promise<PermissionStatus> {
 
     try {
         const fg = await Location.getForegroundPermissionsAsync();
-        result.locationForeground = fg.status === "granted" ? "granted" : fg.status === "denied" ? "denied" : "undetermined";
+        result.locationForeground =
+            fg.status === "granted" ? "granted" : fg.status === "denied" ? "denied" : "undetermined";
 
         if (Platform.OS === "android") {
             const bg = await Location.getBackgroundPermissionsAsync();
-            result.locationBackground = bg.status === "granted" ? "granted" : bg.status === "denied" ? "denied" : "undetermined";
+            result.locationBackground =
+                bg.status === "granted" ? "granted" : bg.status === "denied" ? "denied" : "undetermined";
         } else {
             result.locationBackground = result.locationForeground;
         }
@@ -44,7 +51,12 @@ export async function getPermissionStatus(): Promise<PermissionStatus> {
 
     try {
         const { status } = await Notifications.getPermissionsAsync();
-        result.notifications = status === Notifications.PermissionStatus.GRANTED ? "granted" : status === Notifications.PermissionStatus.DENIED ? "denied" : "undetermined";
+        result.notifications =
+            status === Notifications.PermissionStatus.GRANTED
+                ? "granted"
+                : status === Notifications.PermissionStatus.DENIED
+                ? "denied"
+                : "undetermined";
     } catch {
         // ignore
     }
@@ -53,7 +65,8 @@ export async function getPermissionStatus(): Promise<PermissionStatus> {
 }
 
 /**
- * Konum (Her Zaman) — Önce ön plan, ardından arka plan izni ister; reddedilirse ayarları açar.
+ * Konum (Her Zaman) — Önce ön plan, ardından arka plan izni ister.
+ * Reddedilirse Ayarlar sayfasına yönlendirir.
  */
 export async function requestLocationAlwaysAndOpenSettingsIfNeeded(): Promise<boolean> {
     try {
@@ -79,14 +92,32 @@ export async function requestLocationAlwaysAndOpenSettingsIfNeeded(): Promise<bo
 
 /**
  * Pil optimizasyonunu devre dışı bırakma sayfasını açar (Android).
- * Intent: android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+ * Android intent URI: android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+ * App-spesifik: android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS + data
  */
 export async function openBatteryOptimizationSettings(): Promise<void> {
     if (Platform.OS !== "android") return;
+
+    // Önce uygulama-özelinde pil istisnası sayfasını dene
+    const appSpecificUri = `android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`;
+    const genericUri = `android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS`;
+
+    // expo-intent-launcher kullanılabilirse, daha derin yönlendirme yap
     try {
-        const opened = await Linking.canOpenURL("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS");
-        if (opened) {
-            await Linking.openURL("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS");
+        const IntentLauncher = require("expo-intent-launcher");
+        await IntentLauncher.startActivityAsync(
+            "android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+            { data: "package:com.quakesense" }
+        );
+        return;
+    } catch {
+        // IntentLauncher yoksa Linking ile dene
+    }
+
+    try {
+        const canOpen = await Linking.canOpenURL(genericUri);
+        if (canOpen) {
+            await Linking.openURL(genericUri);
         } else {
             await Linking.openSettings();
         }
@@ -96,7 +127,32 @@ export async function openBatteryOptimizationSettings(): Promise<void> {
 }
 
 /**
- * Uygulama ayarlarını açar (Sensör / Fiziksel aktivite izni için kullanıcı manuel kontrol edebilir).
+ * DND (Rahatsız Etmeyin) politika erişim ayarlarını açar (Android).
+ * Bu ayardan kullanıcı QuakeSense'e DND bypass yetkisi verebilir.
+ */
+export async function openDndPolicySettings(): Promise<void> {
+    if (Platform.OS !== "android") return;
+
+    // expo-intent-launcher kullanılabilirse kullan
+    try {
+        const IntentLauncher = require("expo-intent-launcher");
+        await IntentLauncher.startActivityAsync(
+            "android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS"
+        );
+        return;
+    } catch {
+        // IntentLauncher yoksa
+    }
+
+    try {
+        await Linking.openURL("android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS");
+    } catch {
+        await Linking.openSettings();
+    }
+}
+
+/**
+ * Uygulama Ayarlarını açar.
  */
 export async function openAppSettings(): Promise<void> {
     try {
@@ -107,7 +163,7 @@ export async function openAppSettings(): Promise<void> {
 }
 
 /**
- * Bildirim izni ister; kritik kanal için Notifee kullanılıyorsa kanal oluşturulur (earthquakeAlarm içinde).
+ * Bildirim izni ister; reddedilirse Ayarlar açılır.
  */
 export async function requestCriticalNotificationAndOpenSettingsIfNeeded(): Promise<boolean> {
     try {
@@ -125,7 +181,8 @@ export async function requestCriticalNotificationAndOpenSettingsIfNeeded(): Prom
 }
 
 /**
- * İzin kartına tıklandığında ilgili sistem ayarına/sayfaya yönlendirir.
+ * İzin kartına tıklandığında ilgili sistem sayfasına yönlendirir.
+ * "request" mod: önce sistem popup'ı; "settings" mod: direkt ayarlar sayfası.
  */
 export async function openPermissionSystemScreen(permissionId: PermissionId): Promise<void> {
     switch (permissionId) {
@@ -134,6 +191,9 @@ export async function openPermissionSystemScreen(permissionId: PermissionId): Pr
             break;
         case "battery_optimization":
             await openBatteryOptimizationSettings();
+            break;
+        case "dnd_access":
+            await openDndPolicySettings();
             break;
         case "sensor_activity":
             await openAppSettings();
@@ -147,12 +207,15 @@ export async function openPermissionSystemScreen(permissionId: PermissionId): Pr
 }
 
 /**
- * Kritik izinler verilmeden ana ekrana geçiş yapılabilir mi? (Uyarı göstermek için kullanılır)
+ * Kritik izin durumunu döner (onboarding ilerleme için kullanılır).
  */
-export async function hasCriticalPermissionsForWarning(): Promise<{ ok: boolean; missing: string[] }> {
+export async function hasCriticalPermissionsForWarning(): Promise<{
+    ok: boolean;
+    missing: string[];
+}> {
     const status = await getPermissionStatus();
     const missing: string[] = [];
-    if (status.locationForeground !== "granted") missing.push("Konum");
-    if (status.notifications !== "granted") missing.push("Bildirim");
+    if (status.locationForeground !== "granted") missing.push("Location");
+    if (status.notifications !== "granted") missing.push("Notifications");
     return { ok: missing.length === 0, missing };
 }

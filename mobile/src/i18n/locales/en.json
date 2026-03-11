@@ -40,7 +40,12 @@
         "i_am_safe": "✅ I'm Safe",
         "vibration_title": "⚠️ Vibration Detected",
         "vibration_body": "Ratio: {{ratio}} | Peak: {{peak}} m/s²\nReport sent to server.",
-        "error_load": "Could not load earthquake data."
+        "error_load": "Could not load earthquake data.",
+        "no_data": "No earthquake data yet.",
+        "ago_sec": "{{n}}s ago",
+        "ago_min": "{{n}}min ago",
+        "ago_hour": "{{n}}h ago",
+        "ago_day": "{{n}}d ago"
     },
     "about": {
         "title": "About Us",
@@ -85,7 +90,7 @@
         "error_register": "Registration Error",
         "logout": "Logout",
         "logout_title": "Logout",
-        "logout_confirm": "Are you sure you want to sign out of your account?",
+        "logout_confirm": "Are you sure you want to sign out?",
         "logout_cancel": "Cancel",
         "logout_confirm_btn": "Logout",
         "all_fields_required": "All fields are required.",
@@ -113,5 +118,59 @@
         "time": "Time",
         "close": "Close",
         "no_data": "No earthquake data yet."
+    },
+    "onboarding": {
+        "skip": "Skip",
+        "next": "Next",
+        "allow": "Allow",
+        "open_settings": "Open Settings",
+        "check_again": "Check Again",
+        "finish": "Finish",
+        "granted": "✓ Granted",
+        "not_granted": "Not Granted",
+        "missing_title": "Recommended Permissions",
+        "missing_body": "Some permissions are not yet granted. Proceed anyway?",
+        "proceed": "Proceed Anyway",
+        "go_settings": "Go to Settings",
+        "welcome": {
+            "badge": "AI-Powered Early Warning",
+            "title": "Welcome to\nQuakeSense",
+            "subtitle": "Turkey's earthquake early warning system. Grant the critical permissions below to activate full protection.",
+            "stat_speed": "Alert Speed",
+            "stat_perms": "Critical Permissions",
+            "stat_accuracy": "Accuracy",
+            "start": "Get Started"
+        },
+        "location": {
+            "badge": "Critical Permission",
+            "title": "Seismic Radar\n(Always On)",
+            "description": "We need your location to calculate with millisecond precision how long earthquake waves take to reach you. Your location is never shared.",
+            "metric_value": "Background",
+            "metric_label": "Continuous Location",
+            "button": "Allow Location"
+        },
+        "notification": {
+            "badge": "Nuclear Alert",
+            "title": "Break Silent Mode\n(Do Not Disturb)",
+            "description": "Even when your phone is on silent or 'Do Not Disturb' mode, we need this permission to sound the life-saving alarm at full volume.",
+            "metric_value": "DND Bypass",
+            "metric_label": "Full Volume Alarm",
+            "button": "Allow Notifications",
+            "button_dnd": "DND Settings"
+        },
+        "battery": {
+            "badge": "Continuous Protection",
+            "title": "Disable Battery\nOptimization",
+            "description": "To prevent the accelerometer from shutting down while you sleep and to keep the sensor always alert, the app must be excluded from battery restrictions.",
+            "metric_value": "24/7",
+            "metric_label": "Non-Stop Protection",
+            "button": "Open Battery Settings"
+        },
+        "complete": {
+            "badge": "All Set",
+            "title": "You Are\nProtected!",
+            "description": "Your seismic radar is active. You will receive instant life-saving alerts whenever an earthquake occurs.",
+            "button": "Create Account"
+        }
     }
 }
