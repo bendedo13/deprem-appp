@@ -1,10 +1,19 @@
 /**
- * S.O.S Tab Screen - Profesyonel acil durum modulu.
- * Kazayla basilmayacak ama ihtiyac aninda en hizli ulasilan buton.
- * Long-press aktivasyon + kayan timer + 112 hizli arama.
+ * S.O.S Tab Ekranı — Acil Durum Merkezi
+ *
+ * 3 Ana Eylem:
+ *  1. SOS (Basılı tut → Ses kaydı → Groq → Twilio Şelale)
+ *  2. Ben İyiyim (Tek dokunuş → Twilio Şelale)
+ *  3. 112 Ara
+ *
+ * SOS Akışı:
+ *  - 2 sn basılı tut → titreşim → ses kaydı başlar
+ *  - 15 sn sonra veya parmak kaldırınca kayıt durur
+ *  - uploadSOSAudio() → backend → Groq Whisper → Twilio
+ *  - Sonuç Alert ile gösterilir
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
     View,
     Text,
@@ -16,307 +25,455 @@ import {
     SafeAreaView,
     Platform,
     Vibration,
+    ActivityIndicator,
 } from "react-native";
+import { Audio } from "expo-av";
+import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
-import { sendSOSAlert } from "../../src/services/sosAlertService";
+import { uploadSOSAudio, sendIAmSafe } from "../../src/services/sosService";
+
+const HOLD_MS = 2000;
+const MAX_RECORD_MS = 15_000;
+
+type Phase =
+    | "idle"
+    | "holding"
+    | "recording"
+    | "uploading"
+    | "done"
+    | "safe_sending"
+    | "safe_done";
 
 export default function SOSTabScreen() {
-    const [isHolding, setIsHolding] = useState(false);
+    const [phase, setPhase] = useState<Phase>("idle");
     const [holdProgress, setHoldProgress] = useState(0);
-    const [isActivated, setIsActivated] = useState(false);
-    const [isSending, setIsSending] = useState(false);
-    const holdTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [recordSec, setRecordSec] = useState(0);
+    const [resultMsg, setResultMsg] = useState("");
+
+    const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const recordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const recordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const recordingRef = useRef<Audio.Recording | null>(null);
+    const locationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+
     const progressAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(1)).current;
-    const { t } = useTranslation();
+    const sosAnim = useRef(new Animated.Value(1)).current;
+    const safeAnim = useRef(new Animated.Value(1)).current;
 
-    const HOLD_DURATION = 2000; // 2 saniye basili tutma
-
-    const startHold = useCallback(() => {
-        setIsHolding(true);
-        Vibration.vibrate(50);
-
-        Animated.timing(progressAnim, {
-            toValue: 1,
-            duration: HOLD_DURATION,
-            useNativeDriver: false,
-        }).start();
-
-        const startTime = Date.now();
-        holdTimer.current = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / HOLD_DURATION, 1);
-            setHoldProgress(progress);
-
-            if (progress >= 1) {
-                clearInterval(holdTimer.current!);
-                activateSOS();
-            }
-        }, 50);
+    // Mikrofon + konum izinleri
+    useEffect(() => {
+        (async () => {
+            try {
+                await Audio.requestPermissionsAsync();
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === "granted") {
+                    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    locationRef.current = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                }
+            } catch { /* Konum olmasa da SOS çalışır */ }
+        })();
     }, []);
 
-    const cancelHold = useCallback(() => {
-        if (holdTimer.current) clearInterval(holdTimer.current);
-        setIsHolding(false);
+    // Kayıt pulse animasyonu
+    useEffect(() => {
+        if (phase === "recording") {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulseAnim, { toValue: 1.12, duration: 400, useNativeDriver: true }),
+                    Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+                ])
+            ).start();
+        } else {
+            pulseAnim.setValue(1);
+        }
+    }, [phase]);
+
+    // ── Basılı Tutma Başla ────────────────────────────────────────────────────
+    const onPressIn = useCallback(() => {
+        if (phase !== "idle") return;
+        setPhase("holding");
+        setHoldProgress(0);
+        Vibration.vibrate(30);
+
+        Animated.timing(progressAnim, { toValue: 1, duration: HOLD_MS, useNativeDriver: false }).start();
+
+        const start = Date.now();
+        holdTimerRef.current = setInterval(() => {
+            const p = Math.min((Date.now() - start) / HOLD_MS, 1);
+            setHoldProgress(p);
+            if (p >= 1) {
+                clearInterval(holdTimerRef.current!);
+                startRecording();
+            }
+        }, 40);
+    }, [phase]);
+
+    // ── Parmak Kaldırma ───────────────────────────────────────────────────────
+    const onPressOut = useCallback(() => {
+        if (phase === "holding") {
+            clearInterval(holdTimerRef.current!);
+            progressAnim.setValue(0);
+            setHoldProgress(0);
+            setPhase("idle");
+            return;
+        }
+        if (phase === "recording") {
+            stopAndUpload();
+        }
+    }, [phase]);
+
+    // ── Ses Kaydı Başlat ──────────────────────────────────────────────────────
+    const startRecording = useCallback(async () => {
+        try {
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: false,
+                shouldDuckAndroid: false,
+            });
+
+            const { recording } = await Audio.Recording.createAsync({
+                android: {
+                    extension: ".m4a",
+                    outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+                    audioEncoder: Audio.AndroidAudioEncoder.AAC,
+                    sampleRate: 16000,
+                    numberOfChannels: 1,
+                    bitRate: 64000,
+                },
+                ios: {
+                    extension: ".m4a",
+                    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+                    audioQuality: Audio.IOSAudioQuality.MEDIUM,
+                    sampleRate: 16000,
+                    numberOfChannels: 1,
+                    bitRate: 64000,
+                    linearPCMBitDepth: 16,
+                    linearPCMIsBigEndian: false,
+                    linearPCMIsFloat: false,
+                },
+                web: {},
+            });
+
+            recordingRef.current = recording;
+            setPhase("recording");
+            setRecordSec(0);
+            Vibration.vibrate([0, 100, 80, 100]);
+
+            // Saniyeyi güncelle
+            recordIntervalRef.current = setInterval(() => setRecordSec((s) => s + 1), 1000);
+
+            // 15 sn sonra otomatik durdur
+            recordTimerRef.current = setTimeout(() => stopAndUpload(), MAX_RECORD_MS);
+
+        } catch (err) {
+            console.error("[SOS] Kayıt başlatma hatası:", err);
+            setPhase("idle");
+            Alert.alert("Mikrofon Hatası", "Ses kaydı başlatılamadı. Mikrofon iznini kontrol edin.");
+        }
+    }, []);
+
+    // ── Ses Kaydı Durdur ve Yükle ─────────────────────────────────────────────
+    const stopAndUpload = useCallback(async () => {
+        clearTimeout(recordTimerRef.current!);
+        clearInterval(recordIntervalRef.current!);
+
+        const rec = recordingRef.current;
+        if (!rec) { setPhase("idle"); return; }
+
+        try {
+            await rec.stopAndUnloadAsync();
+            const uri = rec.getURI();
+            recordingRef.current = null;
+
+            if (!uri) throw new Error("Kayıt URI bulunamadı");
+
+            setPhase("uploading");
+
+            // Konum yenile (son bilinen yoksa tekrar dene)
+            if (!locationRef.current) {
+                try {
+                    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+                    locationRef.current = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                } catch { /* Konum olmadan devam */ }
+            }
+
+            const result = await uploadSOSAudio(
+                uri,
+                locationRef.current?.latitude ?? null,
+                locationRef.current?.longitude ?? null,
+            );
+
+            if (result.success) {
+                setResultMsg(`✅ SOS İletildi\n${result.transcription ? `"${result.transcription.slice(0, 80)}..."` : ""}\n${result.notifiedContacts} kişiye ulaştı.`);
+                setPhase("done");
+                Vibration.vibrate([0, 200, 100, 200]);
+            } else {
+                throw new Error(result.error ?? result.message ?? "Gönderilemedi");
+            }
+
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error("[SOS] Upload hatası:", msg);
+            setPhase("idle");
+            Alert.alert(
+                "⚠ SOS Gönderilemedi",
+                `${msg}\n\nLütfen 112'yi arayın.`,
+                [{ text: "112 Ara", onPress: () => Linking.openURL("tel:112") }, { text: "Tamam" }]
+            );
+        }
+    }, []);
+
+    // ── Ben İyiyim ────────────────────────────────────────────────────────────
+    const handleIAmSafe = useCallback(async () => {
+        if (phase !== "idle" && phase !== "done") return;
+        setPhase("safe_sending");
+
+        Animated.sequence([
+            Animated.timing(safeAnim, { toValue: 0.93, duration: 100, useNativeDriver: true }),
+            Animated.timing(safeAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+        ]).start();
+
+        const result = await sendIAmSafe();
+
+        if (result.success && result.notifiedContacts > 0) {
+            setResultMsg(`✅ Güvenlik Bildirimi Gönderildi\n${result.notifiedContacts} kişi bilgilendirildi.`);
+            setPhase("safe_done");
+        } else if (result.success && result.notifiedContacts === 0) {
+            Alert.alert("Acil Kişi Yok", "Lütfen Acil Kişiler listesine numara ekleyin.", [
+                { text: "Ekle", onPress: () => router.push("/more/contacts") },
+                { text: "Tamam", onPress: () => setPhase("idle") },
+            ]);
+        } else {
+            Alert.alert("⚠ Gönderilemedi", result.message || "Lütfen tekrar deneyin.", [
+                { text: "Tamam", onPress: () => setPhase("idle") },
+            ]);
+        }
+    }, [phase]);
+
+    const resetPhase = useCallback(() => {
+        setPhase("idle");
+        setResultMsg("");
         setHoldProgress(0);
         progressAnim.setValue(0);
-    }, []);
-
-    const activateSOS = useCallback(() => {
-        setIsActivated(true);
-        setIsHolding(false);
-        Vibration.vibrate([0, 200, 100, 200, 100, 200]);
-
-        // Pulse animation
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(pulseAnim, { toValue: 1.1, duration: 500, useNativeDriver: true }),
-                Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-            ])
-        ).start();
-
-        // Acil kişilere SMS + WhatsApp gönder (Twilio backend üzerinden)
-        setIsSending(true);
-        sendSOSAlert("manual").then((result) => {
-            setIsSending(false);
-            if (result.success && result.notifiedContacts > 0) {
-                Alert.alert(
-                    "✅ SOS Gönderildi",
-                    `${result.notifiedContacts} acil kişinize SMS ve WhatsApp mesajı iletildi.`,
-                    [{ text: "Tamam" }]
-                );
-            } else if (!result.success) {
-                Alert.alert(
-                    "⚠ Uyarı",
-                    "Mesaj gönderilemedi. İnternet bağlantınızı veya acil kişi listenizi kontrol edin.",
-                    [{ text: "Tamam" }]
-                );
-            }
-        }).catch(() => setIsSending(false));
-
-        // Ses kayıt ekranına git
-        router.push("/more/sos");
+        setRecordSec(0);
     }, []);
 
     const call112 = useCallback(() => {
-        Alert.alert(
-            "Acil Arama",
-            "112 Acil servisleri aramak istiyor musunuz?",
-            [
-                { text: "Iptal", style: "cancel" },
-                {
-                    text: "112 Ara",
-                    style: "destructive",
-                    onPress: () => Linking.openURL("tel:112"),
-                },
-            ]
-        );
+        Alert.alert("Acil Arama", "112 Acil servislerini aramak istiyor musunuz?", [
+            { text: "İptal", style: "cancel" },
+            { text: "112 Ara", style: "destructive", onPress: () => Linking.openURL("tel:112") },
+        ]);
     }, []);
 
-    const progressWidth = progressAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["0%", "100%"],
-    });
+    const isActive = phase !== "idle" && phase !== "done" && phase !== "safe_done";
+    const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
+
+    // ── Sonuç Ekranı ──────────────────────────────────────────────────────────
+    if (phase === "done" || phase === "safe_done") {
+        const isSafe = phase === "safe_done";
+        return (
+            <SafeAreaView style={s.container}>
+                <View style={s.resultScreen}>
+                    <View style={[s.resultIcon, { backgroundColor: isSafe ? Colors.primary + "20" : Colors.danger + "20" }]}>
+                        <MaterialCommunityIcons
+                            name={isSafe ? "shield-check" : "check-circle"}
+                            size={64}
+                            color={isSafe ? Colors.primary : Colors.danger}
+                        />
+                    </View>
+                    <Text style={[s.resultTitle, { color: isSafe ? Colors.primary : Colors.danger }]}>
+                        {isSafe ? "Bildirim Gönderildi" : "SOS Gönderildi"}
+                    </Text>
+                    <Text style={s.resultMsg}>{resultMsg}</Text>
+                    <TouchableOpacity style={s.resetBtn} onPress={resetPhase} activeOpacity={0.8}>
+                        <Text style={s.resetBtnText}>Tamam</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.callBtn} onPress={call112} activeOpacity={0.8}>
+                        <MaterialCommunityIcons name="phone" size={18} color="#fff" />
+                        <Text style={s.callBtnText}>112 Ara</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={s.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <MaterialCommunityIcons name="alert-octagon" size={24} color={Colors.danger} />
-                <Text style={styles.headerTitle}>Acil Durum</Text>
+            <View style={s.header}>
+                <MaterialCommunityIcons name="alert-octagon" size={22} color={Colors.danger} />
+                <Text style={s.headerTitle}>Acil Durum</Text>
             </View>
 
-            <View style={styles.content}>
-                {/* Warning Info */}
-                <View style={styles.warningCard}>
-                    <MaterialCommunityIcons name="information-outline" size={20} color={Colors.accent} />
-                    <Text style={styles.warningText}>
-                        SOS butonuna 2 saniye basili tutun. Sesli mesajiniz AI ile analiz edilip acil kisilerinize gonderilecek.
-                    </Text>
-                </View>
+            {/* Bilgi Kartı */}
+            <View style={s.infoCard}>
+                <MaterialCommunityIcons name="microphone" size={16} color={Colors.accent} />
+                <Text style={s.infoText}>
+                    SOS butonuna <Text style={{ fontWeight: "900" }}>2 sn basılı tutun</Text> — sesli mesajınız AI ile analiz edilip acil kişilerinize iletilir.
+                </Text>
+            </View>
 
-                {/* Main SOS Button Area */}
-                <View style={styles.sosArea}>
-                    {/* Outer rings */}
-                    <View style={[styles.outerRing, isHolding && styles.outerRingActive]} />
-                    <View style={[styles.middleRing, isHolding && styles.middleRingActive]} />
+            {/* SOS Buton Alanı */}
+            <View style={s.sosArea}>
+                <View style={[s.ring, s.ringOuter, isActive && s.ringActive]} />
+                <View style={[s.ring, s.ringMid, isActive && s.ringActive]} />
 
-                    {/* SOS Button */}
-                    <Animated.View style={[styles.sosButtonOuter, { transform: [{ scale: isHolding ? 0.95 : 1 }] }]}>
-                        <TouchableOpacity
-                            style={[styles.sosButton, isHolding && styles.sosButtonHolding]}
-                            onPressIn={startHold}
-                            onPressOut={cancelHold}
-                            activeOpacity={1}
-                        >
-                            <MaterialCommunityIcons
-                                name="alert-circle"
-                                size={48}
-                                color="#fff"
-                            />
-                            <Text style={styles.sosButtonText}>S.O.S</Text>
-                            <Text style={styles.sosHint}>
-                                {isHolding ? `${Math.ceil((1 - holdProgress) * 2)}s...` : "Basili Tut"}
-                            </Text>
-                        </TouchableOpacity>
+                <Animated.View style={{ transform: [{ scale: phase === "recording" ? pulseAnim : sosAnim }] }}>
+                    <TouchableOpacity
+                        style={[s.sosBtn, phase === "recording" && s.sosBtnRecording, phase === "uploading" && s.sosBtnUploading]}
+                        onPressIn={onPressIn}
+                        onPressOut={onPressOut}
+                        activeOpacity={1}
+                        disabled={phase === "uploading" || phase === "safe_sending"}
+                    >
+                        {phase === "uploading" ? (
+                            <>
+                                <ActivityIndicator size="large" color="#fff" />
+                                <Text style={s.sosBtnText}>Gönderiliyor</Text>
+                            </>
+                        ) : phase === "recording" ? (
+                            <>
+                                <MaterialCommunityIcons name="microphone" size={44} color="#fff" />
+                                <Text style={s.sosBtnText}>S.O.S</Text>
+                                <Text style={s.sosBtnSub}>{recordSec}s / 15s</Text>
+                            </>
+                        ) : (
+                            <>
+                                <MaterialCommunityIcons name="alert-circle" size={44} color="#fff" />
+                                <Text style={s.sosBtnText}>S.O.S</Text>
+                                <Text style={s.sosBtnSub}>
+                                    {phase === "holding"
+                                        ? `${Math.ceil((1 - holdProgress) * 2)}s...`
+                                        : "Basılı Tut"}
+                                </Text>
+                            </>
+                        )}
 
-                        {/* Progress Ring */}
-                        {isHolding && (
-                            <View style={styles.progressOverlay}>
-                                <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+                        {/* İlerleme Çubuğu */}
+                        {phase === "holding" && (
+                            <View style={s.progressBar}>
+                                <Animated.View style={[s.progressFill, { width: progressWidth }]} />
                             </View>
                         )}
-                    </Animated.View>
-                </View>
-
-                {/* Quick Actions */}
-                <View style={styles.quickActions}>
-                    <TouchableOpacity style={styles.actionCard} onPress={call112}>
-                        <View style={[styles.actionIcon, { backgroundColor: Colors.primary + "15" }]}>
-                            <MaterialCommunityIcons name="phone" size={24} color={Colors.primary} />
-                        </View>
-                        <Text style={styles.actionTitle}>112 Ara</Text>
-                        <Text style={styles.actionSub}>Acil servis</Text>
                     </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.actionCard} onPress={() => router.push("/more/contacts")}>
-                        <View style={[styles.actionIcon, { backgroundColor: Colors.status.info + "15" }]}>
-                            <MaterialCommunityIcons name="account-group" size={24} color={Colors.status.info} />
-                        </View>
-                        <Text style={styles.actionTitle}>Acil Kisiler</Text>
-                        <Text style={styles.actionSub}>Yonet</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.actionCard} onPress={() => router.push("/more/survival_kit")}>
-                        <View style={[styles.actionIcon, { backgroundColor: Colors.accent + "15" }]}>
-                            <MaterialCommunityIcons name="bag-personal" size={24} color={Colors.accent} />
-                        </View>
-                        <Text style={styles.actionTitle}>Deprem Cantasi</Text>
-                        <Text style={styles.actionSub}>Kontrol</Text>
-                    </TouchableOpacity>
-                </View>
+                </Animated.View>
             </View>
 
-            {/* Footer Branding */}
-            <View style={styles.footer}>
-                <Text style={styles.footerText}>Gercek acil durumlarda 112'yi arayin</Text>
+            {/* Ben İyiyim Butonu */}
+            <Animated.View style={[s.safeArea, { transform: [{ scale: safeAnim }] }]}>
+                <TouchableOpacity
+                    style={[s.safeBtn, (phase === "safe_sending") && s.safeBtnLoading]}
+                    onPress={handleIAmSafe}
+                    activeOpacity={0.85}
+                    disabled={isActive}
+                >
+                    {phase === "safe_sending" ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                        <MaterialCommunityIcons name="shield-check" size={24} color="#fff" />
+                    )}
+                    <Text style={s.safeBtnText}>
+                        {phase === "safe_sending" ? "Gönderiliyor..." : "✅ Ben İyiyim"}
+                    </Text>
+                </TouchableOpacity>
+                <Text style={s.safeBtnHint}>Acil kişilere güvenlik bildirimi gönderir</Text>
+            </Animated.View>
+
+            {/* Hızlı Eylemler */}
+            <View style={s.actions}>
+                <TouchableOpacity style={s.actionCard} onPress={call112} activeOpacity={0.8}>
+                    <View style={[s.actionIcon, { backgroundColor: Colors.primary + "15" }]}>
+                        <MaterialCommunityIcons name="phone" size={22} color={Colors.primary} />
+                    </View>
+                    <Text style={s.actionLabel}>112 Ara</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={s.actionCard} onPress={() => router.push("/more/contacts")} activeOpacity={0.8}>
+                    <View style={[s.actionIcon, { backgroundColor: Colors.status.info + "15" }]}>
+                        <MaterialCommunityIcons name="account-group" size={22} color={Colors.status.info} />
+                    </View>
+                    <Text style={s.actionLabel}>Acil Kişiler</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={s.actionCard} onPress={() => router.push("/more/sos")} activeOpacity={0.8}>
+                    <View style={[s.actionIcon, { backgroundColor: Colors.accent + "15" }]}>
+                        <MaterialCommunityIcons name="microphone-message" size={22} color={Colors.accent} />
+                    </View>
+                    <Text style={s.actionLabel}>Sesli SOS</Text>
+                </TouchableOpacity>
             </View>
+
+            <Text style={s.footer}>Gerçek acil durumlarda 112'yi arayın</Text>
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
+// ── Stiller ───────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background.dark, paddingTop: Platform.OS === "android" ? 30 : 0 },
 
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        paddingHorizontal: Spacing.lg,
-        paddingVertical: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border.glass,
-    },
+    header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border.glass },
     headerTitle: { fontSize: Typography.sizes.xl, fontWeight: "800", color: Colors.text.dark },
 
-    content: { flex: 1, paddingHorizontal: Spacing.lg },
+    infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: Colors.accent + "10", borderWidth: 1, borderColor: Colors.accent + "25", borderRadius: BorderRadius.xl, padding: Spacing.md, margin: Spacing.lg, marginBottom: 0 },
+    infoText: { flex: 1, color: Colors.accent, fontSize: Typography.sizes.sm, lineHeight: 20 },
 
-    warningCard: {
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: 10,
-        backgroundColor: Colors.accent + "10",
-        borderWidth: 1,
-        borderColor: Colors.accent + "25",
-        borderRadius: BorderRadius.xl,
-        padding: Spacing.md,
-        marginTop: Spacing.md,
-    },
-    warningText: { flex: 1, color: Colors.accent, fontSize: Typography.sizes.sm, lineHeight: 20, fontWeight: "500" },
+    // SOS Alanı
+    sosArea: { flex: 1, justifyContent: "center", alignItems: "center" },
+    ring: { position: "absolute", borderRadius: 9999, borderWidth: 1 },
+    ringOuter: { width: 220, height: 220, borderColor: Colors.danger + "18" },
+    ringMid: { width: 180, height: 180, borderColor: Colors.danger + "25" },
+    ringActive: { borderColor: Colors.danger + "55", borderWidth: 2 },
 
-    sosArea: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        position: "relative",
-    },
-    outerRing: {
-        position: "absolute",
-        width: 220,
-        height: 220,
-        borderRadius: 110,
-        borderWidth: 1,
-        borderColor: Colors.danger + "15",
-    },
-    outerRingActive: { borderColor: Colors.danger + "40", borderWidth: 2 },
-    middleRing: {
-        position: "absolute",
-        width: 180,
-        height: 180,
-        borderRadius: 90,
-        borderWidth: 1,
-        borderColor: Colors.danger + "20",
-    },
-    middleRingActive: { borderColor: Colors.danger + "60", borderWidth: 2 },
-
-    sosButtonOuter: { position: "relative", overflow: "hidden" },
-    sosButton: {
-        width: 140,
-        height: 140,
-        borderRadius: 70,
+    sosBtn: {
+        width: 148, height: 148, borderRadius: 74,
         backgroundColor: Colors.danger,
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: "center", alignItems: "center",
+        gap: 2,
         ...Shadows.lg,
+        shadowColor: Colors.danger,
+        overflow: "hidden",
     },
-    sosButtonHolding: {
-        backgroundColor: Colors.dangerDark,
-    },
-    sosButtonText: { color: "#fff", fontSize: 22, fontWeight: "900", letterSpacing: 2, marginTop: 2 },
-    sosHint: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "600", marginTop: 2 },
+    sosBtnRecording: { backgroundColor: "#B91C1C" },
+    sosBtnUploading: { backgroundColor: Colors.dangerDark, opacity: 0.9 },
+    sosBtnText: { color: "#fff", fontSize: 20, fontWeight: "900", letterSpacing: 2 },
+    sosBtnSub: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "600" },
 
-    progressOverlay: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 4,
-        backgroundColor: "rgba(0,0,0,0.3)",
-        borderRadius: 2,
-    },
+    progressBar: { position: "absolute", bottom: 0, left: 0, right: 0, height: 5, backgroundColor: "rgba(0,0,0,0.3)" },
     progressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 2 },
 
-    quickActions: {
-        flexDirection: "row",
-        gap: Spacing.sm,
-        paddingBottom: Spacing.lg,
+    // Ben İyiyim
+    safeArea: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, alignItems: "center", gap: 6 },
+    safeBtn: {
+        width: "100%", height: 58, borderRadius: BorderRadius.xl,
+        backgroundColor: Colors.primary,
+        flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+        ...Shadows.md, shadowColor: Colors.primary,
     },
-    actionCard: {
-        flex: 1,
-        backgroundColor: Colors.background.surface,
-        borderWidth: 1,
-        borderColor: Colors.border.glass,
-        borderRadius: BorderRadius.xl,
-        padding: Spacing.md,
-        alignItems: "center",
-        gap: 6,
-    },
-    actionIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: BorderRadius.lg,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    actionTitle: { fontSize: Typography.sizes.sm, fontWeight: "700", color: Colors.text.dark },
-    actionSub: { fontSize: Typography.sizes.xs, fontWeight: "500", color: Colors.text.muted },
+    safeBtnLoading: { opacity: 0.8 },
+    safeBtnText: { color: "#fff", fontSize: Typography.sizes.md + 1, fontWeight: "900" },
+    safeBtnHint: { fontSize: Typography.sizes.xs, color: Colors.text.muted, fontWeight: "500", textAlign: "center" },
 
-    footer: {
-        alignItems: "center",
-        paddingBottom: Spacing.lg,
-    },
-    footerText: { color: Colors.text.muted, fontSize: Typography.sizes.xs, fontWeight: "500" },
+    // Hızlı Eylemler
+    actions: { flexDirection: "row", gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
+    actionCard: { flex: 1, backgroundColor: Colors.background.surface, borderWidth: 1, borderColor: Colors.border.glass, borderRadius: BorderRadius.xl, padding: Spacing.md, alignItems: "center", gap: 6 },
+    actionIcon: { width: 42, height: 42, borderRadius: BorderRadius.lg, justifyContent: "center", alignItems: "center" },
+    actionLabel: { fontSize: Typography.sizes.xs + 1, fontWeight: "700", color: Colors.text.dark, textAlign: "center" },
+
+    // Sonuç Ekranı
+    resultScreen: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: Spacing.xxl, gap: Spacing.lg },
+    resultIcon: { width: 110, height: 110, borderRadius: 55, justifyContent: "center", alignItems: "center" },
+    resultTitle: { fontSize: Typography.sizes.xxl, fontWeight: "900", textAlign: "center" },
+    resultMsg: { fontSize: Typography.sizes.sm, color: Colors.text.muted, textAlign: "center", lineHeight: 22 },
+    resetBtn: { width: "100%", height: 52, borderRadius: BorderRadius.xl, backgroundColor: Colors.background.elevated, justifyContent: "center", alignItems: "center" },
+    resetBtnText: { fontSize: Typography.sizes.md, fontWeight: "700", color: Colors.text.dark },
+    callBtn: { width: "100%", height: 52, borderRadius: BorderRadius.xl, backgroundColor: Colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+    callBtnText: { fontSize: Typography.sizes.md, fontWeight: "700", color: "#fff" },
+
+    footer: { textAlign: "center", color: Colors.text.muted, fontSize: Typography.sizes.xs, paddingBottom: Spacing.lg },
 });

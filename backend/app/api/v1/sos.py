@@ -6,24 +6,29 @@ Sesli acil durum bildirimi için endpoint'ler.
 import logging
 import os
 import tempfile
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_current_user
 from app.database import get_db
 from app.models.user import User
 from app.models.sos_record import SOSRecord
+from app.models.emergency_contact import EmergencyContact
 from app.schemas.sos import (
     SOSAnalyzeResponse, SOSStatusResponse, ExtractedSOSData, SOSRecordOut,
     SOSTestRequest, SOSTestResponse, SOSTestContactResult,
+    SOSAudioResponse, SOSSafeResponse,
 )
 from app.tasks.process_sos import process_sos_audio_task
 from app.services.audio_storage import get_audio_storage
 from app.services.twilio_fallback import send_waterfall_emergency
+from app.services.whisper_service import get_whisper_service, WhisperServiceError
 from app.core.redis import get_redis
 from app.config import settings
 
@@ -360,4 +365,243 @@ async def get_sos_audio(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ses dosyası getirilemedi"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# POST /audio — Senkron Ses Kaydı → Groq Whisper → Twilio Şelale
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post(
+    "/audio",
+    response_model=SOSAudioResponse,
+    status_code=status.HTTP_200_OK,
+    summary="S.O.S ses kaydını Groq ile metne çevirip Twilio Şelale ile gönder (senkron)",
+    description=(
+        "Ses dosyasını alır, Groq Whisper ile Türkçe metne çevirir, "
+        "acil kişilere WhatsApp→SMS şelale ile gönderir. "
+        "Celery kullanmaz — anında sonuç döner."
+    ),
+)
+async def sos_audio_sync(
+    audio_file: UploadFile = File(..., description="Ses dosyası (.m4a/.wav/.mp3)"),
+    latitude: float = Form(..., description="GPS latitude"),
+    longitude: float = Form(..., description="GPS longitude"),
+    timestamp: str = Form(default="", description="ISO 8601 timestamp (opsiyonel)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SOSAudioResponse:
+    """
+    Ses → Groq Whisper → Twilio Şelale pipeline.
+
+    Zincir:
+      1. Ses dosyasını geçici diske kaydet
+      2. Groq Whisper ile metne çevir
+      3. Acil kişilerin telefon numaralarını DB'den al
+      4. Twilio Waterfall: WhatsApp → başarısız olursa SMS
+      5. Sonucu senkron döndür
+
+    Fallback:
+      - Groq API hatası → "S.O.S Sinyali alındı ancak ses çözümlenemedi."
+      - Acil kişi yok → 200 + boş gönderim
+    """
+    import asyncio
+
+    if not audio_file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ses dosyası gerekli")
+
+    file_ext = os.path.splitext(audio_file.filename or "sos.m4a")[1].lower() or ".m4a"
+    if file_ext not in ALLOWED_AUDIO_FORMATS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Desteklenmeyen format. İzin verilenler: {', '.join(ALLOWED_AUDIO_FORMATS)}",
+        )
+
+    ts = timestamp or datetime.utcnow().isoformat()
+    tmp_path: Optional[str] = None
+    transcription: str = ""
+
+    try:
+        # 1. Geçici dosyaya kaydet
+        content = await audio_file.read()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        logger.info(
+            "[SOS Audio] Dosya alındı: user=%d, boyut=%d bytes, format=%s",
+            current_user.id, len(content), file_ext,
+        )
+
+        # 2. Groq Whisper transkripsiyon (thread pool — blocking I/O)
+        try:
+            whisper = get_whisper_service()
+            transcription = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: asyncio.run(whisper.transcribe(tmp_path, timeout=12)),
+            )
+            logger.info("[SOS Audio] Groq transkripsiyon OK: %d karakter", len(transcription))
+        except (WhisperServiceError, Exception) as exc:
+            # KRİTİK FALLBACK — Groq başarısız → sabit metin
+            transcription = "S.O.S Sinyali alındı ancak ses çözümlenemedi."
+            logger.warning("[SOS Audio] Groq fallback devreye girdi: %s", exc)
+
+        # 3. Acil kişileri al
+        contacts_result = await db.execute(
+            select(EmergencyContact).where(
+                EmergencyContact.user_id == current_user.id,
+                EmergencyContact.is_active == True,
+            )
+        )
+        contacts = contacts_result.scalars().all()
+        phone_numbers = [c.phone_number for c in contacts if c.phone_number]
+
+        if not phone_numbers:
+            logger.warning("[SOS Audio] Acil kişi yok: user_id=%d", current_user.id)
+            return SOSAudioResponse(
+                success=True,
+                transcription=transcription,
+                notified_contacts=0,
+                whatsapp_sent=0,
+                sms_sent=0,
+                fallback_used=False,
+                message="Transkripsiyon tamamlandı ancak acil kişi bulunamadı. Lütfen acil kişi ekleyin.",
+            )
+
+        # 4. Mesaj formatla
+        maps_link = f"https://maps.google.com/?q={latitude:.6f},{longitude:.6f}"
+        full_message = (
+            f"🆘 ACİL DURUM S.O.S: {current_user.email}\n"
+            f"Mesaj: {transcription}\n"
+            f"📍 Konum: {maps_link}"
+        )
+
+        # 5. Twilio Şelale: WhatsApp → SMS
+        loop = asyncio.get_running_loop()
+        wf_result = await loop.run_in_executor(
+            None,
+            lambda: send_waterfall_emergency(
+                phone_numbers=phone_numbers,
+                message=full_message,
+                channel="waterfall",
+                user_id=current_user.id,
+                event_type="SOS_AUDIO",
+            ),
+        )
+
+        logger.info(
+            "[SOS Audio] Twilio Şelale tamamlandı: user=%d, WA=%d, SMS=%d, failed=%d",
+            current_user.id,
+            wf_result["whatsapp_sent"],
+            wf_result["sms_sent"],
+            wf_result["failed"],
+        )
+
+        return SOSAudioResponse(
+            success=True,
+            transcription=transcription,
+            notified_contacts=wf_result["whatsapp_sent"] + wf_result["sms_sent"],
+            whatsapp_sent=wf_result["whatsapp_sent"],
+            sms_sent=wf_result["sms_sent"],
+            fallback_used=wf_result["fallback_used"],
+            message=f"S.O.S iletildi: {wf_result['whatsapp_sent']} WhatsApp, {wf_result['sms_sent']} SMS.",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("[SOS Audio] Kritik hata: user=%d, %s", current_user.id, exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"S.O.S işlenirken hata oluştu: {exc}",
+        )
+    finally:
+        # Geçici dosyayı temizle
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# POST /safe — "Ben İyiyim" bildirimi (ses yok, Twilio şelale)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post(
+    "/safe",
+    response_model=SOSSafeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Ben İyiyim — acil kişilere güvenlik bildirimi gönder",
+)
+async def i_am_safe_sos(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SOSSafeResponse:
+    """
+    Kullanıcı güvende olduğunu acil kişilerine bildirir.
+
+    - Ses kaydı alınmaz, GPS istenmez.
+    - Twilio Şelale (WhatsApp → SMS) ile sabit mesaj gönderilir.
+    - Mesaj: "Kullanıcı güvende olduğunu bildirdi. Merak etmeyin."
+    """
+    import asyncio
+
+    # Acil kişileri al
+    try:
+        contacts_result = await db.execute(
+            select(EmergencyContact).where(
+                EmergencyContact.user_id == current_user.id,
+                EmergencyContact.is_active == True,
+            )
+        )
+        contacts = contacts_result.scalars().all()
+        phone_numbers = [c.phone_number for c in contacts if c.phone_number]
+
+        if not phone_numbers:
+            return SOSSafeResponse(
+                success=True,
+                notified_contacts=0,
+                whatsapp_sent=0,
+                sms_sent=0,
+                message="Acil kişi bulunamadı. Lütfen acil kişi listesine numara ekleyin.",
+            )
+
+        safe_message = (
+            f"✅ İYİYİM BİLDİRİMİ: {current_user.email}\n"
+            f"Kullanıcı güvende olduğunu bildirdi. Merak etmeyin. ❤️"
+        )
+
+        loop = asyncio.get_running_loop()
+        wf_result = await loop.run_in_executor(
+            None,
+            lambda: send_waterfall_emergency(
+                phone_numbers=phone_numbers,
+                message=safe_message,
+                channel="waterfall",
+                user_id=current_user.id,
+                event_type="I_AM_SAFE",
+            ),
+        )
+
+        logger.info(
+            "[SOS Safe] Ben İyiyim gönderildi: user=%d, WA=%d, SMS=%d",
+            current_user.id,
+            wf_result["whatsapp_sent"],
+            wf_result["sms_sent"],
+        )
+
+        return SOSSafeResponse(
+            success=True,
+            notified_contacts=wf_result["whatsapp_sent"] + wf_result["sms_sent"],
+            whatsapp_sent=wf_result["whatsapp_sent"],
+            sms_sent=wf_result["sms_sent"],
+            message=f"Bildirim gönderildi: {wf_result['whatsapp_sent']} WhatsApp, {wf_result['sms_sent']} SMS.",
+        )
+
+    except Exception as exc:
+        logger.error("[SOS Safe] Hata: user=%d, %s", current_user.id, exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Bildirim gönderilirken hata: {exc}",
         )

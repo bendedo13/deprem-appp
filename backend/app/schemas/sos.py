@@ -59,6 +59,28 @@ class SOSRecordOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── S.O.S Audio (Senkron) Schemas ──────────────────────────────────────────
+
+class SOSAudioResponse(BaseModel):
+    """POST /sos/audio senkron yanıtı."""
+    success: bool
+    transcription: str = ""
+    notified_contacts: int = 0
+    whatsapp_sent: int = 0
+    sms_sent: int = 0
+    fallback_used: bool = False
+    message: str = ""
+
+
+class SOSSafeResponse(BaseModel):
+    """POST /sos/safe 'Ben İyiyim' yanıtı."""
+    success: bool
+    notified_contacts: int = 0
+    whatsapp_sent: int = 0
+    sms_sent: int = 0
+    message: str = ""
+
+
 # ── S.O.S Test Endpoint Schemas ────────────────────────────────────────────
 
 class SOSTestRequest(BaseModel):
