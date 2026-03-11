@@ -205,6 +205,74 @@ async function fetchEMSC(): Promise<UnifiedEarthquake[]> {
     });
 }
 
+// ─── USGS/EMSC bbox versiyonları ──────────────────────────────────────────────
+
+type Bbox = { minlat: number; maxlat: number; minlon: number; maxlon: number };
+
+async function fetchUSGSWithBbox(bbox: Bbox): Promise<UnifiedEarthquake[]> {
+    const end = new Date();
+    const start = new Date(end.getTime() - HOURS * 3600 * 1000);
+    const url =
+        `https://earthquake.usgs.gov/fdsnws/event/1/query` +
+        `?format=geojson` +
+        `&starttime=${toIsoNoMs(start)}` +
+        `&endtime=${toIsoNoMs(end)}` +
+        `&minmagnitude=1` +
+        `&orderby=time` +
+        `&limit=${LIMIT_PER_SOURCE}` +
+        `&minlatitude=${bbox.minlat}` +
+        `&maxlatitude=${bbox.maxlat}` +
+        `&minlongitude=${bbox.minlon}` +
+        `&maxlongitude=${bbox.maxlon}`;
+
+    const { data } = await axios.get<{ features: UsgsFeature[] }>(url, { timeout: 12000 });
+    return (data?.features ?? []).map((f): UnifiedEarthquake => ({
+        id: `usgs_${f.id}`,
+        magnitude: f.properties.mag ?? 0,
+        depth: f.geometry.coordinates[2] ?? 0,
+        coordinates: {
+            latitude: f.geometry.coordinates[1],
+            longitude: f.geometry.coordinates[0],
+        },
+        title: f.properties.place ?? "Unknown",
+        date: new Date(f.properties.time),
+        source: "USGS",
+        magType: f.properties.magType?.toUpperCase() ?? "ML",
+    }));
+}
+
+async function fetchEMSCWithBbox(bbox: Bbox): Promise<UnifiedEarthquake[]> {
+    const end = new Date();
+    const start = new Date(end.getTime() - HOURS * 3600 * 1000);
+    const url =
+        `https://www.seismicportal.eu/fdsnws/event/1/query` +
+        `?format=json` +
+        `&limit=${LIMIT_PER_SOURCE}` +
+        `&minmagnitude=1` +
+        `&orderby=time` +
+        `&starttime=${toIsoNoMs(start)}` +
+        `&endtime=${toIsoNoMs(end)}` +
+        `&minlat=${bbox.minlat}` +
+        `&maxlat=${bbox.maxlat}` +
+        `&minlon=${bbox.minlon}` +
+        `&maxlon=${bbox.maxlon}`;
+
+    const { data } = await axios.get<{ features: EmscFeature[] }>(url, { timeout: 12000 });
+    return (data?.features ?? []).map((f, i): UnifiedEarthquake => {
+        const p = f.properties;
+        return {
+            id: `emsc_${p.evid ?? i}`,
+            magnitude: p.mag ?? 0,
+            depth: p.depth ?? 0,
+            coordinates: { latitude: p.lat ?? 0, longitude: p.lon ?? 0 },
+            title: p.flynn_region ?? p.region ?? "Unknown",
+            date: p.time ? new Date(p.time) : new Date(),
+            source: "EMSC",
+            magType: p.magtype?.toUpperCase() ?? "ML",
+        };
+    });
+}
+
 // ─── Deduplication ────────────────────────────────────────────────────────────
 
 function deduplicate(sorted: UnifiedEarthquake[]): UnifiedEarthquake[] {
@@ -236,10 +304,23 @@ export interface FetchResult {
     failedSources: EarthquakeSource[];
 }
 
-export async function fetchEarthquakes(sources: EarthquakeSource[]): Promise<FetchResult> {
-    const settled = await Promise.allSettled(
-        sources.map((s) => FETCHERS[s]?.() ?? Promise.resolve([]))
-    );
+export interface FetchOptions {
+    bbox?: { minlat: number; maxlat: number; minlon: number; maxlon: number };
+}
+
+export async function fetchEarthquakes(
+    sources: EarthquakeSource[],
+    options: FetchOptions = {}
+): Promise<FetchResult> {
+    const { bbox } = options;
+
+    const getFetcher = (s: EarthquakeSource): (() => Promise<UnifiedEarthquake[]>) => {
+        if (bbox && s === "USGS") return () => fetchUSGSWithBbox(bbox);
+        if (bbox && s === "EMSC") return () => fetchEMSCWithBbox(bbox);
+        return FETCHERS[s] ?? (() => Promise.resolve([]));
+    };
+
+    const settled = await Promise.allSettled(sources.map((s) => getFetcher(s)()));
 
     const all: UnifiedEarthquake[] = [];
     const activeSources: EarthquakeSource[] = [];

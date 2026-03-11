@@ -1,17 +1,20 @@
 /**
- * useEarthquakeData — Dil bazlı kaynak seçimi + useMemo ile filtre optimizasyonu.
- * Türkçe: AFAD + Kandilli. Diğer diller: tüm 4 kaynak.
+ * useEarthquakeData — Ülke bazlı kaynak seçimi + bbox filtreleme.
+ *
+ * Türkiye → AFAD + Kandilli
+ * Diğer ülkeler → USGS + EMSC (ülke bbox'ı ile)
+ * Dünya geneli → USGS + EMSC (bbox yok)
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import * as SecureStore from "expo-secure-store";
 import { fetchEarthquakes } from "../services/earthquakeService";
+import { COUNTRY_PRESETS, getCountryPreset, type CountryCode } from "../data/countryPresets";
 import type { EarthquakeSource, UnifiedEarthquake } from "../types/earthquake";
 
 const POLL_INTERVAL_MS = 60_000;
-
-const ALL_SOURCES: EarthquakeSource[] = ["AFAD", "KANDILLI", "EMSC", "USGS"];
-const TR_SOURCES: EarthquakeSource[] = ["AFAD", "KANDILLI"];
+const COUNTRY_STORE_KEY = "quakesense_country";
+const DEFAULT_COUNTRY: CountryCode = "TR";
 
 export type SourceFilter = "ALL" | EarthquakeSource;
 
@@ -24,29 +27,55 @@ export interface UseEarthquakeDataResult {
     sourceFilter: SourceFilter;
     setSourceFilter: (f: SourceFilter) => void;
     refresh: () => Promise<void>;
-    /** 24 saat analizi */
     last24hCount: number;
     last24hMaxMag: number;
+    country: CountryCode;
+    setCountry: (code: CountryCode) => Promise<void>;
+    countryPresets: typeof COUNTRY_PRESETS;
 }
 
 export function useEarthquakeData(): UseEarthquakeDataResult {
-    const { i18n } = useTranslation();
     const [earthquakes, setEarthquakes] = useState<UnifiedEarthquake[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeSources, setActiveSources] = useState<EarthquakeSource[]>([]);
     const [sourceFilter, setSourceFilter] = useState<SourceFilter>("ALL");
+    const [country, setCountryState] = useState<CountryCode>(DEFAULT_COUNTRY);
 
-    const sourcesToFetch = useMemo(() => {
-        const lang = i18n.language?.toLowerCase() ?? "tr";
-        return lang.startsWith("tr") ? TR_SOURCES : ALL_SOURCES;
-    }, [i18n.language]);
+    // Kayıtlı ülkeyi yükle
+    useEffect(() => {
+        SecureStore.getItemAsync(COUNTRY_STORE_KEY)
+            .then((saved) => {
+                if (saved && COUNTRY_PRESETS.some((c) => c.code === saved)) {
+                    setCountryState(saved);
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    const setCountry = useCallback(async (code: CountryCode) => {
+        setCountryState(code);
+        setSourceFilter("ALL");
+        try {
+            await SecureStore.setItemAsync(COUNTRY_STORE_KEY, code);
+        } catch {
+            // ignore
+        }
+    }, []);
+
+    const preset = useMemo(() => getCountryPreset(country), [country]);
 
     const doFetch = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const result = await fetchEarthquakes(sourcesToFetch);
+            const isGlobal = preset.code !== "TR";
+            const result = await fetchEarthquakes(
+                preset.sources as EarthquakeSource[],
+                isGlobal && preset.code !== "GLOBAL"
+                    ? { bbox: preset.bbox }
+                    : {}
+            );
             setEarthquakes(result.earthquakes);
             setActiveSources(result.activeSources);
         } catch (err) {
@@ -56,9 +85,10 @@ export function useEarthquakeData(): UseEarthquakeDataResult {
         } finally {
             setLoading(false);
         }
-    }, [sourcesToFetch]);
+    }, [preset]);
 
     useEffect(() => {
+        setSourceFilter("ALL");
         doFetch();
     }, [doFetch]);
 
@@ -91,5 +121,8 @@ export function useEarthquakeData(): UseEarthquakeDataResult {
         refresh: doFetch,
         last24hCount,
         last24hMaxMag,
+        country,
+        setCountry,
+        countryPresets: COUNTRY_PRESETS,
     };
 }
