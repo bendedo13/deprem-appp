@@ -300,3 +300,121 @@ async def send_rich_single(
 async def send_raw_multicast(tokens: list[str], title: str, body: str) -> int:
     """Eski broadcast endpoint'i için uyumluluk alias'ı."""
     return await send_rich_multicast(tokens=tokens, title=title, body=body)
+
+
+# ─── EARTHQUAKE_CONFIRMED — Nükleer Alarm Tetikleyici Push ───────────────────
+
+async def send_earthquake_confirmed_push(
+    fcm_tokens: list[str],
+    latitude: float,
+    longitude: float,
+    device_count: int,
+    occurred_at: str,
+) -> int:
+    """
+    EARTHQUAKE_CONFIRMED tipinde yüksek öncelikli FCM data push gönderir.
+
+    Bu mesaj:
+      - Android: priority="high" + TTL=30sn → Doze Mode'u deler, telefonu uyandırır.
+        Kilitli cihazda Task 1'deki Nükleer Alarm tetiklenir.
+      - iOS: content-available=1 + mutable-content=1 → Arka plan uyandırma.
+        critical=True + criticalVolume=1.0 → Sessiz mod bypass.
+
+    Notification alanı kasıtlı olarak BOŞ bırakılır — yalnızca data payload.
+    Bu sayede sistem notification yerine app içi tam ekran alarm gösterilir.
+
+    Args:
+        fcm_tokens: Hedef kullanıcıların FCM token listesi (max 500).
+        latitude: Deprem/alarm merkezi latitude.
+        longitude: Deprem/alarm merkezi longitude.
+        device_count: Tetikleyen cihaz sayısı.
+        occurred_at: ISO 8601 deprem zamanı.
+
+    Returns:
+        Başarıyla gönderilen token sayısı.
+    """
+    if not fcm_tokens or not _init_firebase():
+        return 0
+
+    try:
+        data_payload = {
+            "type": "EARTHQUAKE_CONFIRMED",
+            "latitude": str(latitude),
+            "longitude": str(longitude),
+            "device_count": str(device_count),
+            "timestamp": occurred_at,
+        }
+
+        message = messaging.MulticastMessage(
+            # Notification alanı YOK — sadece data payload (app içi alarm tetikler)
+            data=data_payload,
+            tokens=fcm_tokens[:500],
+
+            android=messaging.AndroidConfig(
+                priority="high",          # FCM yüksek öncelik → Doze Mode'u deler
+                ttl=30,                   # 30 saniye geçerlilik — deprem uyarısı gecikmez
+                collapse_key="earthquake_confirmed",  # Birden fazla varsa son mesajı gönder
+                restricted_package_name="com.quakesense",
+            ),
+
+            apns=messaging.APNSConfig(
+                headers={
+                    "apns-priority": "10",        # Maksimum öncelik
+                    "apns-push-type": "background", # Arka plan uyandırma
+                },
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        content_available=True,   # iOS arka plan uyandırma
+                        mutable_content=True,     # Notification Service Extension
+                        sound=messaging.CriticalSound(
+                            name="earthquake_alarm.caf",
+                            critical=True,        # iOS sessiz mod bypass
+                            volume=1.0,
+                        ),
+                        category="EARTHQUAKE_ALARM",
+                    )
+                ),
+            ),
+        )
+
+        response = messaging.send_each_for_multicast(message)
+        logger.info(
+            "[FCM EARTHQUAKE_CONFIRMED] Gönderildi: %d başarılı / %d başarısız | "
+            "Koordinat: %.4f,%.4f | Cihaz: %d",
+            response.success_count, response.failure_count,
+            latitude, longitude, device_count,
+        )
+
+        # Başarısız token'ları logla (temizlik için kullanılabilir)
+        if response.failure_count > 0:
+            for i, res in enumerate(response.responses):
+                if not res.success and i < len(fcm_tokens):
+                    logger.warning(
+                        "[FCM EARTHQUAKE_CONFIRMED] Token başarısız: %s... → %s",
+                        fcm_tokens[i][:12],
+                        res.exception,
+                    )
+
+        return response.success_count
+
+    except Exception as exc:
+        logger.error("[FCM EARTHQUAKE_CONFIRMED] Kritik hata: %s", exc, exc_info=True)
+        return 0
+
+
+async def send_earthquake_confirmed_single(
+    fcm_token: str,
+    latitude: float,
+    longitude: float,
+    device_count: int,
+    occurred_at: str,
+) -> bool:
+    """Tek bir cihaza EARTHQUAKE_CONFIRMED push gönderir."""
+    result = await send_earthquake_confirmed_push(
+        fcm_tokens=[fcm_token],
+        latitude=latitude,
+        longitude=longitude,
+        device_count=device_count,
+        occurred_at=occurred_at,
+    )
+    return result > 0

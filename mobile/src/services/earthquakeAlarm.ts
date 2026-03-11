@@ -1,11 +1,17 @@
 /**
  * Deprem doğrulandığında FCM data payload ile tetiklenir.
- * Sessiz modda da çalar — bypassDnd + playsInSilentModeIOS aktif.
+ * Sessiz modda da çalar — bypassDnd + STREAM_ALARM + playsInSilentModeIOS aktif.
  * Android 13+ için POST_NOTIFICATIONS izni istenir.
+ *
+ * Nükleer Alarm zinciri:
+ *  1. setAlarmVolumeMax() → STREAM_ALARM kanalını Native ile maksimuma çıkarır (DND/Sessiz bypass)
+ *  2. notifee ALARM category + MAX importance → sistem alarm kanalında bildirim gösterir
+ *  3. expo-av playsInSilentModeIOS → iOS sessiz switch bypass
  */
 
 import notifee, { AndroidImportance, AndroidCategory, AndroidVisibility } from "@notifee/react-native";
 import { Platform } from "react-native";
+import { setAlarmVolumeMax, restoreAlarmVolume } from "./nuclearAlarmBridge";
 
 /** expo-av güvenli yükleme — Requiring unknown module "undefined" crash'ini önler */
 let AudioModule: typeof import("expo-av").Audio | null = null;
@@ -19,6 +25,7 @@ try {
 }
 
 const CHANNEL_ID = "earthquake_alarm";
+const ALARM_CHANNEL_ID = "earthquake_nuclear_alarm";
 
 export type EarthquakeConfirmedPayload = {
   type: "EARTHQUAKE_CONFIRMED";
@@ -41,7 +48,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Bildirim kanalı: HIGH importance + bypassDnd (DND modunu geç).
+ * Bildirim kanalı: MAX importance + ALARM category + bypassDnd (DND/Sessiz modunu geç).
+ * AndroidImportance.MAX → STREAM_ALARM kanalı kullanır, ses kesilmez.
  */
 export async function ensureEarthquakeChannel(): Promise<void> {
   await notifee.createChannel({
@@ -55,15 +63,34 @@ export async function ensureEarthquakeChannel(): Promise<void> {
     bypassDnd: true,
     visibility: AndroidVisibility.PUBLIC,
   });
+
+  // Ayrı bir ALARM kanalı oluştur — AndroidImportance.MAX + category ALARM
+  // Bu kanal STREAM_ALARM'ı kullanır ve DND'yi tamamen deler
+  await notifee.createChannel({
+    id: ALARM_CHANNEL_ID,
+    name: "Deprem Nükleer Alarm",
+    description: "STREAM_ALARM kanalı — DND ve sessiz modu geçer",
+    importance: AndroidImportance.HIGH,
+    sound: "default",
+    vibration: true,
+    vibrationPattern: [0, 500, 200, 500, 200, 1000],
+    bypassDnd: true,
+    visibility: AndroidVisibility.PUBLIC,
+  });
 }
 
 /**
- * Sessiz modu bypass et — iOS silent switch + Android tam ses.
+ * Sessiz modu bypass et — iOS silent switch + Android STREAM_ALARM tam ses.
  * Gerçek alarm sesi çalar.
+ * Adım 1: NuclearAlarmBridge → STREAM_ALARM kanalını native seviyede maksimuma çıkarır.
+ * Adım 2: expo-av → iOS sessiz modu bypass (playsInSilentModeIOS).
  */
 let alarmSoundObj: import("expo-av").Audio.Sound | null = null;
 
 export async function playAlarmSound(): Promise<void> {
+    // Adım 1: Android STREAM_ALARM kanalını native seviyede maksimuma çıkar
+    await setAlarmVolumeMax();
+
     if (!AudioModule) {
         console.warn("[EarthquakeAlarm] expo-av yok, alarm sesi atlandı");
         return;
@@ -107,7 +134,7 @@ export async function playAlarmSound(): Promise<void> {
 }
 
 /**
- * Alarm sesini durdur.
+ * Alarm sesini durdur ve ses seviyesini geri yükle.
  */
 export async function stopAlarmSound(): Promise<void> {
   if (alarmSoundObj) {
@@ -117,6 +144,8 @@ export async function stopAlarmSound(): Promise<void> {
     } catch { /* ignore */ }
     alarmSoundObj = null;
   }
+  // Android ses seviyesini alarm öncesi haline geri getir
+  await restoreAlarmVolume();
 }
 
 /**
@@ -137,9 +166,9 @@ export async function showEarthquakeAlarm(payload: EarthquakeConfirmedPayload): 
     title: "⚠️ Deprem Uyarısı",
     body,
     android: {
-      channelId: CHANNEL_ID,
+      channelId: ALARM_CHANNEL_ID,     // STREAM_ALARM kanalı — DND/sessiz modu geçer
       importance: AndroidImportance.HIGH,
-      category: AndroidCategory.ALARM,
+      category: AndroidCategory.ALARM, // Sistem alarm kategorisi
       visibility: AndroidVisibility.PUBLIC,
       fullScreenAction: {
         id: "default",
@@ -147,6 +176,7 @@ export async function showEarthquakeAlarm(payload: EarthquakeConfirmedPayload): 
       },
       pressAction: { id: "default" },
       autoCancel: false,
+      ongoing: true,                   // Kullanıcı kapatana kadar bildirim devam eder
     },
     ios: {
       sound: "default",
@@ -154,5 +184,5 @@ export async function showEarthquakeAlarm(payload: EarthquakeConfirmedPayload): 
       criticalVolume: 1.0,
     },
   });
-  console.log("[EarthquakeAlarm] Tam ekran bildirim gönderildi");
+  console.log("[EarthquakeAlarm] Nükleer alarm bildirimi gönderildi (ALARM_CHANNEL)");
 }

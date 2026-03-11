@@ -19,6 +19,8 @@
     },
     "plugins": [
       "./plugins/withNotifeeAndroidFix",
+      "./plugins/withNuclearAlarm",
+      "./plugins/withSeismicForegroundService",
       "expo-sensors",
       "expo-notifications",
       "expo-task-manager",
@@ -76,7 +78,10 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
+        "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NOTIFICATION_POLICY"
       ],
       "googleServicesFile": "./google-services.json"
     },

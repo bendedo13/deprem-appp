@@ -17,9 +17,13 @@ from app.dependencies import get_current_user
 from app.database import get_db
 from app.models.user import User
 from app.models.sos_record import SOSRecord
-from app.schemas.sos import SOSAnalyzeResponse, SOSStatusResponse, ExtractedSOSData, SOSRecordOut
+from app.schemas.sos import (
+    SOSAnalyzeResponse, SOSStatusResponse, ExtractedSOSData, SOSRecordOut,
+    SOSTestRequest, SOSTestResponse, SOSTestContactResult,
+)
 from app.tasks.process_sos import process_sos_audio_task
 from app.services.audio_storage import get_audio_storage
+from app.services.twilio_fallback import send_waterfall_emergency
 from app.core.redis import get_redis
 from app.config import settings
 
@@ -108,6 +112,102 @@ async def analyze_sos(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ses dosyası yüklenirken hata oluştu"
         )
+
+
+@router.post(
+    "/test",
+    response_model=SOSTestResponse,
+    status_code=status.HTTP_200_OK,
+    summary="S.O.S Twilio test — Celery bypass, senkron yanıt",
+    description=(
+        "Twilio konfigürasyonunu ve numaraları test eder. "
+        "Celery kuyruğunu tamamen bypass eder; doğrudan Twilio API'ye gider ve "
+        "senkron sonuç döner. Numara yanlışsa veya Twilio hatası olursa 400 döner."
+    ),
+)
+async def test_sos_twilio(
+    payload: SOSTestRequest,
+    current_user: User = Depends(get_current_user),
+) -> SOSTestResponse:
+    """
+    Twilio S.O.S test endpoint'i.
+
+    - Celery kuyruğunu BYPASS eder — doğrudan senkron Twilio API çağrısı yapar.
+    - Waterfall mantığı aktif: WhatsApp başarısız → SMS fallback.
+    - Hata veya yanlış numara durumunda anında 400 döner, mobil ekranda görünür.
+    - Test sonucu her numara için detaylı olarak yanıtta yer alır.
+    """
+    import re
+    from fastapi import HTTPException
+
+    # E.164 format doğrulama — +COUNTRYCODE... (7–15 rakam)
+    e164_pattern = re.compile(r"^\+[1-9]\d{6,14}$")
+    invalid_numbers = [p for p in payload.phone_numbers if not e164_pattern.match(p)]
+    if invalid_numbers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Geçersiz telefon numarası formatı (E.164 gerekli, örn: +905551234567): "
+                f"{', '.join(invalid_numbers)}"
+            ),
+        )
+
+    try:
+        # Celery bypass — doğrudan senkron Twilio çağrısı
+        # run_in_executor ile event loop'u bloke etmeden çalıştır
+        import asyncio
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: send_waterfall_emergency(
+                phone_numbers=payload.phone_numbers,
+                message=payload.message,
+                channel=payload.channel,
+                user_id=current_user.id,
+                event_type="TEST",
+            ),
+        )
+    except Exception as exc:
+        logger.error("[SOS Test] Twilio çağrısı başarısız: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Twilio bağlantı hatası: {exc}",
+        )
+
+    any_success = result["whatsapp_sent"] > 0 or result["sms_sent"] > 0
+
+    # Tüm numaralar başarısız olduysa 400 döndür
+    if not any_success and result["total"] > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Tüm numaralara gönderim başarısız. "
+                f"Başarısız: {result['failed']}/{result['total']}. "
+                f"Detaylar: {result['details']}"
+            ),
+        )
+
+    logger.info(
+        "[SOS Test] user_id=%d whatsapp=%d sms=%d failed=%d fallback=%s",
+        current_user.id,
+        result["whatsapp_sent"], result["sms_sent"],
+        result["failed"], result["fallback_used"],
+    )
+
+    return SOSTestResponse(
+        success=any_success,
+        whatsapp_sent=result["whatsapp_sent"],
+        sms_sent=result["sms_sent"],
+        failed=result["failed"],
+        total=result["total"],
+        fallback_used=result["fallback_used"],
+        details=[SOSTestContactResult(**d) for d in result["details"]],
+        message=(
+            f"Test tamamlandı: {result['whatsapp_sent']} WhatsApp, "
+            f"{result['sms_sent']} SMS gönderildi."
+            + (" (Fallback: WhatsApp→SMS kullanıldı)" if result["fallback_used"] else "")
+        ),
+    )
 
 
 @router.get(

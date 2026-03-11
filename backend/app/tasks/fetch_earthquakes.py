@@ -25,13 +25,16 @@ async def _run_fetch() -> int:
     # Geç import — Celery worker import döngüsünden kaçınmak için
     from app.services.earthquake_fetcher import EarthquakeFetcherService, EarthquakeData
     from app.services.cache_manager import invalidate_earthquake_cache
-    from app.services.fcm import send_earthquake_push_multicast
+    from app.services.fcm import send_earthquake_push_multicast, send_earthquake_confirmed_push
     from app.models.earthquake import Earthquake
     from app.models.user import User
     from app.database import SyncSessionLocal
     from app.core.redis import get_redis
     from app.api.websocket import manager as ws_manager
     from sqlalchemy import select
+
+    # M≥4.0 depremler için nükleer alarm eşiği
+    NUCLEAR_ALARM_MAGNITUDE_THRESHOLD = 4.0
 
     async with EarthquakeFetcherService() as svc:
         quakes: List[EarthquakeData] = await svc.fetch_latest(hours=2)
@@ -126,7 +129,7 @@ async def _run_fetch() -> int:
             target_tokens.append(user.fcm_token)
 
         if target_tokens:
-            # Batch size limited to 500 in service, but we call it here
+            # Standart deprem bildirimi (tüm uygun kullanıcılar)
             await send_earthquake_push_multicast(
                 fcm_tokens=target_tokens,
                 magnitude=quake_data.magnitude,
@@ -134,6 +137,31 @@ async def _run_fetch() -> int:
                 depth=quake_data.depth,
                 occurred_at=quake_data.occurred_at.isoformat(),
             )
+
+        # ── EARTHQUAKE_CONFIRMED Nükleer Alarm Push ────────────────────────
+        # M≥4.0 depremlerde tüm kullanıcılara priority="high" data-only push gönderir.
+        # Android: Doze Mode'u deler → telefon uyanır → Nükleer Alarm tetiklenir.
+        # iOS: content-available=1 + critical=True → Sessiz mod bypass.
+        if quake_data.magnitude >= NUCLEAR_ALARM_MAGNITUDE_THRESHOLD:
+            all_tokens = [u.fcm_token for u in users_with_push if u.fcm_token]
+            if all_tokens:
+                try:
+                    sent = await send_earthquake_confirmed_push(
+                        fcm_tokens=all_tokens,
+                        latitude=quake_data.latitude,
+                        longitude=quake_data.longitude,
+                        device_count=1,  # AFAD/Kandilli onaylı → cihaz sayısı 1 olarak işaret
+                        occurred_at=quake_data.occurred_at.isoformat(),
+                    )
+                    logger.info(
+                        "[NükleerAlarm] EARTHQUAKE_CONFIRMED push: M%.1f %s → %d/%d token",
+                        quake_data.magnitude, quake_data.location,
+                        sent, len(all_tokens),
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "[NükleerAlarm] EARTHQUAKE_CONFIRMED push hatası: %s", exc
+                    )
 
     return len(new_quakes)
 
