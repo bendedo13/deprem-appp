@@ -36,15 +36,25 @@ try:
             getattr(settings, "FIREBASE_CLIENT_EMAIL", ""),
         ]):
             private_key = settings.FIREBASE_PRIVATE_KEY.replace("\\n", "\n")
+            # FIREBASE_PRIVATE_KEY_ID opsiyonel — Service Account JSON'dan alınır.
+            # Firebase Admin SDK token doğrulama için private_key_id zorunlu değildir.
+            private_key_id = getattr(settings, "FIREBASE_PRIVATE_KEY_ID", "") or ""
+            client_id = getattr(settings, "FIREBASE_CLIENT_ID", "") or ""
             cred_dict = {
                 "type": "service_account",
                 "project_id": settings.FIREBASE_PROJECT_ID,
-                "private_key_id": getattr(settings, "FIREBASE_PRIVATE_KEY_ID", ""),
+                "private_key_id": private_key_id,
                 "private_key": private_key,
                 "client_email": settings.FIREBASE_CLIENT_EMAIL,
-                "client_id": "",
+                "client_id": client_id,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                "client_x509_cert_url": (
+                    f"https://www.googleapis.com/robot/v1/metadata/x509/"
+                    f"{settings.FIREBASE_CLIENT_EMAIL.replace('@', '%40')}"
+                    if settings.FIREBASE_CLIENT_EMAIL else ""
+                ),
             }
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)

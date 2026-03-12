@@ -5,11 +5,11 @@
  */
 
 import auth, { FirebaseAuthTypes } from "@react-native-firebase/auth";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import Constants from "expo-constants";
 
 // Google Sign-In: Web Client ID (Firebase Console → Authentication → Google → Web client ID)
-// Önce app.json extra'dan alınır; Expo Go veya bazı build'lerde extra boş gelebilir, bu yüzden yedek değer kullanılır.
+// client_type: 3 olan OAuth client'ın ID'sidir.
 const FALLBACK_WEB_CLIENT_ID = "775124568904-flr9bo452no12v9giofdlb743m8gvqk4.apps.googleusercontent.com";
 const WEB_CLIENT_ID =
     (Constants.expoConfig?.extra?.googleWebClientId as string | undefined)?.trim() ||
@@ -23,9 +23,17 @@ function ensureGoogleConfigured() {
         console.warn("[Firebase Auth] Google Web Client ID yok. app.json extra.googleWebClientId ayarlayın.");
         return;
     }
-    GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, offlineAccess: true });
+    // offlineAccess: false → sadece idToken alınır, serverAuthCode gerekmez.
+    // forceCodeForRefreshToken: false → her seferinde yeniden onay istenmez.
+    GoogleSignin.configure({
+        webClientId: WEB_CLIENT_ID,
+        offlineAccess: false,
+        forceCodeForRefreshToken: false,
+    });
     googleConfigured = true;
 }
+
+export { statusCodes as GoogleSignInStatusCodes };
 
 // ── Firebase Auth hata kodlarını i18n anahtarına çevir ──────────────────────
 
@@ -80,7 +88,7 @@ export async function googleSignIn(): Promise<FirebaseAuthTypes.User> {
     ensureGoogleConfigured();
 
     if (!WEB_CLIENT_ID) {
-        throw new Error("Google Sign-In yapılandırılmamış. Lütfen app.json içinde extra.googleWebClientId tanımlayın.");
+        throw new Error("GOOGLE_NOT_CONFIGURED");
     }
 
     // Google Play Services kontrolü (Android)
@@ -88,13 +96,32 @@ export async function googleSignIn(): Promise<FirebaseAuthTypes.User> {
 
     const response = await GoogleSignin.signIn();
 
-    // v12: idToken bazen response.data içinde, bazen doğrudan response'ta
+    /*
+     * @react-native-google-signin v12 API değişikliği:
+     *   - Başarılı yanıt: { type: "success", data: { idToken, user, ... } }
+     *   - İptal:          { type: "cancelled" }
+     * Eski v10 compat: doğrudan { idToken, user } olarak da gelebilir.
+     */
+    const typedResponse = response as {
+        type?: string;
+        data?: { idToken?: string | null };
+        idToken?: string | null;
+    };
+
+    if (typedResponse.type === "cancelled") {
+        const err = new Error("SIGN_IN_CANCELLED");
+        (err as { code?: string }).code = statusCodes.SIGN_IN_CANCELLED;
+        throw err;
+    }
+
     const idToken =
-        (response as { data?: { idToken?: string }; idToken?: string }).data?.idToken ??
-        (response as { idToken?: string }).idToken;
+        typedResponse.data?.idToken ??
+        typedResponse.idToken ??
+        null;
 
     if (!idToken) {
-        throw new Error("Google'dan ID token alınamadı.");
+        console.error("[Firebase Auth] Google Sign-In response:", JSON.stringify(response));
+        throw new Error("Google'dan ID token alınamadı. Lütfen tekrar deneyin.");
     }
 
     const googleCredential = auth.GoogleAuthProvider.credential(idToken);

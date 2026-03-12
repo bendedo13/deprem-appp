@@ -25,6 +25,7 @@ import {
     googleSignIn,
     getFirebaseAuthErrorKey,
     getIdToken,
+    GoogleSignInStatusCodes,
 } from "../../src/services/firebaseAuthService";
 import { login as backendLogin, syncFirebaseToken } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
@@ -112,26 +113,47 @@ export default function LoginScreen() {
                 }
             }
         } catch (err: unknown) {
-            const code = (err as { code?: string })?.code;
+            const code = String((err as { code?: string })?.code ?? "");
             const message = String((err as { message?: string })?.message ?? "");
+
             // Kullanıcı iptal ettiyse sessizce geç
-            if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
-            // Web Client ID eksik (Expo Go / yapılandırma)
-            if (message.includes("yapılandırılmamış")) {
+            if (
+                code === GoogleSignInStatusCodes.SIGN_IN_CANCELLED ||
+                code === "SIGN_IN_CANCELLED" ||
+                code === "12501"
+            ) return;
+
+            // Google Play Services güncel değil
+            if (code === GoogleSignInStatusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
                 Alert.alert(
-                    "Google ile Giriş Yapılamadı",
-                    "Google Sign-In yapılandırılmamış. Lütfen uygulamayı yeniden derleyin veya e-posta ve şifre ile giriş yapın."
+                    "Google Play Services Gerekli",
+                    "Google Sign-In için Google Play Services güncellenmeli."
                 );
                 return;
             }
-            // SHA-1 / OAuth yapılandırma hatası (Android)
-            if (message.includes("DEVELOPER_ERROR") || code === "10") {
+
+            // SHA-1 / OAuth yapılandırma hatası — DEVELOPER_ERROR (kod 10)
+            if (
+                code === "10" ||
+                message.includes("DEVELOPER_ERROR") ||
+                message.includes("10:")
+            ) {
                 Alert.alert(
                     "Google ile Giriş Yapılamadı",
-                    "Firebase/Google OAuth yapılandırması eksik veya SHA-1 eşleşmiyor. Lütfen e-posta ve şifre ile giriş yapın."
+                    "Firebase SHA-1 yapılandırması eksik. EAS Build SHA-1 parmak izinizi Firebase Console'a ekleyin ve tekrar derleyin."
                 );
                 return;
             }
+
+            // Web Client ID / yapılandırma eksik
+            if (message === "GOOGLE_NOT_CONFIGURED") {
+                Alert.alert(
+                    "Google ile Giriş Yapılamadı",
+                    "Google Sign-In yapılandırılmamış. Lütfen uygulamayı yeniden derleyin."
+                );
+                return;
+            }
+
             Alert.alert(t("auth.error_login"), t("auth.error_google_signin"));
         } finally {
             setGoogleLoading(false);
