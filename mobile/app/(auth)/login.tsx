@@ -25,9 +25,8 @@ import {
     googleSignIn,
     getFirebaseAuthErrorKey,
     getIdToken,
-    GoogleSignInStatusCodes,
 } from "../../src/services/firebaseAuthService";
-import { login as backendLogin, syncFirebaseToken } from "../../src/services/authService";
+import { syncFirebaseToken, login as backendLogin } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function LoginScreen() {
@@ -43,43 +42,31 @@ export default function LoginScreen() {
             Alert.alert(t("auth.error_login"), t("auth.email_password_required"));
             return;
         }
-        const emailTrimmed = email.trim().toLowerCase();
         setLoading(true);
         try {
-            await firebaseLogin(emailTrimmed, password);
+            // Önce Firebase auth dene
+            await firebaseLogin(email.trim().toLowerCase(), password);
+
             const idToken = await getIdToken();
             if (!idToken) {
                 throw new Error("Firebase ID token alınamadı.");
             }
+
             await syncFirebaseToken(idToken);
             router.replace("/(tabs)");
-        } catch (err: unknown) {
-            const code = (err as { code?: string })?.code ?? "";
-            const backendErr = err as { response?: { data?: { detail?: string }; status?: number } };
-            const isFirebaseCredentialError =
-                code === "auth/invalid-credential" ||
-                code === "auth/wrong-password" ||
-                code === "auth/user-not-found";
+        } catch (firebaseErr: unknown) {
+            // Firebase başarısız olduysa doğrudan backend login dene (admin kullanıcılar için)
+            try {
+                await backendLogin(email.trim().toLowerCase(), password);
+                router.replace("/(tabs)");
+            } catch (backendErr: unknown) {
+                const maybeAxios = backendErr as { response?: { data?: { detail?: string } } };
+                const backendDetail = maybeAxios.response?.data?.detail;
 
-            if (isFirebaseCredentialError) {
-                try {
-                    await backendLogin(emailTrimmed, password);
-                    router.replace("/(tabs)");
-                    return;
-                } catch (backendLoginErr) {
-                    const detail = (backendLoginErr as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-                    if (typeof detail === "string" && detail.length > 0) {
-                        Alert.alert(t("auth.error_login"), detail);
-                    } else {
-                        Alert.alert(t("auth.error_login"), t("auth.error_wrong_password"));
-                    }
-                }
-            } else {
-                const backendDetail = backendErr.response?.data?.detail;
                 if (typeof backendDetail === "string" && backendDetail.length > 0) {
                     Alert.alert(t("auth.error_login"), backendDetail);
                 } else {
-                    const errorKey = getFirebaseAuthErrorKey(err);
+                    const errorKey = getFirebaseAuthErrorKey(firebaseErr);
                     Alert.alert(t("auth.error_login"), t(errorKey));
                 }
             }
@@ -113,47 +100,18 @@ export default function LoginScreen() {
                 }
             }
         } catch (err: unknown) {
-            const code = String((err as { code?: string })?.code ?? "");
-            const message = String((err as { message?: string })?.message ?? "");
-
+            const code = (err as { code?: string })?.code;
+            const message = (err as { message?: string })?.message ?? "";
             // Kullanıcı iptal ettiyse sessizce geç
-            if (
-                code === GoogleSignInStatusCodes.SIGN_IN_CANCELLED ||
-                code === "SIGN_IN_CANCELLED" ||
-                code === "12501"
-            ) return;
-
-            // Google Play Services güncel değil
-            if (code === GoogleSignInStatusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-                Alert.alert(
-                    "Google Play Services Gerekli",
-                    "Google Sign-In için Google Play Services güncellenmeli."
-                );
-                return;
-            }
-
-            // SHA-1 / OAuth yapılandırma hatası — DEVELOPER_ERROR (kod 10)
-            if (
-                code === "10" ||
-                message.includes("DEVELOPER_ERROR") ||
-                message.includes("10:")
-            ) {
+            if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
+            // SHA-1 / yapılandırma hatası
+            if (message.includes("DEVELOPER_ERROR") || code === "10") {
                 Alert.alert(
                     "Google ile Giriş Yapılamadı",
-                    "Firebase SHA-1 yapılandırması eksik. EAS Build SHA-1 parmak izinizi Firebase Console'a ekleyin ve tekrar derleyin."
+                    "Firebase yapılandırması eksik veya SHA-1 hatalı. Lütfen e-posta ve şifre ile giriş yapın."
                 );
                 return;
             }
-
-            // Web Client ID / yapılandırma eksik
-            if (message === "GOOGLE_NOT_CONFIGURED") {
-                Alert.alert(
-                    "Google ile Giriş Yapılamadı",
-                    "Google Sign-In yapılandırılmamış. Lütfen uygulamayı yeniden derleyin."
-                );
-                return;
-            }
-
             Alert.alert(t("auth.error_login"), t("auth.error_google_signin"));
         } finally {
             setGoogleLoading(false);

@@ -27,6 +27,7 @@ export default function MoreLayout() {
             <Stack.Screen name="chat" options={{ title: "Sohbet Odası" }} />
             <Stack.Screen name="earthquake_academy" options={{ title: "Deprem Akademisi" }} />
             <Stack.Screen name="earthquake_quiz" options={{ title: "Deprem Testi" }} />
+            <Stack.Screen name="admin" options={{ title: "👑 Patron Paneli" }} />
         </Stack>
     );
 }

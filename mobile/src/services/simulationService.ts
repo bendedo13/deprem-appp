@@ -18,21 +18,17 @@
  */
 
 import { Vibration } from "react-native";
-
-/** expo-av güvenli yükleme — undefined modül crash'ini önler */
-let AudioModule: typeof import("expo-av").Audio | null = null;
-try {
-    const expoAv = require("expo-av");
-    if (expoAv?.Audio && typeof expoAv.Audio.setAudioModeAsync === "function") {
-        AudioModule = expoAv.Audio;
-    }
-} catch {
-    console.warn("[Simulation] expo-av yüklenemedi, ses modu atlanacak");
-}
-
 import { showEarthquakeAlarm } from "./earthquakeAlarm";
 import { sendSOSAlert } from "./sosAlertService";
-import { startCriticalAlarm, stopCriticalAlarm } from "./criticalAlarmService";
+
+// expo-av güvenli import — modül yoksa crash olmaz
+let Audio: any = null;
+try {
+    const expoAv = require("expo-av");
+    Audio = expoAv?.Audio ?? null;
+} catch {
+    console.warn("[Simulation] expo-av yüklenemedi — ses modu bypass devre dışı");
+}
 
 export interface SimulationResult {
     notificationSent: boolean;
@@ -50,12 +46,12 @@ export interface SimulationResult {
  * Bu ayar ile telefon tamamen sessizde olsa bile bildirim sesi çalar.
  */
 async function configureSilentModeBypass(): Promise<boolean> {
-    if (!AudioModule || typeof AudioModule.setAudioModeAsync !== "function") {
-        console.warn("[Simulation] [1/5] ✗ expo-av Audio modülü yok, ses modu atlandı");
-        return false;
-    }
     try {
-        await AudioModule.setAudioModeAsync({
+        if (!Audio?.setAudioModeAsync) {
+            console.warn("[Simulation] [1/5] Audio modülü yok — ses modu atlandı");
+            return false;
+        }
+        await Audio.setAudioModeAsync({
             allowsRecordingIOS: false,
             playsInSilentModeIOS: true,   // ← Ana özellik: sessiz modda çalar
             staysActiveInBackground: true, // ← Arka planda ses aktif kalır
@@ -74,19 +70,6 @@ async function configureSilentModeBypass(): Promise<boolean> {
 // ── Adım 2: Titreşim ──────────────────────────────────────────────────────────
 
 /**
- * Maksimum güçte kesintisiz titreşim — nükleer alarm için.
- */
-export function triggerMaxVibration(): void {
-    try {
-        if (typeof Vibration?.vibrate === "function") {
-            Vibration.vibrate([0, 500, 200, 500, 200, 500], true);
-        }
-    } catch {
-        /* ignore */
-    }
-}
-
-/**
  * Sismik P-dalgası + S-dalgası paternini taklit eden titreşim.
  * Pattern: [bekle_ms, titre_ms, dur_ms, ...] şeklinde
  *  - Başlangıç: hafif P-dalgası
@@ -94,12 +77,7 @@ export function triggerMaxVibration(): void {
  *  - Azalma: artçı sarsıntı
  */
 function triggerVibration(): void {
-    try {
-        if (typeof Vibration?.vibrate !== "function") {
-            console.warn("[Simulation] [2/5] ✗ Vibration API yok");
-            return;
-        }
-        const pattern = [
+    const pattern = [
         0,         // hemen başla
         150, 100,  // P-dalgası: hafif
         200, 80,   // P→S geçiş
@@ -112,9 +90,6 @@ function triggerVibration(): void {
     ];
     Vibration.vibrate(pattern, false);
     console.log("[Simulation] [2/5] ✓ Titreşim başlatıldı (sismik dalga paterni)");
-    } catch (err) {
-        console.warn("[Simulation] [2/5] ✗ Titreşim hatası:", err);
-    }
 }
 
 // ── Adım 3: Flaş ──────────────────────────────────────────────────────────────
@@ -220,74 +195,6 @@ export interface AlarmOnlyResult {
     vibrated: boolean;
     notificationSent: boolean;
     error?: string;
-}
-
-/** Hibrit test sonucu: alarm + gerçek SOS test mesajı + Twilio raporu */
-export interface HybridTestResult {
-    soundPlayed: boolean;
-    vibrated: boolean;
-    notificationSent: boolean;
-    sosSent: boolean;
-    notifiedContacts: number;
-    smsSent: number;
-    whatsappSent: number;
-    channelUsed: string;
-    location: { latitude: number; longitude: number } | null;
-    error?: string;
-}
-
-/**
- * Hibrit sensör testi: ivmeölçer simülasyonu + gerçek "TEST MESAJI" (Konum + Bu bir testtir) acil kişilere gönderilir.
- * Test bitiminde ses, titreşim, bildirim ve Twilio SMS/WhatsApp başarı durumu raporlanır.
- */
-export async function runHybridSensorTest(options: {
-    loudAlarmEnabled: boolean;
-    vibrationEnabled: boolean;
-    flashEnabled: boolean;
-}): Promise<HybridTestResult> {
-    const result: HybridTestResult = {
-        soundPlayed: false,
-        vibrated: false,
-        notificationSent: false,
-        sosSent: false,
-        notifiedContacts: 0,
-        smsSent: 0,
-        whatsappSent: 0,
-        channelUsed: "none",
-        location: null,
-    };
-
-    try {
-        if (options.loudAlarmEnabled) {
-            result.soundPlayed = await configureSilentModeBypass();
-        }
-        if (options.vibrationEnabled) {
-            try {
-                triggerVibration();
-                result.vibrated = true;
-            } catch (e) {
-                result.error = (e as Error).message;
-            }
-        }
-        result.notificationSent = await sendCriticalNotification();
-
-        const sosResult = await sendSOSAlert(
-            "sensor",
-            "Bu bir testtir. Konum + test mesajı — gerçek acil durum değildir."
-        );
-        result.sosSent = sosResult.success;
-        result.notifiedContacts = sosResult.notifiedContacts;
-        result.location = sosResult.location;
-        result.smsSent = sosResult.sms_sent ?? 0;
-        result.whatsappSent = sosResult.whatsapp_sent ?? 0;
-        result.channelUsed = sosResult.channel_used ?? "none";
-        if (sosResult.error) {
-            result.error = result.error ? `${result.error}; ${sosResult.error}` : sosResult.error;
-        }
-    } catch (err) {
-        result.error = (err as Error).message;
-    }
-    return result;
 }
 
 /**
@@ -402,73 +309,4 @@ export async function startEarthquakeSimulation(options: {
     console.log("[Simulation] Backend logları için: docker compose logs -f backend\n");
 
     return result;
-}
-
-// ── 15 Saniyelik "Nasıl Çalışır?" Simülasyonu ───────────────────────────────────
-
-export type Phase15 = "idle" | "detecting" | "alarm" | "sending" | "done";
-
-export interface Run15SecondResult {
-    phase: Phase15;
-    sosSent: boolean;
-    notifiedContacts: number;
-    error?: string;
-}
-
-/**
- * 15 saniyelik test akışı:
- *  5sn algılama simülasyonu → 5sn tam ekran alarm + yüksek ses → 5sn "BU BİR TESTTİR" Twilio
- *
- * @param onPhaseChange - Her faz değişiminde çağrılır (UI güncellemesi için)
- * @param abortRef - { current: true } yapılırsa simülasyon anında durur
- * @param options - Ses, titreşim ayarları
- */
-export async function run15SecondTest(
-    onPhaseChange: (phase: Phase15) => void,
-    abortRef: { current: boolean },
-    options: { loudAlarmEnabled: boolean; vibrationEnabled: boolean }
-): Promise<Run15SecondResult> {
-    const result: Run15SecondResult = { phase: "idle", sosSent: false, notifiedContacts: 0 };
-
-    const sleep = (ms: number) =>
-        new Promise<void>((resolve) => {
-            const start = Date.now();
-            const check = () => {
-                if (abortRef.current) return resolve();
-                if (Date.now() - start >= ms) return resolve();
-                setTimeout(check, 100);
-            };
-            check();
-        });
-
-    try {
-        onPhaseChange("detecting");
-        await sleep(5000);
-        if (abortRef.current) return result;
-
-        onPhaseChange("alarm");
-        if (options.loudAlarmEnabled) await configureSilentModeBypass();
-        if (options.vibrationEnabled) triggerMaxVibration();
-        await startCriticalAlarm("41.0082", "28.9784");
-        await sleep(5000);
-        if (abortRef.current) {
-            await stopCriticalAlarm();
-            return result;
-        }
-        await stopCriticalAlarm();
-
-        onPhaseChange("sending");
-        const sosResult = await sendSOSAlert("sensor", "BU BİR TESTTİR");
-        result.sosSent = sosResult.success;
-        result.notifiedContacts = sosResult.notifiedContacts ?? 0;
-        if (sosResult.error) result.error = sosResult.error;
-        await sleep(5000);
-
-        onPhaseChange("done");
-        return result;
-    } catch (err) {
-        result.error = (err as Error).message;
-        onPhaseChange("done");
-        return result;
-    }
 }

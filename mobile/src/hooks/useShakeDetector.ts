@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { Accelerometer } from "expo-sensors";
 import { Platform } from "react-native";
 import {
     SAMPLE_RATE_HZ,
@@ -16,26 +17,13 @@ import {
     LTA_WINDOW,
     TRIGGER_RATIO,
     DETRIGGER_RATIO,
-    BANDPASS_HP_ALPHA,
-    BANDPASS_LP_ALPHA,
+    HIGHPASS_ALPHA,
     MIN_REPORT_ACCELERATION,
     MIN_TRIGGER_DURATION_MS,
     COOLDOWN_AFTER_TRIGGER_MS,
-    CRITICAL_ACCELERATION_MS2,
 } from "../constants/seismic";
-import { bandPassFilter, vectorMagnitude, computeStaLta } from "../utils/staLta";
+import { highPassFilter, vectorMagnitude, computeStaLta } from "../utils/staLta";
 import { reportTrigger } from "../services/seismicService";
-
-/** expo-sensors güvenli yükleme — undefined modül crash'ini önler */
-let AccelerometerModule: typeof import("expo-sensors").Accelerometer | null = null;
-try {
-    const expoSensors = require("expo-sensors");
-    if (expoSensors?.Accelerometer && typeof expoSensors.Accelerometer.addListener === "function") {
-        AccelerometerModule = expoSensors.Accelerometer;
-    }
-} catch {
-    console.warn("[useShakeDetector] expo-sensors yüklenemedi");
-}
 
 export interface ShakeState {
     isMonitoring: boolean;
@@ -51,22 +39,17 @@ const DEVICE_ID = `device-${Platform.OS}-${Date.now().toString(36)}`;
 /** UI state güncellemesi için throttle aralığı (ms) — JS Thread korunur */
 const UI_THROTTLE_MS = 200;
 
-/** Nükleer alarm tetiklemesi için minimum aralık (ms) — 60 sn */
-const CRITICAL_TRIGGER_COOLDOWN_MS = 60_000;
-
 export function useShakeDetector(
     latitude: number | null,
-    longitude: number | null,
-    onCriticalTrigger?: (lat: number | null, lng: number | null) => void,
-    sensorActive: boolean = true
+    longitude: number | null
 ): ShakeState {
     const samples = useRef<number[]>([]);
-    const bandPassState = useRef({ prevRaw: 0, hpOut: 0, lpOut: 0 });
+    const prevRaw = useRef(0);
+    const prevFiltered = useRef(0);
     const triggeredRef = useRef(false);
     const triggerStartRef = useRef<number | null>(null);
     const peakRef = useRef(0);
     const cooldownUntilRef = useRef<number>(0);
-    const lastCriticalTriggerRef = useRef<number>(0);
     /** Son UI güncelleme zamanı — throttle için */
     const lastUiUpdateRef = useRef<number>(0);
 
@@ -79,46 +62,33 @@ export function useShakeDetector(
     });
 
     useEffect(() => {
-        if (!AccelerometerModule || typeof AccelerometerModule.addListener !== "function") {
-            console.warn("[useShakeDetector] İvmeölçer kullanılamıyor (expo-sensors yok veya eksik)");
+        // Accelerometer guard — simülatörde veya izinsiz cihazda olmayabilir
+        if (!Accelerometer || typeof Accelerometer.addListener !== "function") {
+            console.warn("[ShakeDetector] Accelerometer mevcut değil — sensör izleme devre dışı");
             return;
         }
 
-        AccelerometerModule.setUpdateInterval(Math.floor(1000 / SAMPLE_RATE_HZ));
+        try {
+            Accelerometer.setUpdateInterval(Math.floor(1000 / SAMPLE_RATE_HZ));
+        } catch (err) {
+            console.warn("[ShakeDetector] setUpdateInterval hatası:", err);
+        }
 
-        const sub = AccelerometerModule.addListener(({ x, y, z }) => {
+        let sub: { remove: () => void } | null = null;
+
+        try {
+        sub = Accelerometer.addListener(({ x, y, z }) => {
             const now = Date.now();
             const raw = vectorMagnitude(x, y, z);
-            const filtered = bandPassFilter(
-                raw,
-                bandPassState.current,
-                BANDPASS_HP_ALPHA,
-                BANDPASS_LP_ALPHA
-            );
+            const filtered = highPassFilter(raw, prevRaw.current, prevFiltered.current, HIGHPASS_ALPHA);
+            prevRaw.current = raw;
+            prevFiltered.current = filtered;
 
             samples.current.push(filtered);
             if (samples.current.length > LTA_WINDOW) samples.current.shift();
 
-            if (!sensorActive) {
-                if (now - lastUiUpdateRef.current >= UI_THROTTLE_MS) {
-                    lastUiUpdateRef.current = now;
-                    setState((s) => ({ ...s, staLtaRatio: 0, isMonitoring: true }));
-                }
-                return;
-            }
-
             const ratio = computeStaLta(samples.current, STA_WINDOW, LTA_WINDOW);
             const inCooldown = now < cooldownUntilRef.current;
-
-            // Nükleer alarm: 1.8G+ ivme (m/s²) aşılırsa tam ekran alarm (cooldown ile tekrarsız)
-            if (
-                onCriticalTrigger &&
-                raw >= CRITICAL_ACCELERATION_MS2 &&
-                now - lastCriticalTriggerRef.current >= CRITICAL_TRIGGER_COOLDOWN_MS
-            ) {
-                lastCriticalTriggerRef.current = now;
-                onCriticalTrigger(latitude, longitude);
-            }
 
             if (!triggeredRef.current && !inCooldown && ratio >= TRIGGER_RATIO) {
                 // Olası tetikleme başladı — kritik değişim, hemen güncelle
@@ -164,13 +134,17 @@ export function useShakeDetector(
                 }
             }
         });
+        } catch (err) {
+            console.warn("[ShakeDetector] addListener hatası:", err);
+            return;
+        }
 
         setState((s) => ({ ...s, isMonitoring: true }));
         return () => {
-            sub.remove();
+            if (sub) { try { sub.remove(); } catch { /* ignore */ } }
             setState((s) => ({ ...s, isMonitoring: false, isTriggered: false }));
         };
-    }, [latitude, longitude, onCriticalTrigger, sensorActive]);
+    }, [latitude, longitude]);
 
     return state;
 }

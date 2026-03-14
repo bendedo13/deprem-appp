@@ -3,37 +3,43 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Lin
 import { Link, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import Constants from "expo-constants";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
-import { logout, getMe, type UserOut } from "../../src/services/authService";
+import { logout, getMe } from "../../src/services/authService";
+import { getSubscriptionStatus, type SubscriptionStatus } from "../../src/services/subscriptionService";
 
 export default function MenuScreen() {
     const { t } = useTranslation();
-    const [user, setUser] = useState<UserOut | null>(null);
+    const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
+    const [loadingSub, setLoadingSub] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         let mounted = true;
-        getMe()
-            .then((u) => {
-                if (mounted) setUser(u);
+        setLoadingSub(true);
+        getSubscriptionStatus()
+            .then((data) => {
+                if (mounted) setSubStatus(data);
             })
             .catch(() => {
-                if (mounted) setUser(null);
+                if (mounted) setSubStatus(null);
+            })
+            .finally(() => {
+                if (mounted) setLoadingSub(false);
             });
+
+        // Admin kontrolü
+        getMe()
+            .then((user) => {
+                if (mounted && user?.is_admin) setIsAdmin(true);
+            })
+            .catch(() => {});
+
         return () => {
             mounted = false;
         };
     }, []);
 
-    const adminPanelUrl =
-        (Constants.expoConfig?.extra?.adminPanelUrl as string | undefined) ||
-        "https://deprem.quakesense.com/admin";
-
-    const openAdminPanel = () => {
-        Linking.openURL(adminPanelUrl).catch(() => {
-            Alert.alert(t("common.error") || "Hata", "Admin panel açılamadı.");
-        });
-    };
+    const isPro = subStatus?.is_pro;
 
     const handleLogout = async () => {
         Alert.alert(
@@ -68,6 +74,10 @@ export default function MenuScreen() {
         } catch {
             Alert.alert(t("common.error") || "Hata", "Uygulama mağazası açılamadı.");
         }
+    };
+
+    const goToPremium = () => {
+        router.push("/more/premium");
     };
 
     const MenuItem = ({ icon, title, href, onPress, color = Colors.text.dark, badge }: any) => {
@@ -119,38 +129,40 @@ export default function MenuScreen() {
                 </View>
             </View>
 
-            {/* Patron (sadece admin kullanıcılar görür) */}
-            {user?.is_admin === true && (
+            {/* Patron Paneli — sadece admin görür */}
+            {isAdmin && (
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>👑 Yönetim</Text>
-                    <MenuItem
-                        icon="shield-account"
-                        title="Patron — Admin Panel"
-                        onPress={openAdminPanel}
-                        color="#F59E0B"
-                    />
+                    <Text style={[styles.sectionTitle, { color: "#FFD700" }]}>👑 YÖNETİM</Text>
+                    <TouchableOpacity
+                        style={[styles.menuItem, {
+                            borderColor: "#FFD70040",
+                            borderWidth: 1.5,
+                            backgroundColor: "#FFD70008",
+                        }]}
+                        onPress={() => router.push("/more/admin")}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.iconBox, { backgroundColor: "#FFD70020" }]}>
+                            <MaterialCommunityIcons name="shield-crown" size={20} color="#FFD700" />
+                        </View>
+                        <Text style={[styles.menuText, { color: "#FFD700" }]}>Patron Paneli (Admin)</Text>
+                        <View style={[styles.badge, { backgroundColor: "#FFD700" }]}>
+                            <Text style={[styles.badgeText, { color: "#000" }]}>ADMIN</Text>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={18} color="#FFD700" />
+                    </TouchableOpacity>
                 </View>
             )}
 
-            {/* Premium — bilgilendirme (tüm özellikler herkese açık) */}
+            {/* Premium */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>⭐ Abonelik</Text>
+                <Text style={styles.sectionTitle}>⭐ Premium</Text>
                 <MenuItem
                     icon="crown"
                     title="QuakeSense PRO"
                     href="/more/premium"
                     color="#F59E0B"
-                />
-            </View>
-
-            {/* Deprem Akademisi — Eğitim */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📚 Eğitim</Text>
-                <MenuItem
-                    icon="school-outline"
-                    title="Deprem Akademisi"
-                    href="/more/earthquake_academy"
-                    color={Colors.primary}
+                    badge="PRO"
                 />
             </View>
 
@@ -174,14 +186,16 @@ export default function MenuScreen() {
                 <MenuItem
                     icon="microphone"
                     title="S.O.S Sesli Mesaj"
-                    onPress={() => router.push("/more/sos")}
+                    onPress={isPro ? () => router.push("/more/sos") : goToPremium}
                     color={Colors.danger}
+                    badge={isPro ? undefined : "PRO"}
                 />
                 <MenuItem
                     icon="account-heart-outline"
                     title="Güvenlik Ağım"
-                    onPress={() => router.push("/more/family_safety")}
+                    onPress={isPro ? () => router.push("/more/family_safety") : goToPremium}
                     color={Colors.danger}
+                    badge={isPro ? "Yeni" : "PRO"}
                 />
                 <MenuItem
                     icon="map-marker-radius"
@@ -195,12 +209,6 @@ export default function MenuScreen() {
                     href="/more/impact_map"
                     color={Colors.accent}
                 />
-                <MenuItem
-                    icon="chat-processing-outline"
-                    title="Sohbet Odası"
-                    href="/more/chat"
-                    color={Colors.accent}
-                />
             </View>
 
             {/* Hazırlık */}
@@ -209,15 +217,17 @@ export default function MenuScreen() {
                 <MenuItem
                     icon="shield-star-outline"
                     title="Hazırlık Skorum"
-                    onPress={() => router.push("/more/safety_score")}
+                    onPress={isPro ? () => router.push("/more/safety_score") : goToPremium}
                     color={Colors.primary}
+                    badge={isPro ? "Yeni" : "PRO"}
                 />
                 <MenuItem icon="shield-search" title={t("menu.risk_analysis") || "Risk Analizi"} href="/more/risk_analysis" color={Colors.primary} />
                 <MenuItem
                     icon="account-multiple-outline"
                     title={t("menu.emergency_contacts") || "Acil Kişiler"}
-                    onPress={() => router.push("/more/contacts")}
+                    onPress={isPro ? () => router.push("/more/contacts") : goToPremium}
                     color={Colors.primary}
+                    badge={isPro ? undefined : "PRO"}
                 />
                 <MenuItem
                     icon="briefcase-outline"

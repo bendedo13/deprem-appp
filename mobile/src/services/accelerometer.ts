@@ -3,15 +3,7 @@
  * Ham ivmeyi filtreleyerek düşme (yüksek frekans) ile deprem sarsıntısını ayırt etmeye yardımcı olur.
  */
 
-let AccelerometerModule: typeof import("expo-sensors").Accelerometer | null = null;
-try {
-    const expoSensors = require("expo-sensors");
-    if (expoSensors?.Accelerometer && typeof expoSensors.Accelerometer.addListener === "function") {
-        AccelerometerModule = expoSensors.Accelerometer;
-    }
-} catch {
-    console.warn("[accelerometer] expo-sensors yüklenemedi");
-}
+import { Accelerometer } from "expo-sensors";
 import { LOW_PASS_ALPHA } from "../config/constants";
 
 export type AccelerometerData = { x: number; y: number; z: number };
@@ -45,13 +37,22 @@ export function subscribeAccelerometer(
   callback: (data: AccelerometerData) => void,
   intervalMs: number = 16
 ): () => void {
-  if (!AccelerometerModule || typeof AccelerometerModule.addListener !== "function") {
-    console.warn("[accelerometer] İvmeölçer kullanılamıyor");
+  if (!Accelerometer || typeof Accelerometer.addListener !== "function") {
+    console.warn("[Accelerometer] Modül mevcut değil — subscription atlanıyor");
     return () => {};
   }
-  AccelerometerModule.setUpdateInterval(intervalMs);
-  const sub = AccelerometerModule.addListener((e) => {
-    callback({ x: e.x, y: e.y, z: e.z });
-  });
-  return () => sub.remove();
+  try {
+    Accelerometer.setUpdateInterval(intervalMs);
+  } catch (err) {
+    console.warn("[Accelerometer] setUpdateInterval hatası:", err);
+  }
+  try {
+    const sub = Accelerometer.addListener((e) => {
+      callback({ x: e.x, y: e.y, z: e.z });
+    });
+    return () => { try { sub.remove(); } catch { /* ignore */ } };
+  } catch (err) {
+    console.warn("[Accelerometer] addListener hatası:", err);
+    return () => {};
+  }
 }
