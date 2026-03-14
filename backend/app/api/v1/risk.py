@@ -25,8 +25,8 @@ class RiskScoreIn(BaseModel):
     """Risk skoru hesaplama girdisi."""
     latitude: float = Field(..., ge=-90.0, le=90.0, description="Enlem")
     longitude: float = Field(..., ge=-180.0, le=180.0, description="Boylam")
-    building_year: int = Field(default=2000, ge=1900, le=2026, description="Bina yapım yılı")
-    soil_class: str = Field(default="UNKNOWN", description="Zemin sınıfı (Z1, Z2, Z3, Z4, UNKNOWN)")
+    building_year: int = Field(default=2000, ge=1900, le=2100, description="Bina yapım yılı")
+    soil_class: str = Field(default="UNKNOWN", pattern="^(Z1|Z2|Z3|Z4|UNKNOWN)$", description="Zemin sınıfı (Z1, Z2, Z3, Z4, UNKNOWN)")
 
 
 class RiskScoreOut(BaseModel):

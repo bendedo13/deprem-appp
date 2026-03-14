@@ -28,7 +28,7 @@ class WhisperService:
         self.language = settings.GROQ_WHISPER_LANGUAGE
         self.timeout = 10  # saniye
 
-    async def transcribe(
+    def transcribe(
         self,
         audio_path: str,
         language: Optional[str] = None,

@@ -18,8 +18,10 @@ import {
     RefreshControl,
     Platform,
 } from "react-native";
+import { router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
+import { getMe } from "../../src/services/authService";
 import {
     getAdminStats,
     getUsers,
@@ -48,6 +50,31 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 
 export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+    const [authorized, setAuthorized] = useState(false);
+
+    useEffect(() => {
+        getMe()
+            .then((user) => {
+                if (user?.is_admin) {
+                    setAuthorized(true);
+                } else {
+                    Alert.alert("Yetkisiz Erişim", "Bu sayfaya erişim yetkiniz yok.");
+                    router.back();
+                }
+            })
+            .catch(() => {
+                Alert.alert("Hata", "Yetki kontrolü başarısız.");
+                router.back();
+            });
+    }, []);
+
+    if (!authorized) {
+        return (
+            <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+                <ActivityIndicator size="large" color="#FFD700" />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>

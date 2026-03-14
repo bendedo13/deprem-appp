@@ -438,7 +438,7 @@ async def sos_audio_sync(
             whisper = get_whisper_service()
             transcription = await asyncio.get_running_loop().run_in_executor(
                 None,
-                lambda: asyncio.run(whisper.transcribe(tmp_path, timeout=12)),
+                lambda: whisper.transcribe(tmp_path, timeout=12),
             )
             logger.info("[SOS Audio] Groq transkripsiyon OK: %d karakter", len(transcription))
         except (WhisperServiceError, Exception) as exc:
