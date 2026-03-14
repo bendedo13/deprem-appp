@@ -37,9 +37,22 @@ export function subscribeAccelerometer(
   callback: (data: AccelerometerData) => void,
   intervalMs: number = 16
 ): () => void {
-  Accelerometer.setUpdateInterval(intervalMs);
-  const sub = Accelerometer.addListener((e) => {
-    callback({ x: e.x, y: e.y, z: e.z });
-  });
-  return () => sub.remove();
+  if (!Accelerometer || typeof Accelerometer.addListener !== "function") {
+    console.warn("[Accelerometer] Modül mevcut değil — subscription atlanıyor");
+    return () => {};
+  }
+  try {
+    Accelerometer.setUpdateInterval(intervalMs);
+  } catch (err) {
+    console.warn("[Accelerometer] setUpdateInterval hatası:", err);
+  }
+  try {
+    const sub = Accelerometer.addListener((e) => {
+      callback({ x: e.x, y: e.y, z: e.z });
+    });
+    return () => { try { sub.remove(); } catch { /* ignore */ } };
+  } catch (err) {
+    console.warn("[Accelerometer] addListener hatası:", err);
+    return () => {};
+  }
 }

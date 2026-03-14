@@ -62,9 +62,22 @@ export function useShakeDetector(
     });
 
     useEffect(() => {
-        Accelerometer.setUpdateInterval(Math.floor(1000 / SAMPLE_RATE_HZ));
+        // Accelerometer guard — simülatörde veya izinsiz cihazda olmayabilir
+        if (!Accelerometer || typeof Accelerometer.addListener !== "function") {
+            console.warn("[ShakeDetector] Accelerometer mevcut değil — sensör izleme devre dışı");
+            return;
+        }
 
-        const sub = Accelerometer.addListener(({ x, y, z }) => {
+        try {
+            Accelerometer.setUpdateInterval(Math.floor(1000 / SAMPLE_RATE_HZ));
+        } catch (err) {
+            console.warn("[ShakeDetector] setUpdateInterval hatası:", err);
+        }
+
+        let sub: { remove: () => void } | null = null;
+
+        try {
+        sub = Accelerometer.addListener(({ x, y, z }) => {
             const now = Date.now();
             const raw = vectorMagnitude(x, y, z);
             const filtered = highPassFilter(raw, prevRaw.current, prevFiltered.current, HIGHPASS_ALPHA);
@@ -121,10 +134,14 @@ export function useShakeDetector(
                 }
             }
         });
+        } catch (err) {
+            console.warn("[ShakeDetector] addListener hatası:", err);
+            return;
+        }
 
         setState((s) => ({ ...s, isMonitoring: true }));
         return () => {
-            sub.remove();
+            if (sub) { try { sub.remove(); } catch { /* ignore */ } }
             setState((s) => ({ ...s, isMonitoring: false, isTriggered: false }));
         };
     }, [latitude, longitude]);

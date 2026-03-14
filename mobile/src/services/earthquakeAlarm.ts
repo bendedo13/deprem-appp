@@ -2,11 +2,29 @@
  * Deprem doğrulandığında FCM data payload ile tetiklenir.
  * Sessiz modda da çalar — bypassDnd + playsInSilentModeIOS aktif.
  * Android 13+ için POST_NOTIFICATIONS izni istenir.
+ *
+ * GÜVENLİK: require() ile asset yoksa Metro "undefined" döner ve crash yapar.
+ * Bu yüzden alarm.mp3 artık require() ile yüklenmez, bildirim sesi kullanılır.
  */
 
-import notifee, { AndroidImportance, AndroidCategory, AndroidVisibility } from "@notifee/react-native";
 import { Platform } from "react-native";
 import { Audio } from "expo-av";
+
+// Notifee güvenli import — native modül yoksa crash olmaz
+let _notifee: any = null;
+let _AndroidImportance: any = { HIGH: 4 };
+let _AndroidCategory: any = { ALARM: "alarm" };
+let _AndroidVisibility: any = { PUBLIC: 1 };
+
+try {
+  const mod = require("@notifee/react-native");
+  _notifee = mod?.default ?? mod;
+  if (mod?.AndroidImportance) _AndroidImportance = mod.AndroidImportance;
+  if (mod?.AndroidCategory) _AndroidCategory = mod.AndroidCategory;
+  if (mod?.AndroidVisibility) _AndroidVisibility = mod.AndroidVisibility;
+} catch {
+  console.warn("[EarthquakeAlarm] @notifee/react-native yüklenemedi — bildirimler fallback modunda");
+}
 
 const CHANNEL_ID = "earthquake_alarm";
 
@@ -23,8 +41,9 @@ export type EarthquakeConfirmedPayload = {
  */
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
-    const settings = await notifee.requestPermission();
-    return settings.authorizationStatus >= 1;
+    if (!_notifee?.requestPermission) return false;
+    const settings = await _notifee.requestPermission();
+    return settings?.authorizationStatus >= 1;
   } catch {
     return false;
   }
@@ -34,33 +53,40 @@ export async function requestNotificationPermission(): Promise<boolean> {
  * Bildirim kanalı: HIGH importance + bypassDnd (DND modunu geç).
  */
 export async function ensureEarthquakeChannel(): Promise<void> {
-  await notifee.createChannel({
-    id: CHANNEL_ID,
-    name: "Deprem Uyarısı",
-    description: "Deprem algılandığında tam ekran alarm gösterir",
-    importance: AndroidImportance.HIGH,
-    sound: "default",
-    vibration: true,
-    vibrationPattern: [0, 300, 200, 300, 200, 600],
-    bypassDnd: true,
-    visibility: AndroidVisibility.PUBLIC,
-  });
+  if (!_notifee?.createChannel) return;
+  try {
+    await _notifee.createChannel({
+      id: CHANNEL_ID,
+      name: "Deprem Uyarısı",
+      description: "Deprem algılandığında tam ekran alarm gösterir",
+      importance: _AndroidImportance.HIGH ?? 4,
+      sound: "default",
+      vibration: true,
+      vibrationPattern: [0, 300, 200, 300, 200, 600],
+      bypassDnd: true,
+      visibility: _AndroidVisibility.PUBLIC ?? 1,
+    });
+  } catch (err) {
+    console.warn("[EarthquakeAlarm] Kanal oluşturulamadı:", err);
+  }
 }
 
 /**
  * Sessiz modu bypass et — iOS silent switch + Android tam ses.
- * Gerçek alarm sesi çalar.
  */
 let alarmSoundObj: Audio.Sound | null = null;
 
 export async function playAlarmSound(): Promise<void> {
   try {
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: false,
-    });
+    // Audio modunu ayarla (ses yoksa bile bu gerekli)
+    if (Audio?.setAudioModeAsync) {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: false,
+      });
+    }
 
     // Önceki sesi temizle
     if (alarmSoundObj) {
@@ -68,28 +94,12 @@ export async function playAlarmSound(): Promise<void> {
       alarmSoundObj = null;
     }
 
-    // Sistem uyarı sesi çal
-    let soundSource: any;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      soundSource = require("../../../assets/alarm.mp3");
-    } catch {
-      soundSource = null;
-    }
-
-    if (soundSource) {
-      const { sound } = await Audio.Sound.createAsync(
-        soundSource,
-        { shouldPlay: true, isLooping: true, volume: 1.0 }
-      );
-      alarmSoundObj = sound;
-      console.log("[EarthquakeAlarm] Alarm sesi çalınıyor");
-    } else {
-      console.warn("[EarthquakeAlarm] alarm.mp3 bulunamadı, bildirim sesiyle devam ediliyor");
-    }
+    // NOT: alarm.mp3 require() ile yüklenmiyor — dosya yoksa Metro "undefined" döner
+    // ve "Requiring unknown module undefined" crash'ine neden olur.
+    // Bildirim sesi kullanılıyor (notifee kanalında sound: "default").
+    console.log("[EarthquakeAlarm] Ses modu ayarlandı, bildirim sesi kullanılacak");
   } catch (err) {
-    console.warn("[EarthquakeAlarm] Ses dosyası yüklenemedi, varsayılan bildirim sesi kullanılacak:", err);
-    // Ses dosyası olmasa bile audio mode ayarlanmış olacak
+    console.warn("[EarthquakeAlarm] Ses modu ayarlanamadı:", err);
   }
 }
 
@@ -114,32 +124,41 @@ export async function showEarthquakeAlarm(payload: EarthquakeConfirmedPayload): 
   await playAlarmSound();
   await ensureEarthquakeChannel();
 
+  if (!_notifee?.displayNotification) {
+    console.warn("[EarthquakeAlarm] Notifee yok — bildirim gösterilemedi");
+    return;
+  }
+
   const lat = payload.latitude ?? "";
   const lon = payload.longitude ?? "";
   const body = lat && lon
     ? `Konum: ${lat}, ${lon}`
     : "Cihaz sensörü deprem sinyali algıladı";
 
-  await notifee.displayNotification({
-    title: "⚠️ Deprem Uyarısı",
-    body,
-    android: {
-      channelId: CHANNEL_ID,
-      importance: AndroidImportance.HIGH,
-      category: AndroidCategory.ALARM,
-      visibility: AndroidVisibility.PUBLIC,
-      fullScreenAction: {
-        id: "default",
-        launchActivity: "default",
+  try {
+    await _notifee.displayNotification({
+      title: "⚠️ Deprem Uyarısı",
+      body,
+      android: {
+        channelId: CHANNEL_ID,
+        importance: _AndroidImportance.HIGH ?? 4,
+        category: _AndroidCategory.ALARM ?? "alarm",
+        visibility: _AndroidVisibility.PUBLIC ?? 1,
+        fullScreenAction: {
+          id: "default",
+          launchActivity: "default",
+        },
+        pressAction: { id: "default" },
+        autoCancel: false,
       },
-      pressAction: { id: "default" },
-      autoCancel: false,
-    },
-    ios: {
-      sound: "default",
-      critical: true,
-      criticalVolume: 1.0,
-    },
-  });
-  console.log("[EarthquakeAlarm] Tam ekran bildirim gönderildi");
+      ios: {
+        sound: "default",
+        critical: true,
+        criticalVolume: 1.0,
+      },
+    });
+    console.log("[EarthquakeAlarm] Tam ekran bildirim gönderildi");
+  } catch (err) {
+    console.warn("[EarthquakeAlarm] Bildirim gönderilemedi:", err);
+  }
 }

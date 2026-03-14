@@ -18,9 +18,17 @@
  */
 
 import { Vibration } from "react-native";
-import { Audio } from "expo-av";
 import { showEarthquakeAlarm } from "./earthquakeAlarm";
 import { sendSOSAlert } from "./sosAlertService";
+
+// expo-av güvenli import — modül yoksa crash olmaz
+let Audio: any = null;
+try {
+    const expoAv = require("expo-av");
+    Audio = expoAv?.Audio ?? null;
+} catch {
+    console.warn("[Simulation] expo-av yüklenemedi — ses modu bypass devre dışı");
+}
 
 export interface SimulationResult {
     notificationSent: boolean;
@@ -39,6 +47,10 @@ export interface SimulationResult {
  */
 async function configureSilentModeBypass(): Promise<boolean> {
     try {
+        if (!Audio?.setAudioModeAsync) {
+            console.warn("[Simulation] [1/5] Audio modülü yok — ses modu atlandı");
+            return false;
+        }
         await Audio.setAudioModeAsync({
             allowsRecordingIOS: false,
             playsInSilentModeIOS: true,   // ← Ana özellik: sessiz modda çalar
