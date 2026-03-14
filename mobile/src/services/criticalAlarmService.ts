@@ -5,6 +5,7 @@
 
 import { showEarthquakeAlarm } from "./earthquakeAlarm";
 import { playAlarmSound, stopAlarmSound } from "./earthquakeAlarm";
+import { setAlarmVolumeMax, restoreAlarmVolume } from "./nuclearAlarmBridge";
 
 type Listener = (playing: boolean) => void;
 const listeners: Listener[] = [];
@@ -43,6 +44,7 @@ export async function startCriticalAlarm(latitude?: string, longitude?: string):
     notify(true);
 
     try {
+        await setAlarmVolumeMax();
         await playAlarmSound();
         await showEarthquakeAlarm({
             type: "EARTHQUAKE_CONFIRMED",
@@ -63,6 +65,7 @@ export async function stopCriticalAlarm(): Promise<void> {
     if (!isPlaying) return;
     try {
         await stopAlarmSound();
+        await restoreAlarmVolume();
     } catch (e) {
         console.warn("[CriticalAlarm] stopAlarmSound error:", e);
     }
