@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
 
     // Empty state
     emptyBox: { alignItems: "center", paddingTop: 60, paddingBottom: 30 },
-    emptyTitle: { color: Colors.text.secondary, fontSize: Typography.sizes.lg, fontWeight: "700", marginTop: 16 },
+    emptyTitle: { color: Colors.text.muted, fontSize: Typography.sizes.lg, fontWeight: "700", marginTop: 16 },
     emptySubtitle: { color: Colors.text.muted, fontSize: Typography.sizes.sm, marginTop: 6, textAlign: "center" },
     retryBtn: {
         marginTop: 16,

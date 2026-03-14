@@ -29,7 +29,7 @@ export default function MenuScreen() {
 
         // Admin kontrolü
         getMe()
-            .then((user: any) => {
+            .then((user) => {
                 if (mounted && user?.is_admin) setIsAdmin(true);
             })
             .catch(() => {});

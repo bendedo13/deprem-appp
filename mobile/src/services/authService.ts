@@ -11,10 +11,20 @@ import { api, TOKEN_KEY } from "./api";
 export interface UserOut {
     id: number;
     email: string;
+    name: string | null;
+    phone: string | null;
+    avatar: string | null;
+    plan: string;
+    is_active: boolean;
+    is_admin: boolean;
     fcm_token: string | null;
     latitude: number | null;
     longitude: number | null;
     created_at: string;
+    subscription_plan: string;
+    subscription_expires_at: string | null;
+    trial_used: boolean;
+    is_pro: boolean;
 }
 
 export interface TokenOut {

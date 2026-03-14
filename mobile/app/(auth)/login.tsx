@@ -26,7 +26,7 @@ import {
     getFirebaseAuthErrorKey,
     getIdToken,
 } from "../../src/services/firebaseAuthService";
-import { syncFirebaseToken } from "../../src/services/authService";
+import { syncFirebaseToken, login as backendLogin } from "../../src/services/authService";
 import { Colors, Typography, Spacing, BorderRadius } from "../../src/constants/theme";
 
 export default function LoginScreen() {
@@ -44,6 +44,7 @@ export default function LoginScreen() {
         }
         setLoading(true);
         try {
+            // Önce Firebase auth dene
             await firebaseLogin(email.trim().toLowerCase(), password);
 
             const idToken = await getIdToken();
@@ -53,15 +54,21 @@ export default function LoginScreen() {
 
             await syncFirebaseToken(idToken);
             router.replace("/(tabs)");
-        } catch (err: unknown) {
-            const maybeAxios = err as { response?: { data?: { detail?: string } } };
-            const backendDetail = maybeAxios.response?.data?.detail;
+        } catch (firebaseErr: unknown) {
+            // Firebase başarısız olduysa doğrudan backend login dene (admin kullanıcılar için)
+            try {
+                await backendLogin(email.trim().toLowerCase(), password);
+                router.replace("/(tabs)");
+            } catch (backendErr: unknown) {
+                const maybeAxios = backendErr as { response?: { data?: { detail?: string } } };
+                const backendDetail = maybeAxios.response?.data?.detail;
 
-            if (typeof backendDetail === "string" && backendDetail.length > 0) {
-                Alert.alert(t("auth.error_login"), backendDetail);
-            } else {
-                const errorKey = getFirebaseAuthErrorKey(err);
-                Alert.alert(t("auth.error_login"), t(errorKey));
+                if (typeof backendDetail === "string" && backendDetail.length > 0) {
+                    Alert.alert(t("auth.error_login"), backendDetail);
+                } else {
+                    const errorKey = getFirebaseAuthErrorKey(firebaseErr);
+                    Alert.alert(t("auth.error_login"), t(errorKey));
+                }
             }
         } finally {
             setLoading(false);
