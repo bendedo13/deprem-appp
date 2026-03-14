@@ -6,7 +6,7 @@ rules.md: type hints, Pydantic validation, async, logging, JWT auth, max 50 sat�
 import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,7 @@ from app.schemas.user import (
 from app.schemas.emergency_contact import EmergencyContactIn, EmergencyContactOut
 from app.schemas.notification_pref import NotificationPrefIn, NotificationPrefOut
 from app.services.auth import hash_password, verify_password, create_access_token, decode_token, verify_firebase_token
+from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -379,7 +380,9 @@ async def update_preferences(
     status_code=status.HTTP_200_OK,
     summary="Ben İyiyim — acil kişilere bildirim gönder",
 )
+@limiter.limit("2/minute")
 async def i_am_safe(
+    request: Request,
     body: ImSafeRequest = Body(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

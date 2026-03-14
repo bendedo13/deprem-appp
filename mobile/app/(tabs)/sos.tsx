@@ -33,6 +33,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "../../src/constants/theme";
 import { uploadSOSAudio, sendIAmSafe } from "../../src/services/sosService";
+import { isOnline, triggerOfflineSOS, cacheLastLocation, cacheEmergencyContacts } from "../../src/services/offlineSosService";
 
 const HOLD_MS = 2000;
 const MAX_RECORD_MS = 15_000;
@@ -46,11 +47,19 @@ type Phase =
     | "safe_sending"
     | "safe_done";
 
+const SOS_COOLDOWN_SEC = 60;
+const SAFE_COOLDOWN_SEC = 30;
+
 export default function SOSTabScreen() {
     const [phase, setPhase] = useState<Phase>("idle");
     const [holdProgress, setHoldProgress] = useState(0);
     const [recordSec, setRecordSec] = useState(0);
     const [resultMsg, setResultMsg] = useState("");
+
+    // Cooldown — art arda basımı hem frontend hem backend engeller
+    const [sosCooldown, setSosCooldown] = useState(0);
+    const [safeCooldown, setSafeCooldown] = useState(0);
+    const [networkOnline, setNetworkOnline] = useState(true);
 
     const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const recordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,7 +72,30 @@ export default function SOSTabScreen() {
     const sosAnim = useRef(new Animated.Value(1)).current;
     const safeAnim = useRef(new Animated.Value(1)).current;
 
-    // Mikrofon + konum izinleri
+    // SOS cooldown geri sayım
+    useEffect(() => {
+        if (sosCooldown <= 0) return;
+        const t = setInterval(() => setSosCooldown((c) => Math.max(0, c - 1)), 1000);
+        return () => clearInterval(t);
+    }, [sosCooldown > 0]);
+
+    // Safe cooldown geri sayım
+    useEffect(() => {
+        if (safeCooldown <= 0) return;
+        const t = setInterval(() => setSafeCooldown((c) => Math.max(0, c - 1)), 1000);
+        return () => clearInterval(t);
+    }, [safeCooldown > 0]);
+
+    // Network durumu takibi
+    useEffect(() => {
+        isOnline().then(setNetworkOnline).catch(() => {});
+        const interval = setInterval(() => {
+            isOnline().then(setNetworkOnline).catch(() => {});
+        }, 10_000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Mikrofon + konum izinleri + offline cache
     useEffect(() => {
         (async () => {
             try {
@@ -72,8 +104,24 @@ export default function SOSTabScreen() {
                 if (status === "granted") {
                     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
                     locationRef.current = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                    cacheLastLocation(pos.coords.latitude, pos.coords.longitude).catch(() => {});
                 }
             } catch { /* Konum olmasa da SOS çalışır */ }
+
+            // Acil kişi listesini offline cache'e al
+            try {
+                const { api } = require("../../src/services/api");
+                const { data } = await api.get("/api/v1/users/me/contacts");
+                if (Array.isArray(data)) {
+                    const mapped = data
+                        .filter((c: { phone_number?: string; is_active?: boolean }) => c.phone_number && c.is_active !== false)
+                        .map((c: { name?: string; phone_number: string }) => ({
+                            name: c.name || "Acil Kişi",
+                            phone: c.phone_number,
+                        }));
+                    await cacheEmergencyContacts(mapped);
+                }
+            } catch { /* Cache yapılamazsa online akışta sorun yok */ }
         })();
     }, []);
 
@@ -94,6 +142,10 @@ export default function SOSTabScreen() {
     // ── Basılı Tutma Başla ────────────────────────────────────────────────────
     const onPressIn = useCallback(() => {
         if (phase !== "idle") return;
+        if (sosCooldown > 0) {
+            Alert.alert("Bekleme Süresi", `Yeni SOS gönderebilmek için ${sosCooldown} saniye bekleyin.`);
+            return;
+        }
         setPhase("holding");
         setHoldProgress(0);
         Vibration.vibrate(30);
@@ -109,7 +161,7 @@ export default function SOSTabScreen() {
                 startRecording();
             }
         }, 40);
-    }, [phase]);
+    }, [phase, sosCooldown]);
 
     // ── Parmak Kaldırma ───────────────────────────────────────────────────────
     const onPressOut = useCallback(() => {
@@ -123,7 +175,7 @@ export default function SOSTabScreen() {
         if (phase === "recording") {
             stopAndUpload();
         }
-    }, [phase]);
+    }, [phase, safeCooldown]);
 
     // ── Ses Kaydı Başlat ──────────────────────────────────────────────────────
     const startRecording = useCallback(async () => {
@@ -198,7 +250,20 @@ export default function SOSTabScreen() {
                 try {
                     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
                     locationRef.current = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                    cacheLastLocation(pos.coords.latitude, pos.coords.longitude).catch(() => {});
                 } catch { /* Konum olmadan devam */ }
+            }
+
+            // Offline kontrolü — internet yoksa SMS fallback
+            const online = await isOnline();
+            if (!online) {
+                const sent = await triggerOfflineSOS();
+                setPhase(sent ? "done" : "idle");
+                if (sent) {
+                    setResultMsg("📴 İnternetsiz S.O.S\nSMS uygulaması ile acil kişilerinize mesaj gönderildi.");
+                    setSosCooldown(SOS_COOLDOWN_SEC);
+                }
+                return;
             }
 
             const result = await uploadSOSAudio(
@@ -210,6 +275,7 @@ export default function SOSTabScreen() {
             if (result.success) {
                 setResultMsg(`✅ SOS İletildi\n${result.transcription ? `"${result.transcription.slice(0, 80)}..."` : ""}\n${result.notifiedContacts} kişiye ulaştı.`);
                 setPhase("done");
+                setSosCooldown(SOS_COOLDOWN_SEC);
                 Vibration.vibrate([0, 200, 100, 200]);
             } else {
                 throw new Error(result.error ?? result.message ?? "Gönderilemedi");
@@ -230,6 +296,10 @@ export default function SOSTabScreen() {
     // ── Ben İyiyim ────────────────────────────────────────────────────────────
     const handleIAmSafe = useCallback(async () => {
         if (phase !== "idle" && phase !== "done") return;
+        if (safeCooldown > 0) {
+            Alert.alert("Bekleme Süresi", `Yeni bildirim gönderebilmek için ${safeCooldown} saniye bekleyin.`);
+            return;
+        }
         setPhase("safe_sending");
 
         Animated.sequence([
@@ -237,11 +307,26 @@ export default function SOSTabScreen() {
             Animated.timing(safeAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
         ]).start();
 
+        // Offline kontrolü
+        const online = await isOnline();
+        if (!online) {
+            const sent = await triggerOfflineSOS();
+            if (sent) {
+                setResultMsg("📴 İnternetsiz Bildirim\nSMS uygulaması ile güvenlik mesajı gönderildi.");
+                setPhase("safe_done");
+                setSafeCooldown(SAFE_COOLDOWN_SEC);
+            } else {
+                setPhase("idle");
+            }
+            return;
+        }
+
         const result = await sendIAmSafe();
 
         if (result.success && result.notifiedContacts > 0) {
             setResultMsg(`✅ Güvenlik Bildirimi Gönderildi\n${result.notifiedContacts} kişi bilgilendirildi.`);
             setPhase("safe_done");
+            setSafeCooldown(SAFE_COOLDOWN_SEC);
         } else if (result.success && result.notifiedContacts === 0) {
             Alert.alert("Acil Kişi Yok", "Lütfen Acil Kişiler listesine numara ekleyin.", [
                 { text: "Ekle", onPress: () => router.push("/more/contacts") },
@@ -252,7 +337,7 @@ export default function SOSTabScreen() {
                 { text: "Tamam", onPress: () => setPhase("idle") },
             ]);
         }
-    }, [phase]);
+    }, [phase, safeCooldown]);
 
     const resetPhase = useCallback(() => {
         setPhase("idle");
@@ -270,6 +355,8 @@ export default function SOSTabScreen() {
     }, []);
 
     const isActive = phase !== "idle" && phase !== "done" && phase !== "safe_done";
+    const isSosCooling = sosCooldown > 0;
+    const isSafeCooling = safeCooldown > 0;
     const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
 
     // ── Sonuç Ekranı ──────────────────────────────────────────────────────────
@@ -309,6 +396,14 @@ export default function SOSTabScreen() {
                 <Text style={s.headerTitle}>Acil Durum</Text>
             </View>
 
+            {/* Offline Banner */}
+            {!networkOnline && (
+                <View style={s.offlineBanner}>
+                    <MaterialCommunityIcons name="wifi-off" size={16} color="#fff" />
+                    <Text style={s.offlineBannerText}>Çevrimdışı — SOS, SMS ile gönderilecek</Text>
+                </View>
+            )}
+
             {/* Bilgi Kartı */}
             <View style={s.infoCard}>
                 <MaterialCommunityIcons name="microphone" size={16} color={Colors.accent} />
@@ -324,11 +419,16 @@ export default function SOSTabScreen() {
 
                 <Animated.View style={{ transform: [{ scale: phase === "recording" ? pulseAnim : sosAnim }] }}>
                     <TouchableOpacity
-                        style={[s.sosBtn, phase === "recording" && s.sosBtnRecording, phase === "uploading" && s.sosBtnUploading]}
+                        style={[
+                            s.sosBtn,
+                            phase === "recording" && s.sosBtnRecording,
+                            phase === "uploading" && s.sosBtnUploading,
+                            isSosCooling && s.sosBtnCooldown,
+                        ]}
                         onPressIn={onPressIn}
                         onPressOut={onPressOut}
                         activeOpacity={1}
-                        disabled={phase === "uploading" || phase === "safe_sending"}
+                        disabled={phase === "uploading" || phase === "safe_sending" || isSosCooling}
                     >
                         {phase === "uploading" ? (
                             <>
@@ -340,6 +440,12 @@ export default function SOSTabScreen() {
                                 <MaterialCommunityIcons name="microphone" size={44} color="#fff" />
                                 <Text style={s.sosBtnText}>S.O.S</Text>
                                 <Text style={s.sosBtnSub}>{recordSec}s / 15s</Text>
+                            </>
+                        ) : isSosCooling ? (
+                            <>
+                                <MaterialCommunityIcons name="timer-sand" size={36} color="rgba(255,255,255,0.7)" />
+                                <Text style={s.sosBtnText}>{sosCooldown}s</Text>
+                                <Text style={s.sosBtnSub}>Bekleniyor</Text>
                             </>
                         ) : (
                             <>
@@ -366,18 +472,20 @@ export default function SOSTabScreen() {
             {/* Ben İyiyim Butonu */}
             <Animated.View style={[s.safeArea, { transform: [{ scale: safeAnim }] }]}>
                 <TouchableOpacity
-                    style={[s.safeBtn, (phase === "safe_sending") && s.safeBtnLoading]}
+                    style={[s.safeBtn, (phase === "safe_sending") && s.safeBtnLoading, isSafeCooling && s.safeBtnCooldown]}
                     onPress={handleIAmSafe}
                     activeOpacity={0.85}
-                    disabled={isActive}
+                    disabled={isActive || isSafeCooling}
                 >
                     {phase === "safe_sending" ? (
                         <ActivityIndicator size="small" color="#fff" />
+                    ) : isSafeCooling ? (
+                        <MaterialCommunityIcons name="timer-sand" size={20} color="rgba(255,255,255,0.6)" />
                     ) : (
                         <MaterialCommunityIcons name="shield-check" size={24} color="#fff" />
                     )}
                     <Text style={s.safeBtnText}>
-                        {phase === "safe_sending" ? "Gönderiliyor..." : "✅ Ben İyiyim"}
+                        {phase === "safe_sending" ? "Gönderiliyor..." : isSafeCooling ? `Bekleniyor (${safeCooldown}s)` : "Ben İyiyim"}
                     </Text>
                 </TouchableOpacity>
                 <Text style={s.safeBtnHint}>Acil kişilere güvenlik bildirimi gönderir</Text>
@@ -420,6 +528,9 @@ const s = StyleSheet.create({
     header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border.glass },
     headerTitle: { fontSize: Typography.sizes.xl, fontWeight: "800", color: Colors.text.dark },
 
+    offlineBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#D97706", paddingVertical: 10, paddingHorizontal: Spacing.lg, marginHorizontal: Spacing.lg, marginTop: Spacing.sm, borderRadius: BorderRadius.lg },
+    offlineBannerText: { color: "#fff", fontSize: Typography.sizes.sm, fontWeight: "700" },
+
     infoCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: Colors.accent + "10", borderWidth: 1, borderColor: Colors.accent + "25", borderRadius: BorderRadius.xl, padding: Spacing.md, margin: Spacing.lg, marginBottom: 0 },
     infoText: { flex: 1, color: Colors.accent, fontSize: Typography.sizes.sm, lineHeight: 20 },
 
@@ -441,6 +552,7 @@ const s = StyleSheet.create({
     },
     sosBtnRecording: { backgroundColor: "#B91C1C" },
     sosBtnUploading: { backgroundColor: Colors.dangerDark, opacity: 0.9 },
+    sosBtnCooldown: { backgroundColor: Colors.text.muted, opacity: 0.5 },
     sosBtnText: { color: "#fff", fontSize: 20, fontWeight: "900", letterSpacing: 2 },
     sosBtnSub: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "600" },
 
@@ -456,6 +568,7 @@ const s = StyleSheet.create({
         ...Shadows.md, shadowColor: Colors.primary,
     },
     safeBtnLoading: { opacity: 0.8 },
+    safeBtnCooldown: { backgroundColor: Colors.text.muted, opacity: 0.5 },
     safeBtnText: { color: "#fff", fontSize: Typography.sizes.md + 1, fontWeight: "900" },
     safeBtnHint: { fontSize: Typography.sizes.xs, color: Colors.text.muted, fontWeight: "500", textAlign: "center" },
 

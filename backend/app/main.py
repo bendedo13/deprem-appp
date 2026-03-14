@@ -16,8 +16,11 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi import HTTPException
 
+from slowapi.errors import RateLimitExceeded
+
 from app.config import settings
 from app.core.redis import get_redis, close_redis
+from app.core.rate_limit import limiter
 from app.api.v1 import earthquakes, users, notifications, analytics, risk, seismic, admin, sos, subscription
 from app.api.websocket import websocket_router
 from app.tasks.fetch_earthquakes import start_periodic_fetch
@@ -50,6 +53,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate Limiter — Twilio fatura koruması için SOS/SMS rotalarına uygulanır
+app.state.limiter = limiter
+
 # CORS — wildcard + credentials birlikte kullanılamaz (HTTP spec).
 # DEBUG modunda localhost origin'leri, production'da ALLOWED_ORIGINS_LIST kullanılır.
 _debug_origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
@@ -66,6 +72,18 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 def _error_body(detail: str, code: Optional[str] = None) -> dict:
     """Standart hata JSON: ok=False, detail."""
     return {"ok": False, "detail": detail, **({"code": code} if code else {})}
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """429 Too Many Requests — Twilio koruma katmanı."""
+    return JSONResponse(
+        status_code=429,
+        content=_error_body(
+            detail="Çok fazla istek gönderdiniz. Lütfen 1 dakika bekleyip tekrar deneyin.",
+            code="rate_limit_exceeded",
+        ),
+    )
 
 
 @app.exception_handler(HTTPException)

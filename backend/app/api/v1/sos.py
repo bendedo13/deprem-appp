@@ -9,7 +9,7 @@ import tempfile
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +30,7 @@ from app.services.audio_storage import get_audio_storage
 from app.services.twilio_fallback import send_waterfall_emergency
 from app.services.whisper_service import get_whisper_service, WhisperServiceError
 from app.core.redis import get_redis
+from app.core.rate_limit import limiter
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,9 @@ ALLOWED_AUDIO_FORMATS = {".mp3", ".wav", ".m4a", ".ogg", ".webm"}
     status_code=status.HTTP_202_ACCEPTED,
     summary="S.O.S ses kaydını analiz et (async)"
 )
+@limiter.limit("2/minute")
 async def analyze_sos(
+    request: Request,
     audio_file: UploadFile = File(..., description="Ses dosyası (MP3, WAV, M4A)"),
     timestamp: str = Form(..., description="ISO 8601 timestamp"),
     latitude: float = Form(..., description="GPS latitude"),
@@ -130,7 +133,9 @@ async def analyze_sos(
         "senkron sonuç döner. Numara yanlışsa veya Twilio hatası olursa 400 döner."
     ),
 )
+@limiter.limit("3/minute")
 async def test_sos_twilio(
+    request: Request,
     payload: SOSTestRequest,
     current_user: User = Depends(get_current_user),
 ) -> SOSTestResponse:
@@ -383,7 +388,9 @@ async def get_sos_audio(
         "Celery kullanmaz — anında sonuç döner."
     ),
 )
+@limiter.limit("1/minute")
 async def sos_audio_sync(
+    request: Request,
     audio_file: UploadFile = File(..., description="Ses dosyası (.m4a/.wav/.mp3)"),
     latitude: float = Form(..., description="GPS latitude"),
     longitude: float = Form(..., description="GPS longitude"),
@@ -534,7 +541,9 @@ async def sos_audio_sync(
     status_code=status.HTTP_200_OK,
     summary="Ben İyiyim — acil kişilere güvenlik bildirimi gönder",
 )
+@limiter.limit("2/minute")
 async def i_am_safe_sos(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SOSSafeResponse:

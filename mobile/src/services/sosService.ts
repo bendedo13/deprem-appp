@@ -25,6 +25,7 @@ export interface SOSAudioResult {
     fallbackUsed: boolean;
     message: string;
     error?: string;
+    rateLimited?: boolean;
 }
 
 export interface SOSSafeResult {
@@ -34,6 +35,7 @@ export interface SOSSafeResult {
     smsSent: number;
     message: string;
     error?: string;
+    rateLimited?: boolean;
 }
 
 // Eski tip — geriye dönük uyumluluk için
@@ -113,11 +115,11 @@ export async function uploadSOSAudio(
         };
 
     } catch (err: unknown) {
-        const axErr = err as { response?: { data?: { detail?: string } }; message?: string };
-        const errMsg =
-            axErr?.response?.data?.detail ??
-            axErr?.message ??
-            "Ses yüklenirken hata oluştu";
+        const axErr = err as { response?: { status?: number; data?: { detail?: string; code?: string } }; message?: string };
+        const isRateLimited = axErr?.response?.status === 429;
+        const errMsg = isRateLimited
+            ? "Çok sık istek gönderdiniz. Lütfen 1 dakika bekleyin."
+            : (axErr?.response?.data?.detail ?? axErr?.message ?? "Ses yüklenirken hata oluştu");
         console.error("[SOSService] uploadSOSAudio hatası:", errMsg);
         return {
             success: false,
@@ -128,6 +130,7 @@ export async function uploadSOSAudio(
             fallbackUsed: false,
             message: errMsg,
             error: errMsg,
+            rateLimited: isRateLimited,
         };
     } finally {
         // Geçici ses dosyasını temizle
@@ -168,11 +171,11 @@ export async function sendIAmSafe(): Promise<SOSSafeResult> {
         };
 
     } catch (err: unknown) {
-        const axErr = err as { response?: { data?: { detail?: string } }; message?: string };
-        const errMsg =
-            axErr?.response?.data?.detail ??
-            axErr?.message ??
-            "Ben İyiyim bildirimi gönderilemedi";
+        const axErr = err as { response?: { status?: number; data?: { detail?: string } }; message?: string };
+        const isRateLimited = axErr?.response?.status === 429;
+        const errMsg = isRateLimited
+            ? "Çok sık bildirim gönderdiniz. Lütfen 30 saniye bekleyin."
+            : (axErr?.response?.data?.detail ?? axErr?.message ?? "Ben İyiyim bildirimi gönderilemedi");
         console.error("[SOSService] sendIAmSafe hatası:", errMsg);
         return {
             success: false,
@@ -181,6 +184,7 @@ export async function sendIAmSafe(): Promise<SOSSafeResult> {
             smsSent: 0,
             message: errMsg,
             error: errMsg,
+            rateLimited: isRateLimited,
         };
     }
 }
