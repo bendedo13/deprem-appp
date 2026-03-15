@@ -5,8 +5,8 @@
  *  uploadSOSAudio() → POST /api/v1/sos/audio (multipart/form-data)
  *    → Backend: Groq Whisper → Twilio Şelale → Anında sonuç
  *
- *  sendIAmSafe() → POST /api/v1/sos/safe
- *    → Backend: Twilio Şelale → "Ben İyiyim" mesajı
+ *  sendIAmSafe() → POST /api/v1/users/i-am-safe
+ *    → Backend: Hibrit Twilio (WhatsApp + SMS) → "Ben İyiyim" mesajı
  *
  * Tüm hatalar try-catch ile yakalanır — uygulama ASLA çökmez.
  */
@@ -143,24 +143,29 @@ export async function uploadSOSAudio(
 
 /**
  * "Ben İyiyim" bildirimi gönderir.
- * Ses kaydı veya GPS gerekmez.
+ * Birleşik endpoint: /api/v1/users/i-am-safe (hibrit SMS + WhatsApp)
  */
 export async function sendIAmSafe(): Promise<SOSSafeResult> {
     try {
         const { data } = await api.post<{
-            success: boolean;
-            notified_contacts: number;
-            whatsapp_sent: number;
-            sms_sent: number;
+            status: string;
             message: string;
+            notified_contacts: number;
+            sms_sent: number;
+            whatsapp_sent: number;
+            channel_used: string;
         }>(
-            "/api/v1/sos/safe",
-            {},
+            "/api/v1/users/i-am-safe",
+            {
+                custom_message: "Ben iyiyim, merak etmeyin.",
+                include_location: false,
+                channel: "hybrid",
+            },
             { timeout: 20_000 }
         );
 
         return {
-            success: data.success,
+            success: data.status === "ok",
             notifiedContacts: data.notified_contacts ?? 0,
             whatsappSent: data.whatsapp_sent ?? 0,
             smsSent: data.sms_sent ?? 0,

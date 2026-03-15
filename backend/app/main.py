@@ -50,13 +50,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — wildcard + credentials birlikte kullanılamaz (HTTP spec).
-# DEBUG modunda localhost origin'leri, production'da ALLOWED_ORIGINS_LIST kullanılır.
-_debug_origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
+# CORS — Mobil uygulama (React Native / Expo) origin göndermez,
+# bu yüzden wildcard gereklidir. credentials=False ile güvenli.
+# JWT token Authorization header ile gönderilir (cookie değil).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_debug_origins if settings.DEBUG else settings.ALLOWED_ORIGINS_LIST,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
 )

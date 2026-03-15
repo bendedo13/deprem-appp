@@ -220,23 +220,29 @@ export default function SensorScreen() {
         setSimulatedRatio(8.5);
 
         try {
-            if (settings.loudAlarmEnabled) await startTestAlarmSound();
-            if (settings.vibrationEnabled) startTestVibration();
+            if (settings.loudAlarmEnabled) {
+                try { await startTestAlarmSound(); } catch { /* ses başlatılamazsa devam */ }
+            }
+            if (settings.vibrationEnabled) {
+                try { startTestVibration(); } catch { /* titreşim başlatılamazsa devam */ }
+            }
 
-            sendTestSOS()
-                .then((res) => {
-                    setTestSosResult(res);
-                    if (res.success) {
-                        showToast(`${res.notifiedContacts} kişiye test mesajı gönderildi`, "success");
-                    } else if (res.error) {
-                        Alert.alert("Test SMS'i gönderilemedi", res.error);
-                    }
-                })
-                .catch(() => {
-                    Alert.alert("Test SMS'i gönderilemedi", "Bağlantı hatası. Lütfen tekrar deneyin.");
-                });
+            try {
+                const res = await sendTestSOS();
+                setTestSosResult(res);
+                if (res.success) {
+                    showToast(`${res.notifiedContacts} kişiye test mesajı gönderildi`, "success");
+                } else if (res.error) {
+                    Alert.alert("Test SMS'i gönderilemedi", res.error);
+                }
+            } catch {
+                Alert.alert("Test SMS'i gönderilemedi", "Bağlantı hatası. Lütfen tekrar deneyin.");
+            }
         } catch (err) {
             Alert.alert("Test hatası", err instanceof Error ? err.message : String(err));
+            try { await stopTestCompletely(); } catch { /* ignore */ }
+            setSimulating(false);
+            setSimulatedRatio(null);
         }
     }, [simulating, settings, showToast]);
 

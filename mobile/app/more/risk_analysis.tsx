@@ -107,22 +107,26 @@ export default function RiskAnalysisScreen() {
             });
             setResult(data);
         } catch (err: unknown) {
-            const ax = err as { code?: string; message?: string; response?: { status?: number; data?: { detail?: string | unknown } } };
+            const ax = err as { code?: string; message?: string; response?: { status?: number; data?: { detail?: string | unknown; ok?: boolean } } };
             const status = ax?.response?.status;
             const detail = ax?.response?.data?.detail;
             let msg: string;
             if (ax?.code === "ECONNABORTED" || ax?.message?.toLowerCase?.().includes("timeout")) {
-                msg = "İstek zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.";
-            } else if (status === 401) {
-                msg = "Risk analizi için giriş gerekmiyor; sunucu erişilemiyor olabilir.";
+                msg = "İstek zaman aşımına uğradı. Lütfen tekrar deneyin.";
+            } else if (status === 500 && typeof detail === "string") {
+                msg = detail;
+            } else if (status === 422 && typeof detail === "string") {
+                msg = `Geçersiz veri: ${detail}`;
             } else if (detail != null) {
                 msg = typeof detail === "string" ? detail : Array.isArray(detail)
                     ? (detail as { msg?: string }[]).map((d) => d?.msg).filter(Boolean).join(", ") || "Sunucu hatası."
                     : "Sunucu hatası. Lütfen tekrar deneyin.";
-            } else if (ax?.message && !ax?.message.includes("Network Error")) {
+            } else if (ax?.message?.includes("Network Error")) {
+                msg = "Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin ve tekrar deneyin.";
+            } else if (ax?.message) {
                 msg = String(ax.message);
             } else {
-                msg = "Sunucuya ulaşılamadı. VPN veya internet bağlantınızı kontrol edin.";
+                msg = "Bilinmeyen bir hata oluştu. Lütfen tekrar deneyin.";
             }
             Alert.alert("Hata", msg);
         } finally {

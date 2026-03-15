@@ -83,12 +83,18 @@ export default function ContactsScreen() {
     }, [fetchContacts]);
 
     const extractErrorMessage = (error: unknown): string => {
-        const res = error as { response?: { data?: { detail?: string | { msg?: string }[] } } };
+        const res = error as { response?: { data?: { detail?: string | { msg?: string }[]; ok?: boolean } }; message?: string; code?: string };
         const detail = res?.response?.data?.detail;
         if (typeof detail === "string") return detail;
         if (Array.isArray(detail)) {
             const msgs = detail.map((d: { msg?: string }) => d?.msg).filter(Boolean);
             return msgs.length ? msgs.join("\n") : "Kişi eklenemedi. Bilgileri kontrol edin.";
+        }
+        if (res?.code === "ECONNABORTED" || res?.message?.includes("timeout")) {
+            return "İstek zaman aşımına uğradı. Lütfen tekrar deneyin.";
+        }
+        if (res?.message?.includes("Network Error")) {
+            return "Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.";
         }
         return "Kişi eklenemedi. Bağlantıyı kontrol edip tekrar deneyin.";
     };

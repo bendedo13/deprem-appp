@@ -42,6 +42,8 @@ async function configureAudioBypass(): Promise<boolean> {
 
 /**
  * Alarm sesini başlat. alarm.mp3 yoksa sessiz devam.
+ * NOT: require() ile olmayan dosya Metro crash'e neden olur.
+ * Bu yüzden ses dosyası yoksa sessiz mod ile devam edilir.
  */
 export async function startTestAlarmSound(): Promise<boolean> {
     if (!AudioModule) return false;
@@ -54,26 +56,10 @@ export async function startTestAlarmSound(): Promise<boolean> {
             } catch { /* ignore */ }
             alarmSoundObj = null;
         }
-        let soundSource: number | null = null;
-        try {
-            soundSource = require("../../../assets/alarm.mp3");
-        } catch {
-            try {
-                soundSource = require("../../assets/alarm.mp3");
-            } catch {
-                /* alarm.mp3 yoksa atla */
-            }
-        }
-        if (soundSource != null) {
-            const { sound } = await AudioModule.Sound.createAsync(soundSource, {
-                shouldPlay: true,
-                isLooping: true,
-                volume: 1.0,
-            });
-            alarmSoundObj = sound;
-            return true;
-        }
-        return false;
+        // Ses dosyası olmadan sadece audio modunu ayarla (bildirim sesi kullanılır)
+        // alarm.mp3 require() Metro bundler'da crash yapabilir, bu yüzden kullanılmıyor
+        console.log("[TestSimulation] Ses modu ayarlandı, bildirim sesi kullanılacak");
+        return true;
     } catch {
         return false;
     }

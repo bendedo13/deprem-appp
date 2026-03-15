@@ -532,75 +532,39 @@ async def sos_audio_sync(
     "/safe",
     response_model=SOSSafeResponse,
     status_code=status.HTTP_200_OK,
-    summary="Ben İyiyim — acil kişilere güvenlik bildirimi gönder",
+    summary="Ben İyiyim — /users/i-am-safe'e yönlendirilir (deprecated)",
+    deprecated=True,
 )
 async def i_am_safe_sos(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SOSSafeResponse:
     """
-    Kullanıcı güvende olduğunu acil kişilerine bildirir.
-
-    - Ses kaydı alınmaz, GPS istenmez.
-    - Twilio Şelale (WhatsApp → SMS) ile sabit mesaj gönderilir.
-    - Mesaj: "Kullanıcı güvende olduğunu bildirdi. Merak etmeyin."
+    DEPRECATED: Bu endpoint /api/v1/users/i-am-safe ile birleştirildi.
+    Geriye dönük uyumluluk için /users/i-am-safe mantığına yönlendirir.
     """
-    import asyncio
+    from app.schemas.user import ImSafeRequest
+    from app.api.v1.users import i_am_safe as unified_i_am_safe
 
-    # Acil kişileri al
+    logger.info("[SOS Safe] Deprecated endpoint çağrıldı, /users/i-am-safe'e yönlendiriliyor: user=%d", current_user.id)
+
+    body = ImSafeRequest(
+        custom_message="Ben iyiyim, merak etmeyin.",
+        include_location=False,
+        channel="hybrid",
+    )
+
     try:
-        contacts_result = await db.execute(
-            select(EmergencyContact).where(
-                EmergencyContact.user_id == current_user.id,
-                EmergencyContact.is_active == True,
-            )
-        )
-        contacts = contacts_result.scalars().all()
-        phone_numbers = [c.phone_number for c in contacts if c.phone_number]
-
-        if not phone_numbers:
-            return SOSSafeResponse(
-                success=True,
-                notified_contacts=0,
-                whatsapp_sent=0,
-                sms_sent=0,
-                message="Acil kişi bulunamadı. Lütfen acil kişi listesine numara ekleyin.",
-            )
-
-        safe_message = (
-            f"✅ İYİYİM BİLDİRİMİ: {current_user.email}\n"
-            f"Kullanıcı güvende olduğunu bildirdi. Merak etmeyin. ❤️"
-        )
-
-        loop = asyncio.get_running_loop()
-        wf_result = await loop.run_in_executor(
-            None,
-            lambda: send_waterfall_emergency(
-                phone_numbers=phone_numbers,
-                message=safe_message,
-                channel="waterfall",
-                user_id=current_user.id,
-                event_type="I_AM_SAFE",
-            ),
-        )
-
-        logger.info(
-            "[SOS Safe] Ben İyiyim gönderildi: user=%d, WA=%d, SMS=%d",
-            current_user.id,
-            wf_result["whatsapp_sent"],
-            wf_result["sms_sent"],
-        )
-
+        result = await unified_i_am_safe(body=body, current_user=current_user, db=db)
         return SOSSafeResponse(
-            success=True,
-            notified_contacts=wf_result["whatsapp_sent"] + wf_result["sms_sent"],
-            whatsapp_sent=wf_result["whatsapp_sent"],
-            sms_sent=wf_result["sms_sent"],
-            message=f"Bildirim gönderildi: {wf_result['whatsapp_sent']} WhatsApp, {wf_result['sms_sent']} SMS.",
+            success=result.get("status") == "ok",
+            notified_contacts=result.get("notified_contacts", 0),
+            whatsapp_sent=result.get("whatsapp_sent", 0),
+            sms_sent=result.get("sms_sent", 0),
+            message=result.get("message", ""),
         )
-
     except Exception as exc:
-        logger.error("[SOS Safe] Hata: user=%d, %s", current_user.id, exc, exc_info=True)
+        logger.error("[SOS Safe] Yönlendirme hatası: user=%d, %s", current_user.id, exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Bildirim gönderilirken hata: {exc}",
